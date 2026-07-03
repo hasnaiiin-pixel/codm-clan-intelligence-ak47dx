@@ -1,7 +1,7 @@
 {
   "framework": "nextjs",
   "buildCommand": "npm run build",
-  "installCommand": "npm install",
+	"installCommand": "npm ci --no-audit --no-fund"
   "regions": ["fra1"],
   "headers": [
     {
