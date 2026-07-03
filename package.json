@@ -1,8 +1,8 @@
 {
-  "name": "codm-clan-intelligence-cloud",
-  "version": "2.0.1",
+  "name": "codm-clan-intelligence-ak47dx",
+  "version": "1.0.0",
   "private": true,
-  {
+  "type": "module",
   "scripts": {
     "dev": "next dev",
     "build": "next build",
@@ -12,26 +12,23 @@
   "engines": {
     "node": "20.x"
   },
-  "packageManager": "npm@10.8.2"
-}
-  },
+  "packageManager": "npm@10.8.2",
   "dependencies": {
     "@supabase/supabase-js": "^2.45.4",
-    "next": "^14.2.5",
-    "react": "^18.3.1",
-    "react-dom": "^18.3.1",
-    "tesseract.js": "^5.1.0"
+    "framer-motion": "^11.5.4",
+    "lucide-react": "^0.468.0",
+    "next": "^15.0.4",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0"
   },
   "devDependencies": {
-    "@types/node": "^20.14.11",
-    "@types/react": "^18.3.3",
-    "@types/react-dom": "^18.3.0",
-    "eslint": "^8.57.0",
-    "eslint-config-next": "^14.2.5",
-    "typescript": "^5.5.3"
-  },
-  "engines": {
-    "node": "20.x",
-    "npm": "10.x"
+    "@types/node": "^22.10.2",
+    "@types/react": "^19.0.2",
+    "@types/react-dom": "^19.0.2",
+    "eslint": "^9.17.0",
+    "eslint-config-next": "^15.0.4",
+    "postcss": "^8.4.49",
+    "tailwindcss": "^3.4.17",
+    "typescript": "^5.7.2"
   }
 }
