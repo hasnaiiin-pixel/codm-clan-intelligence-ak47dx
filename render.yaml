@@ -1,0 +1,15 @@
+services:
+  - type: web
+    name: ak47dx-ocr-api
+    runtime: docker
+    rootDir: ocr-backend
+    plan: free
+    autoDeploy: true
+    healthCheckPath: /health
+    envVars:
+      - key: PORT
+        value: 8780
+      - key: GOOGLE_VISION_API_KEY
+        sync: false
+      - key: GOOGLE_APPLICATION_CREDENTIALS_JSON
+        sync: false
