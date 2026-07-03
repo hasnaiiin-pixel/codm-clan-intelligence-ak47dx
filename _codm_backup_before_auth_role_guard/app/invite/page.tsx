@@ -1,7 +1,4 @@
 'use client';
-import { useCodmAuth } from '@/lib/authRoles';
-import { WriteAccessBlock } from '@/components/WriteAccessBlock';
-
 
 import { useEffect, useMemo, useState } from 'react';
 import { supabase } from '@/lib/supabaseClient';
@@ -12,11 +9,6 @@ function makeCode() {
 }
 
 export default function InvitePage() {
-  // CODM_AUTH_ROLE_GUARD_INSERTED
-  const codmAuth = useCodmAuth();
-  if (codmAuth.loading) return <WriteAccessBlock loading />;
-  if (!codmAuth.canWrite) return <WriteAccessBlock role={codmAuth.role} />;
-
   const [origin, setOrigin] = useState('');
   const [code, setCode] = useState('');
   const [role, setRole] = useState('player');

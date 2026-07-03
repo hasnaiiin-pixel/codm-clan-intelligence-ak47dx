@@ -1,6 +1,3 @@
-'use client';
-import { useCodmAuth } from '@/lib/authRoles';
-import { WriteAccessBlock } from '@/components/WriteAccessBlock';
 const labels = [
   'match_header_result', 'match_score_blue', 'match_score_red', 'match_datetime', 'match_mode_map',
   'blue_table_full', 'red_table_full', 'blue_row_1_kda', 'blue_row_2_kda', 'blue_row_3_kda', 'blue_row_4_kda', 'blue_row_5_kda',
@@ -9,11 +6,6 @@ const labels = [
 ];
 
 export default function YoloPage() {
-  // CODM_AUTH_ROLE_GUARD_INSERTED
-  const codmAuth = useCodmAuth();
-  if (codmAuth.loading) return <WriteAccessBlock loading />;
-  if (!codmAuth.canWrite) return <WriteAccessBlock role={codmAuth.role} />;
-
   return (
     <main className="container wide">
       <section className="clan-hero gaming-panel">

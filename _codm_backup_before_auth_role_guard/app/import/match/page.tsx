@@ -1,7 +1,4 @@
 'use client';
-import { useCodmAuth } from '@/lib/authRoles';
-import { WriteAccessBlock } from '@/components/WriteAccessBlock';
-
 
 import { useEffect, useMemo, useState } from 'react';
 import { supabase } from '@/lib/supabaseClient';
@@ -165,11 +162,6 @@ function modeLabel(mode: GameMode) {
 }
 
 export default function ImportMatchPage() {
-  // CODM_AUTH_ROLE_GUARD_INSERTED
-  const codmAuth = useCodmAuth();
-  if (codmAuth.loading) return <WriteAccessBlock loading />;
-  if (!codmAuth.canWrite) return <WriteAccessBlock role={codmAuth.role} />;
-
   const [roster, setRoster] = useState<Player[]>([]);
   const [clanId, setClanId] = useState('');
   const [clanName, setClanName] = useState('Nostro clan');

@@ -1,12 +1,4 @@
-'use client';
-import { useCodmAuth } from '@/lib/authRoles';
-import { WriteAccessBlock } from '@/components/WriteAccessBlock';
 export default function DeployPage() {
-  // CODM_AUTH_ROLE_GUARD_INSERTED
-  const codmAuth = useCodmAuth();
-  if (codmAuth.loading) return <WriteAccessBlock loading />;
-  if (!codmAuth.canWrite) return <WriteAccessBlock role={codmAuth.role} />;
-
   return (
     <main className="container wide">
       <section className="clan-hero gaming-panel">

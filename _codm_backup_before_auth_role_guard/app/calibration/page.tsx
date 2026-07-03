@@ -1,7 +1,4 @@
 'use client';
-import { useCodmAuth } from '@/lib/authRoles';
-import { WriteAccessBlock } from '@/components/WriteAccessBlock';
-
 
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { supabase } from '@/lib/supabaseClient';
@@ -34,11 +31,6 @@ type DragMode = 'move' | 'resize';
 type DragState = { name: string; mode: DragMode; startX: number; startY: number; start: CalibratedRegion; handle?: 'se' | 'sw' | 'ne' | 'nw' } | null;
 
 export default function CalibrationPage() {
-  // CODM_AUTH_ROLE_GUARD_INSERTED
-  const codmAuth = useCodmAuth();
-  if (codmAuth.loading) return <WriteAccessBlock loading />;
-  if (!codmAuth.canWrite) return <WriteAccessBlock role={codmAuth.role} />;
-
   const [kind, setKind] = useState<CalibrationKind>('scoreboard_ced');
   const [phoneProfile, setPhoneProfile] = useState('default');
   const [templateName, setTemplateName] = useState('Scoreboard CED');

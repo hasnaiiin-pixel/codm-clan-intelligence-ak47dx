@@ -1,0 +1,13 @@
+CODM AUTH/PERMISSIONS CHECKLIST
+
+[ ] Vercel env NEXT_PUBLIC_SUPABASE_URL corretta
+[ ] Vercel env NEXT_PUBLIC_SUPABASE_ANON_KEY corretta
+[ ] Vercel env NEXT_PUBLIC_APP_URL corretta
+[ ] Redeploy senza cache fatto dopo env
+[ ] SQL 01_public_dashboard_private_writes.sql eseguito
+[ ] Utente admin creato in Supabase Authentication
+[ ] SQL 02_admin_owner_seed_TEMPLATE.sql modificato con email admin ed eseguito
+[ ] SQL 03_player_registration_model.sql eseguito
+[ ] Test finestra anonima: /dashboard mostra dati
+[ ] Test admin: login + modifica/caricamento ok
+[ ] Test player/viewer: non può modificare
