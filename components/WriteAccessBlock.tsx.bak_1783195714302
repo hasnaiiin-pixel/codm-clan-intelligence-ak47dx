@@ -1,0 +1,220 @@
+"use client";
+
+import React, { useEffect, useMemo, useState } from "react";
+import { supabase } from "@/src/lib/supabaseClient";
+
+type Role = "owner" | "admin" | "coach" | "staff" | "player" | "viewer" | "registered" | string;
+
+type WriteAccessBlockProps = {
+  children?: React.ReactNode;
+  fallback?: React.ReactNode;
+  title?: string;
+  message?: string;
+  feature?: string;
+  className?: string;
+  allowedRoles?: Role[];
+  requiredRoles?: Role[];
+  roles?: Role[];
+  showWhenAllowed?: boolean;
+  hideWhenAllowed?: boolean;
+  mode?: "block" | "inline" | "banner";
+  allowOwner?: boolean;
+  allowCoach?: boolean;
+  allowStaff?: boolean;
+  allowAdmin?: boolean;
+  requireLogin?: boolean;
+  [key: string]: unknown;
+};
+
+const DEFAULT_WRITE_ROLES: Role[] = ["owner", "admin", "coach", "staff"];
+
+function normalizeRole(role?: string | null): string {
+  return String(role || "").trim().toLowerCase();
+}
+
+export function WriteAccessBlock({
+  children,
+  fallback,
+  title,
+  message,
+  feature,
+  className = "",
+  allowedRoles,
+  requiredRoles,
+  roles,
+  showWhenAllowed = true,
+  hideWhenAllowed = false,
+  mode = "block",
+  allowOwner = true,
+  allowCoach = true,
+  allowStaff = true,
+  allowAdmin = true,
+  requireLogin = true,
+}: WriteAccessBlockProps) {
+  const [loading, setLoading] = useState(true);
+  const [isLoggedIn, setIsLoggedIn] = useState(false);
+  const [userRole, setUserRole] = useState<string>("");
+
+  const effectiveRoles = useMemo(() => {
+    const explicit = allowedRoles || requiredRoles || roles;
+    if (explicit && explicit.length > 0) return explicit.map((r) => normalizeRole(r));
+
+    const result: string[] = [];
+    if (allowOwner) result.push("owner");
+    if (allowAdmin) result.push("admin");
+    if (allowCoach) result.push("coach");
+    if (allowStaff) result.push("staff");
+    return result.length > 0 ? result : DEFAULT_WRITE_ROLES;
+  }, [allowedRoles, requiredRoles, roles, allowOwner, allowAdmin, allowCoach, allowStaff]);
+
+  useEffect(() => {
+    let mounted = true;
+
+    async function loadRole() {
+      try {
+        const { data: sessionData } = await supabase.auth.getSession();
+        const user = sessionData?.session?.user;
+
+        if (!mounted) return;
+        setIsLoggedIn(Boolean(user));
+
+        if (!user) {
+          setUserRole("");
+          setLoading(false);
+          return;
+        }
+
+        const { data: membership } = await supabase
+          .from("clan_members")
+          .select("role")
+          .eq("user_id", user.id)
+          .order("created_at", { ascending: true })
+          .limit(1)
+          .maybeSingle();
+
+        if (!mounted) return;
+        setUserRole(normalizeRole(membership?.role || "registered"));
+      } catch {
+        if (!mounted) return;
+        setUserRole("");
+      } finally {
+        if (mounted) setLoading(false);
+      }
+    }
+
+    loadRole();
+
+    const { data: listener } = supabase.auth.onAuthStateChange(() => {
+      loadRole();
+    });
+
+    return () => {
+      mounted = false;
+      listener?.subscription?.unsubscribe?.();
+    };
+  }, []);
+
+  const hasRole = effectiveRoles.includes(userRole);
+  const hasAccess = requireLogin ? isLoggedIn && hasRole : hasRole || !isLoggedIn;
+
+  if (loading) {
+    return (
+      <div className={`codm-write-access codm-write-access-loading ${className}`.trim()}>
+        Controllo permessi...
+      </div>
+    );
+  }
+
+  if (hasAccess) {
+    if (hideWhenAllowed) return null;
+    if (!showWhenAllowed) return <>{children}</>;
+    return <>{children}</>;
+  }
+
+  if (fallback) return <>{fallback}</>;
+
+  const heading = title || "Accesso modifica non autorizzato";
+  const body =
+    message ||
+    (isLoggedIn
+      ? `Il tuo ruolo attuale${userRole ? ` (${userRole})` : ""} non permette questa operazione${feature ? `: ${feature}` : ""}. Chiedi all'admin di assegnarti il ruolo staff, coach o owner.`
+      : `Puoi visualizzare questa sezione, ma per modificare o caricare dati${feature ? ` (${feature})` : ""} devi effettuare il login con un account autorizzato.`);
+
+  return (
+    <div className={`codm-write-access codm-write-access-${mode} ${className}`.trim()}>
+      <div className="codm-write-access-card">
+        <div className="codm-write-access-icon">🔒</div>
+        <div>
+          <h2>{heading}</h2>
+          <p>{body}</p>
+          <div className="codm-write-access-actions">
+            {!isLoggedIn ? <a href="/login">Accedi / Registrati</a> : <a href="/dashboard">Torna alla dashboard</a>}
+          </div>
+        </div>
+      </div>
+      <style jsx>{`
+        .codm-write-access {
+          width: 100%;
+          padding: 18px;
+          color: #f8fafc;
+        }
+        .codm-write-access-loading {
+          border: 1px solid rgba(148, 163, 184, 0.25);
+          border-radius: 18px;
+          background: rgba(15, 23, 42, 0.72);
+        }
+        .codm-write-access-card {
+          display: flex;
+          gap: 14px;
+          align-items: flex-start;
+          border: 1px solid rgba(248, 113, 113, 0.35);
+          border-radius: 22px;
+          padding: 18px;
+          background:
+            radial-gradient(circle at top left, rgba(239, 68, 68, 0.2), transparent 38%),
+            rgba(15, 23, 42, 0.88);
+          box-shadow: 0 18px 45px rgba(0, 0, 0, 0.28);
+        }
+        .codm-write-access-icon {
+          width: 42px;
+          height: 42px;
+          display: grid;
+          place-items: center;
+          border-radius: 14px;
+          background: rgba(248, 113, 113, 0.18);
+          border: 1px solid rgba(248, 113, 113, 0.25);
+          font-size: 22px;
+          flex: 0 0 auto;
+        }
+        .codm-write-access h2 {
+          margin: 0 0 8px;
+          font-size: 18px;
+          line-height: 1.2;
+        }
+        .codm-write-access p {
+          margin: 0;
+          color: rgba(226, 232, 240, 0.88);
+          line-height: 1.45;
+        }
+        .codm-write-access-actions {
+          margin-top: 14px;
+        }
+        .codm-write-access-actions a {
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+          border-radius: 999px;
+          padding: 10px 14px;
+          color: #fff;
+          text-decoration: none;
+          background: linear-gradient(135deg, #dc2626, #7f1d1d);
+          border: 1px solid rgba(248, 113, 113, 0.45);
+          font-weight: 800;
+          letter-spacing: 0.02em;
+        }
+      `}</style>
+    </div>
+  );
+}
+
+export default WriteAccessBlock;

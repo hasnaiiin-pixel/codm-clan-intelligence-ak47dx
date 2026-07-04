@@ -3,7 +3,7 @@
 import { useState } from 'react';
 
 export default function CacheResetPage() {
-  const [status, setStatus] = useState('Pronto per pulire cache browser/PWA.');
+  const [status, setStatus] = useState('Pronto per pulire cache/PWA.');
 
   async function resetCache() {
     try {
@@ -15,55 +15,42 @@ export default function CacheResetPage() {
       }
 
       if ('caches' in window) {
-        const names = await caches.keys();
-        await Promise.all(names.map((name) => caches.delete(name)));
+        const keys = await caches.keys();
+        await Promise.all(keys.map((key) => caches.delete(key)));
       }
 
       try {
-        localStorage.setItem('codm_cache_reset_at', new Date().toISOString());
-        sessionStorage.clear();
+        window.localStorage.clear();
+        window.sessionStorage.clear();
       } catch {
         // ignore storage errors
       }
 
-      setStatus('Cache pulita. Ricarico la app...');
-      setTimeout(() => {
-        window.location.href = '/version?fresh=' + Date.now();
-      }, 900);
+      setStatus('Cache pulita. Reindirizzo alla dashboard aggiornata...');
+      window.setTimeout(() => {
+        window.location.href = `/dashboard?fresh=${Date.now()}`;
+      }, 800);
     } catch (error) {
-      setStatus('Errore reset cache: ' + (error instanceof Error ? error.message : String(error)));
+      setStatus(`Errore pulizia cache: ${error instanceof Error ? error.message : 'errore sconosciuto'}`);
     }
   }
 
   return (
-    <main className="min-h-screen bg-[#09090f] text-white px-5 py-8">
-      <section className="mx-auto max-w-3xl rounded-3xl border border-red-500/30 bg-black/40 p-6 shadow-2xl shadow-red-950/30">
-        <p className="text-xs uppercase tracking-[0.35em] text-red-300">AK47DX CODM</p>
-        <h1 className="mt-3 text-3xl font-black tracking-tight">Reset cache / PWA</h1>
-        <p className="mt-3 text-zinc-300">
-          Usa questo pulsante se telefono o browser mostrano ancora la versione vecchia.
+    <main style={{ minHeight: '100vh', padding: 24, background: '#06070d', color: '#f8fafc', fontFamily: 'Arial, sans-serif' }}>
+      <section style={{ maxWidth: 760, margin: '0 auto', border: '1px solid rgba(255,255,255,0.14)', borderRadius: 20, padding: 24, background: 'linear-gradient(135deg, rgba(234,88,12,0.18), rgba(15,23,42,0.95))' }}>
+        <p style={{ color: '#f97316', fontWeight: 800, letterSpacing: 1, marginBottom: 8 }}>AK47DX CACHE RESET</p>
+        <h1 style={{ fontSize: 32, lineHeight: 1.1, margin: '0 0 16px' }}>Pulisci versione vecchia</h1>
+        <p style={{ color: '#cbd5e1' }}>
+          Usa questo pulsante se il telefono o la PWA continua a mostrare una versione vecchia dell'app CODM.
         </p>
-
         <button
           type="button"
           onClick={resetCache}
-          className="mt-6 w-full rounded-2xl bg-red-600 px-5 py-4 text-center font-black text-white hover:bg-red-500 sm:w-auto"
+          style={{ marginTop: 12, padding: '14px 18px', borderRadius: 12, border: 0, background: '#dc2626', color: 'white', fontWeight: 900, cursor: 'pointer' }}
         >
           Pulisci cache e aggiorna
         </button>
-
-        <div className="mt-5 rounded-2xl border border-zinc-800 bg-zinc-950 p-4 font-mono text-sm text-zinc-100">
-          {status}
-        </div>
-
-        <div className="mt-6 flex flex-col gap-3 sm:flex-row">
-          <a className="rounded-2xl border border-zinc-700 px-5 py-3 text-center font-bold text-zinc-100 hover:bg-zinc-900" href="/version">
-            Vai a /version
-          </a>
-          <a className="rounded-2xl border border-zinc-700 px-5 py-3 text-center font-bold text-zinc-100 hover:bg-zinc-900" href="/dashboard">
-            Torna alla dashboard
-          </a>
-        </div>
+        <pre style={{ marginTop: 18, padding: 14, borderRadius: 12, background: 'rgba(0,0,0,0.32)', color: '#86efac', whiteSpace: 'pre-wrap' }}>{status}</pre>
       </section>
     </main>
   );

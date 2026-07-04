@@ -1,42 +1,30 @@
-export const dynamic = 'force-dynamic';
-export const revalidate = 0;
+export const dynamic = 'force-static';
 
-const DEPLOY_VERSION = 'CODM_AUTH_ROLE_MOBILE_UPDATE_VISIBLE_FIX_2026_07_04';
-const PATCH_NAME = 'Auth roles + mobile sidebar + visible version check';
+const release = {
+  name: 'AK47DX CODM Clan Intelligence',
+  version: 'CODM_AK47DX_VISIBLE_ROUTE_CHECK_2026_07_04',
+  marker: 'VERSION_ROUTE_OK_B2_FIX',
+  note: 'Se vedi questa pagina, Vercel sta servendo il nuovo deploy e non la versione vecchia.',
+};
 
 export default function VersionPage() {
-  const buildTime = new Date().toISOString();
-
   return (
-    <main className="min-h-screen bg-[#09090f] text-white px-5 py-8">
-      <section className="mx-auto max-w-3xl rounded-3xl border border-red-500/30 bg-black/40 p-6 shadow-2xl shadow-red-950/30">
-        <p className="text-xs uppercase tracking-[0.35em] text-red-300">AK47DX CODM</p>
-        <h1 className="mt-3 text-3xl font-black tracking-tight">Deploy version check</h1>
-        <p className="mt-3 text-zinc-300">
-          Se vedi questa pagina, Vercel sta servendo la versione aggiornata del progetto.
-        </p>
-
-        <div className="mt-6 grid gap-3 text-sm">
-          <div className="rounded-2xl border border-zinc-800 bg-zinc-950 p-4">
-            <div className="text-zinc-500">Versione</div>
-            <div className="mt-1 break-all font-mono text-red-200">{DEPLOY_VERSION}</div>
+    <main style={{ minHeight: '100vh', padding: 24, background: '#06070d', color: '#f8fafc', fontFamily: 'Arial, sans-serif' }}>
+      <section style={{ maxWidth: 820, margin: '0 auto', border: '1px solid rgba(255,255,255,0.14)', borderRadius: 20, padding: 24, background: 'linear-gradient(135deg, rgba(220,38,38,0.18), rgba(15,23,42,0.95))' }}>
+        <p style={{ color: '#fb7185', fontWeight: 800, letterSpacing: 1, marginBottom: 8 }}>AK47DX DEPLOY CHECK</p>
+        <h1 style={{ fontSize: 34, lineHeight: 1.1, margin: '0 0 16px' }}>{release.name}</h1>
+        <div style={{ display: 'grid', gap: 12 }}>
+          <div style={{ padding: 16, borderRadius: 14, background: 'rgba(0,0,0,0.28)' }}>
+            <strong>Versione:</strong>
+            <pre style={{ whiteSpace: 'pre-wrap', margin: '8px 0 0', color: '#86efac' }}>{release.version}</pre>
           </div>
-          <div className="rounded-2xl border border-zinc-800 bg-zinc-950 p-4">
-            <div className="text-zinc-500">Patch</div>
-            <div className="mt-1 text-zinc-100">{PATCH_NAME}</div>
+          <div style={{ padding: 16, borderRadius: 14, background: 'rgba(0,0,0,0.28)' }}>
+            <strong>Marker:</strong>
+            <pre style={{ whiteSpace: 'pre-wrap', margin: '8px 0 0', color: '#93c5fd' }}>{release.marker}</pre>
           </div>
-          <div className="rounded-2xl border border-zinc-800 bg-zinc-950 p-4">
-            <div className="text-zinc-500">Build render time</div>
-            <div className="mt-1 font-mono text-zinc-100">{buildTime}</div>
-          </div>
-        </div>
-
-        <div className="mt-6 flex flex-col gap-3 sm:flex-row">
-          <a className="rounded-2xl bg-red-600 px-5 py-3 text-center font-bold text-white hover:bg-red-500" href="/cache-reset">
-            Apri reset cache / PWA
-          </a>
-          <a className="rounded-2xl border border-zinc-700 px-5 py-3 text-center font-bold text-zinc-100 hover:bg-zinc-900" href="/dashboard">
-            Torna alla dashboard
+          <p style={{ color: '#cbd5e1', margin: 0 }}>{release.note}</p>
+          <a href="/dashboard" style={{ display: 'inline-flex', width: 'fit-content', marginTop: 12, padding: '12px 16px', borderRadius: 12, background: '#dc2626', color: 'white', textDecoration: 'none', fontWeight: 800 }}>
+            Apri Dashboard
           </a>
         </div>
       </section>

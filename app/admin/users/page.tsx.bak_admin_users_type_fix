@@ -49,11 +49,7 @@ export default function AdminUsersPage() {
       .select('*')
       .order('created_at', { ascending: false })
       .limit(100);
-    const normalizedMembers = (memberData || []).map((m: any) => ({
-      ...m,
-      profiles: Array.isArray(m.profiles) ? (m.profiles[0] || null) : (m.profiles || null),
-    }));
-    setMembers(normalizedMembers as Member[]);
+    setMembers((memberData || []) as Member[]);
     setRequests((requestData || []) as RequestRow[]);
     setLoading(false);
   }
