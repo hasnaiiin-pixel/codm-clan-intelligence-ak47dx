@@ -1,76 +1,111 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import Link from 'next/link';
 import { supabase } from '@/lib/supabaseClient';
 import { useCodmAuth } from '@/lib/authRoles';
+
+type ClanRow = { id: string; name?: string | null; tag?: string | null };
+
+async function getFirstClan(): Promise<ClanRow | null> {
+  const { data, error } = await supabase
+    .from('clans')
+    .select('id,name,tag')
+    .order('created_at', { ascending: true })
+    .limit(1);
+  if (error) throw error;
+  return (data?.[0] as ClanRow | undefined) || null;
+}
 
 export default function ProfileImportPage() {
   const auth = useCodmAuth();
   const [nickname, setNickname] = useState('');
   const [uidCodm, setUidCodm] = useState('');
-  const [socialContact, setSocialContact] = useState('');
-  const [notes, setNotes] = useState('');
+  const [contact, setContact] = useState('');
   const [message, setMessage] = useState('');
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
-    if (auth.user?.user_metadata?.display_name && !nickname) {
-      setNickname(auth.user.user_metadata.display_name);
-    }
-  }, [auth.user, nickname]);
+    const name = auth.user?.user_metadata?.display_name || auth.user?.email?.split('@')[0] || '';
+    setNickname((current) => current || name);
+    setContact((current) => current || auth.user?.email || '');
+  }, [auth.user]);
 
-  async function submitRequest() {
-    if (!auth.user) return setMessage('Fai prima login o registrazione.');
+  async function saveProfileRequest() {
+    if (!auth.user?.id) return setMessage('Prima devi fare login.');
     if (!nickname.trim()) return setMessage('Inserisci nickname CODM.');
     setSaving(true);
     setMessage('');
+    try {
+      const clan = await getFirstClan();
+      if (!clan?.id) throw new Error('Clan non trovato. Prima crea/configura il clan AK47DX.');
 
-    const { error } = await supabase.from('clan_invite_requests').insert({
-      clan_tag: auth.clanName || 'AK47DX',
-      nickname: nickname.trim(),
-      uid_codm: uidCodm.trim() || null,
-      social_contact: socialContact.trim() || auth.user.email || null,
-      status: 'pending'
-    });
+      const displayName = nickname.trim();
+      await supabase.from('profiles').upsert({ id: auth.user.id, display_name: displayName });
 
-    await supabase.from('profiles').upsert({
-      id: auth.user.id,
-      display_name: nickname.trim()
-    });
-
-    setSaving(false);
-    if (error) return setMessage(error.message);
-    setMessage('Richiesta inviata. Admin/Owner può approvare e assegnare livello accesso da Utenti e permessi.');
-    setNotes('');
+      const { error } = await supabase.from('clan_invite_requests').upsert(
+        {
+          clan_id: clan.id,
+          user_id: auth.user.id,
+          nickname: displayName,
+          uid_codm: uidCodm.trim() || null,
+          social_contact: contact.trim() || auth.user.email || null,
+          status: 'pending',
+          updated_at: new Date().toISOString(),
+        },
+        { onConflict: 'clan_id,user_id' }
+      );
+      if (error) throw error;
+      setMessage('Profilo inviato. Ora admin può approvare e assegnare il ruolo da /admin/users.');
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : 'Errore salvataggio profilo.');
+    } finally {
+      setSaving(false);
+    }
   }
 
-  if (!auth.loading && !auth.user) {
+  if (auth.loading) {
+    return <main className="min-h-screen bg-slate-950 p-6 text-white">Caricamento sessione...</main>;
+  }
+
+  if (!auth.user) {
     return (
-      <main className="page-shell">
-        <section className="login-card">
-          <p className="eyebrow">Profilo player</p>
-          <h1>Registrati prima</h1>
-          <p className="muted">Per importare il profilo serve un account email.</p>
-          <a className="btn" href="/login">Login / Registrati</a>
+      <main className="min-h-screen bg-slate-950 px-4 py-10 text-white">
+        <section className="mx-auto max-w-xl rounded-3xl border border-white/10 bg-white/5 p-6">
+          <h1 className="text-3xl font-black">Import profilo CODM</h1>
+          <p className="mt-3 text-slate-300">Devi registrarti o fare login prima di inviare il profilo.</p>
+          <Link href="/login" className="mt-6 inline-flex rounded-2xl bg-cyan-400 px-5 py-3 font-black text-slate-950">Login / Registrati</Link>
         </section>
       </main>
     );
   }
 
   return (
-    <main className="page-shell">
-      <section className="login-card wide">
-        <p className="eyebrow">Player onboarding</p>
-        <h1>Importa profilo CODM</h1>
-        <p className="muted">Questa richiesta non ti dà permessi di modifica. L'admin decide se sei player, viewer, staff, coach o owner.</p>
+    <main className="min-h-screen bg-slate-950 px-4 py-10 text-white">
+      <section className="mx-auto max-w-xl rounded-3xl border border-white/10 bg-white/5 p-6 shadow-2xl">
+        <p className="text-sm uppercase tracking-[0.3em] text-cyan-300">AK47DX player</p>
+        <h1 className="mt-3 text-3xl font-black">Importa profilo CODM</h1>
+        <p className="mt-2 text-slate-300">Inserisci nickname e UID. L’admin approverà il tuo livello di accesso.</p>
 
-        <label>Nickname CODM<input value={nickname} onChange={(e) => setNickname(e.target.value)} placeholder="Nome in gioco" /></label>
-        <label>UID CODM<input value={uidCodm} onChange={(e) => setUidCodm(e.target.value)} placeholder="UID se disponibile" /></label>
-        <label>WhatsApp / Discord / contatto<input value={socialContact} onChange={(e) => setSocialContact(e.target.value)} placeholder="Contatto per approvazione" /></label>
-        <label>Note profilo<textarea value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Ruolo, armi preferite, disponibilità, ecc." /></label>
+        <div className="mt-6 space-y-4">
+          <label className="block text-sm font-bold text-slate-200">
+            Nickname CODM
+            <input className="mt-2 w-full rounded-2xl border border-white/10 bg-slate-900 px-4 py-3 text-white outline-none focus:border-cyan-400" value={nickname} onChange={(e) => setNickname(e.target.value)} placeholder="Nickname esatto in gioco" />
+          </label>
+          <label className="block text-sm font-bold text-slate-200">
+            UID CODM
+            <input className="mt-2 w-full rounded-2xl border border-white/10 bg-slate-900 px-4 py-3 text-white outline-none focus:border-cyan-400" value={uidCodm} onChange={(e) => setUidCodm(e.target.value)} placeholder="UID giocatore" />
+          </label>
+          <label className="block text-sm font-bold text-slate-200">
+            Contatto / email
+            <input className="mt-2 w-full rounded-2xl border border-white/10 bg-slate-900 px-4 py-3 text-white outline-none focus:border-cyan-400" value={contact} onChange={(e) => setContact(e.target.value)} placeholder="email o contatto" />
+          </label>
+          <button disabled={saving} onClick={saveProfileRequest} className="w-full rounded-2xl bg-cyan-400 px-5 py-3 font-black text-slate-950 disabled:opacity-50">
+            {saving ? 'Invio in corso...' : 'Invia profilo ad admin'}
+          </button>
+        </div>
 
-        <button className="btn full" disabled={saving || auth.loading} onClick={submitRequest}>{saving ? 'Invio...' : 'Invia richiesta profilo'}</button>
-        {message && <div className="notice top-gap">{message}</div>}
+        {message && <div className="mt-5 rounded-2xl border border-white/10 bg-slate-900 p-4 text-sm text-slate-200">{message}</div>}
       </section>
     </main>
   );

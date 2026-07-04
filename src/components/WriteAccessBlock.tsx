@@ -1,56 +1,48 @@
 'use client';
 
 import Link from 'next/link';
-import type { ReactNode } from 'react';
 import { roleLabel, type CodmRole } from '@/lib/authRoles';
 
 type Props = {
   loading?: boolean;
-  role?: CodmRole | string | null;
+  role?: CodmRole | string;
   title?: string;
   description?: string;
-  children?: ReactNode;
 };
 
 export function WriteAccessBlock({
   loading = false,
   role = 'anon',
   title = 'Accesso modifica bloccato',
-  description = 'Puoi visualizzare la dashboard pubblica, ma per caricare risultati o modificare dati serve un ruolo autorizzato: Staff, Coach o Owner.',
-  children,
+  description = 'Puoi vedere la dashboard pubblica, ma per modificare dati, caricare risultati o gestire il clan serve un ruolo Staff, Coach o Owner.',
 }: Props) {
   if (loading) {
     return (
-      <main className="codm-page-shell">
-        <section className="codm-access-card">
-          <div className="codm-access-icon">⏳</div>
-          <h1>Controllo permessi...</h1>
-          <p>Sto verificando il tuo login e il livello di accesso.</p>
+      <main className="mx-auto max-w-3xl px-4 py-10">
+        <section className="rounded-3xl border border-white/10 bg-slate-950/80 p-6 text-white shadow-2xl">
+          <p className="text-sm uppercase tracking-[0.3em] text-cyan-300">AK47DX</p>
+          <h1 className="mt-3 text-2xl font-black">Controllo permessi...</h1>
+          <p className="mt-2 text-slate-300">Verifico sessione e ruolo utente.</p>
         </section>
       </main>
     );
   }
 
-  const safeRole = String(role || 'anon') as CodmRole;
-
   return (
-    <main className="codm-page-shell">
-      <section className="codm-access-card">
-        <div className="codm-access-icon">🔒</div>
-        <p className="codm-kicker">AK47DX Clan Intelligence</p>
-        <h1>{title}</h1>
-        <p>{description}</p>
-        <p className="codm-role-line">
-          Ruolo attuale: <strong>{roleLabel(safeRole)}</strong>
-        </p>
-        {children}
-        <div className="codm-access-actions">
-          <Link href="/dashboard" className="codm-btn secondary">Dashboard pubblica</Link>
-          <Link href="/login" className="codm-btn primary">Login / Registrati</Link>
+    <main className="mx-auto max-w-3xl px-4 py-10">
+      <section className="rounded-3xl border border-red-500/30 bg-slate-950/90 p-6 text-white shadow-2xl">
+        <p className="text-sm uppercase tracking-[0.3em] text-red-300">Permessi richiesti</p>
+        <h1 className="mt-3 text-2xl font-black">{title}</h1>
+        <p className="mt-3 text-slate-300">{description}</p>
+        <div className="mt-5 rounded-2xl border border-white/10 bg-white/5 p-4 text-sm text-slate-200">
+          Ruolo attuale: <strong>{roleLabel(role as CodmRole)}</strong>
+        </div>
+        <div className="mt-6 flex flex-wrap gap-3">
+          <Link href="/dashboard" className="rounded-2xl bg-cyan-500 px-4 py-2 font-bold text-slate-950">Vai alla dashboard</Link>
+          <Link href="/login" className="rounded-2xl border border-white/20 px-4 py-2 font-bold text-white">Login / Registrati</Link>
+          <Link href="/profile-import" className="rounded-2xl border border-white/20 px-4 py-2 font-bold text-white">Importa profilo</Link>
         </div>
       </section>
     </main>
   );
 }
-
-export default WriteAccessBlock;

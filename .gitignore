@@ -12,3 +12,6 @@ patch_files/
 *.tmp
 codm_*_fix/
 CODM_*_FIX*/
+patch_files_old/
+*.bak_hotfix
+patch_source/

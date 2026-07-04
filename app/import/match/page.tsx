@@ -165,11 +165,24 @@ function modeLabel(mode: GameMode) {
 }
 
 export default function ImportMatchPage() {
-  // CODM_AUTH_ROLE_GUARD_INSERTED
   const codmAuth = useCodmAuth();
-  if (codmAuth.loading) return <WriteAccessBlock loading />;
-  if (!codmAuth.canWrite) return <WriteAccessBlock role={codmAuth.role} />;
 
+  if (codmAuth.loading) return <WriteAccessBlock loading />;
+
+  if (!codmAuth.canWrite) {
+    return (
+      <WriteAccessBlock
+        role={codmAuth.role}
+        title="Solo Staff, Coach o Owner può caricare risultati"
+        description="La dashboard resta pubblica in sola lettura. Per importare partite e screenshot serve un ruolo autorizzato dall'admin."
+      />
+    );
+  }
+
+  return <ImportMatchEditor />;
+}
+
+function ImportMatchEditor() {
   const [roster, setRoster] = useState<Player[]>([]);
   const [clanId, setClanId] = useState('');
   const [clanName, setClanName] = useState('Nostro clan');
