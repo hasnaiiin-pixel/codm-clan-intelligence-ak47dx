@@ -6,3 +6,9 @@ out
 .env.production
 .DS_Store
 *.log
+# CODM temporary patch/update artifacts - do not deploy
+patch_files/
+*.bak_*
+*.tmp
+codm_*_fix/
+CODM_*_FIX*/
