@@ -15,3 +15,5 @@ CODM_*_FIX*/
 patch_files_old/
 *.bak_hotfix
 patch_source/
+__codm_v4_source/
+components/*.bak_*

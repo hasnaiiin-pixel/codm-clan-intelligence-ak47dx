@@ -39,6 +39,8 @@
     "node_modules",
     "patch_files",
     "patch_files/**/*",
-    "**/*.bak_*"
+    "**/*.bak_*",
+    "__codm_v4_source",
+    "components/*.bak_*"
   ]
 }
