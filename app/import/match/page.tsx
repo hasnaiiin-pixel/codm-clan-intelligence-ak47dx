@@ -7,9 +7,9 @@ import { useEffect, useMemo, useState } from 'react';
 import { supabase } from '@/lib/supabaseClient';
 import { findBestNicknameMatch, type ParsedScoreRow } from '@/lib/ocrParsers';
 import { calculatePlayerRating } from '@/lib/statistics';
-import { getActivePhoneProfile, listCalibrationPhoneProfiles, loadCalibrationBundle, setActivePhoneProfile } from '@/lib/calibration';
+import { getBestCalibrationPhoneProfile, hasSavedCalibration, listCalibrationPhoneProfiles, loadCalibrationBundle, setActivePhoneProfile, type CalibratedRegion } from '@/lib/calibration';
 import { ACCEPTED_OCR_BACKEND_VERSIONS, EXPECTED_OCR_BACKEND_VERSION, getOcrBackendCandidates } from '@/lib/ocrBackend';
-import { FULL_IMAGE_FRAME, detectImageContentFrameFromUrl, type ImageContentFrame } from '@/lib/imageFrame';
+import { FULL_IMAGE_FRAME, detectImageContentFrameFromUrl, regionToImageStyle, type ImageContentFrame } from '@/lib/imageFrame';
 import type { GameMode, MatchResult, MatchType, Player, TeamSide } from '@/lib/types';
 
 const modes: GameMode[] = ['CED', 'TDM', 'PRIMA_LINEA', 'DOMINIO', 'POSTAZIONE', 'KILL_CONFIRMED', 'BR_SOLO', 'BR_DUO', 'BR_SQUAD'];
@@ -203,17 +203,32 @@ function ImportMatchEditor() {
   const [calibrationProfiles, setCalibrationProfiles] = useState<string[]>(['default']);
   const [selectedCalibrationPhone, setSelectedCalibrationPhone] = useState('default');
   const [useCalibrationTemplate, setUseCalibrationTemplate] = useState(true);
-  const [calibrationMode, setCalibrationMode] = useState<'table_lock' | 'content_frame' | 'strict_image'>('table_lock');
+  const [calibrationMode, setCalibrationMode] = useState<'table_lock' | 'content_frame' | 'strict_image'>('content_frame');
+  const [localTemplateRegions, setLocalTemplateRegions] = useState<CalibratedRegion[]>([]);
+  const [templateSaved, setTemplateSaved] = useState(false);
+  const [templateSummary, setTemplateSummary] = useState('Template non ancora caricato');
   const [ourTeam, setOurTeam] = useState<'blue' | 'red'>('blue');
   const [winningTeam, setWinningTeam] = useState<'blue' | 'red' | 'draw' | ''>('');
   const [working, setWorking] = useState(false);
   const [ocrProgressPct, setOcrProgressPct] = useState(0);
 
+  function refreshCalibrationTemplate(phoneRaw?: string) {
+    const profiles = listCalibrationPhoneProfiles('scoreboard_ced');
+    const nextPhone = phoneRaw || getBestCalibrationPhoneProfile('scoreboard_ced');
+    setSelectedCalibrationPhone(nextPhone);
+    setActivePhoneProfile('scoreboard_ced', nextPhone);
+    setCalibrationProfiles(Array.from(new Set([...profiles, nextPhone])).sort());
+    const bundle = loadCalibrationBundle('scoreboard_ced', nextPhone);
+    const saved = hasSavedCalibration('scoreboard_ced', nextPhone);
+    setLocalTemplateRegions(bundle.regions || []);
+    setTemplateSaved(saved);
+    setTemplateSummary(`${bundle.meta?.templateName || 'Scoreboard CED'} / ${nextPhone} · ${bundle.regions?.length || 0} riquadri · ${saved ? 'SALVATO' : 'DEFAULT NON SALVATO'}`);
+    return { phone: nextPhone, bundle, saved };
+  }
+
   useEffect(() => {
     loadRoster();
-    const activePhone = getActivePhoneProfile('scoreboard_ced');
-    setSelectedCalibrationPhone(activePhone);
-    setCalibrationProfiles(listCalibrationPhoneProfiles('scoreboard_ced'));
+    refreshCalibrationTemplate();
   }, []);
 
   useEffect(() => {
@@ -239,9 +254,7 @@ function ImportMatchEditor() {
     setBackendRawJson('');
     setOcrProgress('');
     setMessage('');
-    const activePhone = getActivePhoneProfile('scoreboard_ced');
-    setSelectedCalibrationPhone(activePhone);
-    setCalibrationProfiles(listCalibrationPhoneProfiles('scoreboard_ced'));
+    refreshCalibrationTemplate();
     if (!selected) {
       setImageContentFrame(FULL_IMAGE_FRAME);
       return setImageUrl('');
@@ -355,7 +368,7 @@ function ImportMatchEditor() {
     setBackendRawJson('');
     setOcrProgressPct(3);
     setOcrProgress('Preparazione screenshot e verifica backend OCR...');
-    setMessage('Import definitivo V5.0: legge SOLO il nostro team ma importa anche SCORE player + Kill/Death/Assist usando il template salvato. Se scegli BLU/ROSSO sbagliato, cambia selezione e premi di nuovo Importa risultati.');
+    setMessage('Import definitivo V5.1: legge SOLO il nostro team ma importa anche SCORE player + Kill/Death/Assist usando il template salvato. Se scegli BLU/ROSSO sbagliato, cambia selezione e premi di nuovo Importa risultati.');
     try {
       let backendUrl = '';
       let backendVersion = 'unknown';
@@ -393,11 +406,14 @@ function ImportMatchEditor() {
       const formData = new FormData();
       formData.append('file', file);
       if (useCalibrationTemplate) {
-        setActivePhoneProfile('scoreboard_ced', selectedCalibrationPhone);
-        const calibrationBundle = loadCalibrationBundle('scoreboard_ced', selectedCalibrationPhone);
-        formData.append('calibration_template', JSON.stringify(calibrationBundle));
+        const activeTemplate = refreshCalibrationTemplate(selectedCalibrationPhone);
+        if (!activeTemplate.saved) {
+          setMessage(`ATTENZIONE: stai usando il template DEFAULT non salvato (${activeTemplate.phone}). Apri /calibration, salva il template corretto e poi torna qui. Importo comunque per revisione manuale.`);
+        }
+        formData.append('calibration_template', JSON.stringify(activeTemplate.bundle));
         formData.append('calibration_frame', JSON.stringify(imageContentFrame));
-        formData.append('calibration_mode', calibrationMode);
+        formData.append('calibration_mode', 'content_frame');
+        formData.append('template_source', activeTemplate.saved ? 'saved_local_template' : 'default_template');
       }
       formData.append('our_team', ourTeam);
       formData.append('extract_scope', 'fast_our_only');
@@ -435,7 +451,7 @@ function ImportMatchEditor() {
     } catch (error) {
       setOcrProgressPct(100);
       setOcrProgress('Import OCR fermato. Controlla messaggio e stato backend.');
-      setMessage(error instanceof Error ? (error.name === 'AbortError' ? 'OCR fermato per timeout: il backend non ha risposto entro 90 secondi. V5.0 usa template salvato + SCORE/KDA leggero. Se succede ancora apri /ocr-status e /health Render; se localhost funziona e online no, Render free è troppo lento/cold start.' : error.message) : 'Errore Backend OCR Pro.');
+      setMessage(error instanceof Error ? (error.name === 'AbortError' ? 'OCR fermato per timeout: il backend non ha risposto entro 90 secondi. V5.1 usa template salvato + SCORE/KDA leggero. Se succede ancora apri /ocr-status e /health Render; se localhost funziona e online no, Render free è troppo lento/cold start.' : error.message) : 'Errore Backend OCR Pro.');
     } finally {
       setWorking(false);
     }
@@ -661,6 +677,27 @@ function ImportMatchEditor() {
             </tbody>
           </table>
         </div>
+        <div className="ak-mobile-score-cards">
+          {indexedRows.map(({ row, index }) => (
+            <div className={`ak-score-card ${row.needsReview ? 'needs-review' : ''}`} key={`mobile-${side}-${index}`}>
+              <div className="ak-score-card-head">
+                <strong>#{row.rankPosition || index + 1} · {row.nickname || 'Nome giocatore'}</strong>
+                <span className={row.needsReview ? 'badge warn' : 'badge ok'}>{row.needsReview ? 'Controlla' : (row.readStatus || 'ok')}</span>
+              </div>
+              <label>Player roster<select className="select" value={row.playerId || ''} onChange={(e) => updateRow(index, 'playerId', e.target.value)}><option value="">Manuale / non registrato</option>{roster.map((player) => <option key={player.id} value={player.id}>{player.nickname}{player.clan_name ? ` · ${player.clan_name}` : ''}</option>)}</select></label>
+              <label>Nome giocatore<input className="input" value={row.nickname} onChange={(e) => updateRow(index, 'nickname', e.target.value)} /></label>
+              <label>Clan<input className="input" value={row.playerClanName || ''} onChange={(e) => updateRow(index, 'playerClanName', e.target.value)} /></label>
+              <div className="ak-score-grid">
+                <label>Score<input className="input" value={row.score || 0} onChange={(e) => updateRow(index, 'score', e.target.value)} /></label>
+                <label>Kill<input className="input" value={row.kills} onChange={(e) => updateRow(index, 'kills', e.target.value)} /></label>
+                <label>Death<input className="input" value={row.deaths} onChange={(e) => updateRow(index, 'deaths', e.target.value)} /></label>
+                <label>Assist<input className="input" value={row.assists} onChange={(e) => updateRow(index, 'assists', e.target.value)} /></label>
+              </div>
+              <label className="check-line"><input type="checkbox" checked={!!row.mvp || row.rankPosition === 1} onChange={(e) => updateRow(index, 'mvp', e.target.checked)} /> MVP / Top player</label>
+            </div>
+          ))}
+          {!indexedRows.length && <div className="notice">Nessuna riga. Aggiungi player manualmente.</div>}
+        </div>
       </div>
     );
   }
@@ -685,7 +722,19 @@ function ImportMatchEditor() {
           {imageUrl ? (
             <div className="ocr-image-wrap">
               <img className="preview ocr-overlay-image" src={imageUrl} alt="Scoreboard" />
-              {!!backendBoxes.length && <div className="ocr-overlay-layer">{backendBoxes.map((box, index) => <div key={`${box.name}-${index}`} className={`ocr-box ${box.team === 'blue' ? 'ocr-box-blue' : box.team === 'red' ? 'ocr-box-red' : 'ocr-box-neutral'}`} title={`${box.name} | ${box.role}`} style={{ left: `${box.x_norm * 100}%`, top: `${box.y_norm * 100}%`, width: `${box.w_norm * 100}%`, height: `${box.h_norm * 100}%` }} />)}</div>}
+              {useCalibrationTemplate && !!localTemplateRegions.length && (
+                <div className="ocr-template-layer" aria-label="Template salvato applicato localmente">
+                  {localTemplateRegions.map((region) => (
+                    <div
+                      key={`tpl-${region.name}`}
+                      className={`ocr-template-box ${region.name.startsWith('BLUE') || region.name.includes('BLUE') ? 'ocr-template-blue' : region.name.startsWith('RED') || region.name.includes('RED') ? 'ocr-template-red' : 'ocr-template-neutral'} ${(ourTeam === 'blue' && region.name.startsWith('BLUE')) || (ourTeam === 'red' && region.name.startsWith('RED')) ? 'ocr-template-own' : ''}`}
+                      title={`TEMPLATE LOCALE: ${region.name}`}
+                      style={regionToImageStyle(region, imageContentFrame)}
+                    />
+                  ))}
+                </div>
+              )}
+              {!!backendBoxes.length && <div className="ocr-overlay-layer">{backendBoxes.map((box, index) => <div key={`${box.name}-${index}`} className={`ocr-box ${box.team === 'blue' ? 'ocr-box-blue' : box.team === 'red' ? 'ocr-box-red' : 'ocr-box-neutral'}`} title={`BACKEND LETTO: ${box.name} | ${box.role}`} style={{ left: `${box.x_norm * 100}%`, top: `${box.y_norm * 100}%`, width: `${box.w_norm * 100}%`, height: `${box.h_norm * 100}%` }} />)}</div>}
             </div>
           ) : <div className="empty-state">🖼️ Carica lo screenshot della partita.</div>}
           {(working || ocrProgress) && (
@@ -695,13 +744,17 @@ function ImportMatchEditor() {
               <div className="ak-progress-note">{ocrProgress}</div>
             </div>
           )}
+          <div className={`ak-template-status ${templateSaved ? 'ok' : 'warn'}`}>
+            <strong>Template import usato:</strong> {templateSummary}
+            <span> · Overlay locale visibile: {localTemplateRegions.length} riquadri. I riquadri sottili sono quelli salvati/calibrati; i riquadri spessi sono quelli realmente letti dal backend.</span>
+          </div>
           {message && <div className="notice top-gap">{message}</div>}
           <details className="top-gap">
             <summary>⚙️ Impostazioni avanzate OCR</summary>
             <div className="grid grid-2 top-gap">
               <div className="field"><label>Usa calibrazione</label><select className="select" value={useCalibrationTemplate ? 'yes' : 'no'} onChange={(e) => setUseCalibrationTemplate(e.target.value === 'yes')}><option value="yes">Sì, usa template salvato</option><option value="no">No, layout automatico</option></select></div>
-              <div className="field"><label>Template telefono</label><select className="select" value={selectedCalibrationPhone} onChange={(e) => { setSelectedCalibrationPhone(e.target.value); setActivePhoneProfile('scoreboard_ced', e.target.value); }} disabled={!useCalibrationTemplate}>{calibrationProfiles.map((p) => <option key={p} value={p}>{p}</option>)}</select></div>
-              <div className="field"><label>Modo template</label><select className="select" value={calibrationMode} onChange={(e) => setCalibrationMode(e.target.value as 'table_lock' | 'content_frame' | 'strict_image')} disabled={!useCalibrationTemplate}><option value="table_lock">Table-lock consigliato</option><option value="content_frame">Content frame</option><option value="strict_image">Coordinate immagine esatta</option></select><small className="muted">V4.6 invia anche il frame calcolato dal frontend: {imageContentFrame.reason} ({Math.round(imageContentFrame.x * 100)}%, {Math.round(imageContentFrame.y * 100)}%, {Math.round(imageContentFrame.w * 100)}% x {Math.round(imageContentFrame.h * 100)}%).</small></div>
+              <div className="field"><label>Template telefono</label><select className="select" value={selectedCalibrationPhone} onChange={(e) => refreshCalibrationTemplate(e.target.value)} disabled={!useCalibrationTemplate}>{calibrationProfiles.map((p) => <option key={p} value={p}>{p}</option>)}</select></div>
+              <div className="field"><label>Modo template</label><select className="select" value={calibrationMode} onChange={(e) => setCalibrationMode(e.target.value as 'table_lock' | 'content_frame' | 'strict_image')} disabled={!useCalibrationTemplate}><option value="content_frame">Content frame consigliato</option><option value="table_lock">Table-lock fallback</option><option value="strict_image">Coordinate immagine esatta</option></select><small className="muted">V4.6 invia anche il frame calcolato dal frontend: {imageContentFrame.reason} ({Math.round(imageContentFrame.x * 100)}%, {Math.round(imageContentFrame.y * 100)}%, {Math.round(imageContentFrame.w * 100)}% x {Math.round(imageContentFrame.h * 100)}%).</small></div>
               <div className="field"><label>Conferma nostro team</label><select className="select" value={ourTeam} onChange={(e) => setOurTeam(e.target.value as 'blue' | 'red')}><option value="blue">Blu / sinistra</option><option value="red">Rosso / destra</option></select></div>
             </div>
             <div className="top-gap"><a className="btn small secondary" href="/calibration">🎯 Apri calibrazione</a></div>

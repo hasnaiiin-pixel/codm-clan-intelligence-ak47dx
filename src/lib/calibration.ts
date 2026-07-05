@@ -196,6 +196,45 @@ export function listCalibrationPhoneProfiles(kind: CalibrationKind): string[] {
   }
   return Array.from(found).filter(Boolean).sort();
 }
+
+export function hasSavedCalibration(kind: CalibrationKind, phoneProfile?: string): boolean {
+  if (typeof window === 'undefined') return false;
+  const phone = slug(phoneProfile || getActivePhoneProfile(kind));
+  const keys = [
+    storageKey(kind, phone),
+    storageKey(kind, phone, 'anonymous'),
+    lastActiveKey(kind, phone)
+  ];
+  return keys.some((key) => !!window.localStorage.getItem(key));
+}
+
+export function getBestCalibrationPhoneProfile(kind: CalibrationKind): string {
+  if (typeof window === 'undefined') return 'default';
+  const active = getActivePhoneProfile(kind);
+  if (hasSavedCalibration(kind, active)) return active;
+  const firstSaved = listCalibrationPhoneProfiles(kind).find((phone) => hasSavedCalibration(kind, phone));
+  return firstSaved || active || 'default';
+}
+
+export function calibrationStorageKeysToPreserve(): string[] {
+  if (typeof window === 'undefined') return [];
+  const keys: string[] = [];
+  for (let i = 0; i < window.localStorage.length; i += 1) {
+    const key = window.localStorage.key(i) || '';
+    if (
+      key.startsWith(SCOREBOARD_CALIBRATION_KEY) ||
+      key.startsWith(PROFILE_CALIBRATION_KEY) ||
+      key.startsWith(ACTIVE_PHONE_KEY_PREFIX) ||
+      key.startsWith(CALIBRATION_LAST_PREFIX) ||
+      key === ACTIVE_USER_ID_KEY ||
+      key === ACTIVE_USER_NAME_KEY
+    ) {
+      keys.push(key);
+    }
+  }
+  return keys;
+}
+
 export function exportCalibration(kind: CalibrationKind, phoneProfile?: string) {
   return JSON.stringify(loadCalibrationBundle(kind, phoneProfile), null, 2);
 }

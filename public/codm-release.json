@@ -1,6 +1,6 @@
 {
   "name": "AK47DX CODM Clan Intelligence",
-  "version": "CODM_AK47DX_V5_0_IMPORT_SCORE_KDA_DEFINITIVO",
-  "marker": "V5_0_IMPORT_SCORE_KDA_DEFINITIVO_OK",
-  "note": "Import definitivo: motore stabile V4.6 + SCORE player + K/D/A da template-priority leggero / backend 2.0.8."
+  "version": "CODM_AK47DX_V5_1_TEMPLATE_SYNC_TABLE_MOBILE",
+  "marker": "V5_1_TEMPLATE_SYNC_TABLE_MOBILE_OK",
+  "note": "Import definitivo: frontend usa e mostra lo stesso template salvato, preserva calibrazione in cache-reset, tabella mobile trasformata in card senza scroll laterale. Backend OCR resta 2.0.8 V5.0."
 }

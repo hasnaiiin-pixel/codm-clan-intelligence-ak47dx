@@ -1,6 +1,6 @@
 {
   "name": "codm-clan-intelligence-ak47dx",
-  "version": "5.0.0-import-score-kda-definitivo",
+  "version": "5.1.0-template-sync-mobile-table",
   "private": true,
   "scripts": {
     "dev": "next dev",

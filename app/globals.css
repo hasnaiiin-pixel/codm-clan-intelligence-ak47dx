@@ -1265,3 +1265,58 @@ textarea,
 .ak-event-toolbar { display:flex; gap:10px; align-items:center; flex-wrap:wrap; justify-content:flex-end; }
 .compact-select { max-width:180px; }
 @media (max-width: 720px) { .ak-event-toolbar { width:100%; justify-content:stretch; } .ak-event-toolbar .select, .ak-event-toolbar .btn { width:100%; max-width:none; } }
+
+/* V5.1 definitivo import: template locale sempre visibile + tabella mobile leggibile */
+.ocr-template-layer {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 4;
+}
+.ocr-overlay-layer {
+  z-index: 5;
+}
+.ocr-template-box {
+  position: absolute;
+  box-sizing: border-box;
+  border: 1px dashed rgba(250, 204, 21, .72);
+  background: rgba(250, 204, 21, .035);
+  border-radius: 3px;
+}
+.ocr-template-blue { border-color: rgba(56, 189, 248, .72); background: rgba(56, 189, 248, .035); }
+.ocr-template-red { border-color: rgba(251, 113, 133, .72); background: rgba(251, 113, 133, .035); }
+.ocr-template-own { border-width: 2px; opacity: 1; box-shadow: 0 0 0 1px rgba(255,255,255,.16); }
+.ocr-box { border-width: 3px; box-shadow: 0 0 0 1px rgba(0,0,0,.45), 0 0 10px currentColor; }
+.ak-template-status {
+  margin-top: 14px;
+  border-radius: 16px;
+  padding: 12px 14px;
+  font-size: 13px;
+  line-height: 1.45;
+  border: 1px solid rgba(148,163,184,.20);
+  background: rgba(15,23,42,.72);
+  color: #cbd5e1;
+}
+.ak-template-status strong { color: #fff; }
+.ak-template-status.ok { border-color: rgba(34,197,94,.34); background: rgba(22,101,52,.14); }
+.ak-template-status.warn { border-color: rgba(251,191,36,.40); background: rgba(120,53,15,.18); color: #fde68a; }
+.ak-mobile-score-cards { display: none; }
+.ak-score-card {
+  border: 1px solid rgba(255,255,255,.10);
+  border-radius: 18px;
+  padding: 14px;
+  background: rgba(15,23,42,.76);
+  display: grid;
+  gap: 10px;
+}
+.ak-score-card.needs-review { border-color: rgba(251,191,36,.36); background: rgba(120,53,15,.16); }
+.ak-score-card-head { display: flex; justify-content: space-between; gap: 10px; align-items: center; }
+.ak-score-card label { display: grid; gap: 6px; color: #cbd5e1; font-size: 12px; font-weight: 850; text-transform: uppercase; letter-spacing: .04em; }
+.ak-score-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+@media (max-width: 900px) {
+  .ak-ally-only-table .table-scroll { display: none !important; }
+  .ak-mobile-score-cards { display: grid; gap: 12px; }
+  .team-box { padding: 12px !important; }
+  .team-title { align-items: flex-start; }
+  .team-title h3 { font-size: 16px; }
+}

@@ -1,6 +1,14 @@
 {
   "app": "AK47DX CODM Clan Intelligence",
-  "version": "CODM_AK47DX_V4_2_GRAFICA_OCR_RENDER_FIX",
-  "marker": "V4_2_GRAFICA_MENU_LOGIN_OCR_RENDER_OK",
-  "routes": ["/version", "/cache-reset", "/events", "/ocr-status", "/api/telegram/reminders", "/api/telegram/status"]
+  "version": "CODM_AK47DX_V5_1_TEMPLATE_SYNC_TABLE_MOBILE",
+  "marker": "V5_1_TEMPLATE_SYNC_TABLE_MOBILE_OK",
+  "routes": [
+    "/version",
+    "/cache-reset",
+    "/import/match",
+    "/calibration",
+    "/events",
+    "/ocr-status",
+    "/notifications"
+  ]
 }
