@@ -56,7 +56,7 @@ class ScoreboardCedResult(BaseModel):
 
 
 class ProfileOcrResult(BaseModel):
-    engine_version: str = "2.0.9-v5-2-template-kda-table-definitivo-ak47dx"
+    engine_version: str = "2.0.11-v5-6-profile-fastlane-stabile-ak47dx"
     screen_type: str = "profile_base"
     nickname: str = ""
     uid: str = ""

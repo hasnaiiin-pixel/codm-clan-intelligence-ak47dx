@@ -1469,3 +1469,47 @@ main.container.wide > section.card {
   .mirza-dev-badge img { width: 28px; height: 28px; }
   .mirza-dev-footer-inner { font-size: 11px; text-align: center; }
 }
+
+/* CODM V5.6 - Profile FastLane: pagina profilo/statistiche più larga e progress chiaro */
+.profile-fastlane-page {
+  width: 100% !important;
+  max-width: none !important;
+  padding-left: clamp(10px, 2vw, 28px) !important;
+  padding-right: clamp(10px, 2vw, 28px) !important;
+}
+.profile-fastlane-layout {
+  display: grid;
+  grid-template-columns: minmax(360px, 0.95fr) minmax(520px, 1.35fr);
+  gap: 18px;
+  width: 100%;
+  max-width: none;
+  align-items: start;
+}
+.profile-fastlane-layout > .card {
+  min-width: 0;
+  width: 100%;
+}
+.ak-progress-track {
+  width: 100%;
+  height: 12px;
+  border-radius: 999px;
+  background: rgba(255,255,255,.11);
+  border: 1px solid rgba(255,255,255,.14);
+  overflow: hidden;
+  margin: 8px 0;
+}
+.ak-progress-bar {
+  height: 100%;
+  border-radius: 999px;
+  background: linear-gradient(90deg, #32d6ff, #ff365b);
+  transition: width .25s ease;
+}
+@media (max-width: 1050px) {
+  .profile-fastlane-layout { grid-template-columns: 1fr; }
+}
+@media (max-width: 720px) {
+  .profile-fastlane-page { padding-left: 10px !important; padding-right: 10px !important; }
+  .profile-fastlane-layout .grid-2,
+  .profile-fastlane-layout .grid-3,
+  .profile-fastlane-layout .grid-4 { grid-template-columns: 1fr !important; }
+}

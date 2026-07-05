@@ -1,5 +1,7 @@
 {
-  "version": "CODM_AK47DX_V5_5_1_CLEAN_START_LOGO_MEDALS_BUILD_FIX",
-  "marker": "V5_5_1_CLEAN_START_LOGO_MEDALS_BUILD_FIX_OK",
-  "backend_ocr": "2.0.10-v5-4-fastlane-import-stabile-ak47dx"
+  "version": "V5_6_PROFILE_FASTLANE_STABILE_OK",
+  "marker": "V5_6_PROFILE_FASTLANE_STABILE_OK",
+  "backend_ocr": "2.0.11-v5-6-profile-fastlane-stabile-ak47dx",
+  "codm_version": "V5_6_PROFILE_FASTLANE_STABILE_OK",
+  "release": "V5.6 Profile FastLane stabile"
 }

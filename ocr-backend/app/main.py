@@ -8,7 +8,7 @@ from app.services.scoreboard_ced import parse_scoreboard_ced
 from app.services.profile_ocr import parse_profile
 from app.services.ocr_engines import engine_status
 
-ENGINE_VERSION = "2.0.10-v5-4-fastlane-import-stabile-ak47dx"
+ENGINE_VERSION = "2.0.11-v5-6-profile-fastlane-stabile-ak47dx"
 
 app = FastAPI(title="CODM OCR Hybrid Engine", version=ENGINE_VERSION)
 
@@ -32,6 +32,9 @@ def health():
         "ready_for_ocr": ok_engine,
         "engines": status,
         "features": [
+            "v5_6_profile_fastlane_no_block",
+            "v5_6_profile_legendary_fast_numeric",
+            "v5_6_profile_stats_page_aligned",
             "dynamic_layout",
             "opencv",
             "google_vision_text",

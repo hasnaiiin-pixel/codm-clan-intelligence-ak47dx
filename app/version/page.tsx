@@ -5,9 +5,9 @@ export default function VersionPage() {
         <div className="ak-login-card">
           <div className="ak-pill">AK47DX DEPLOY CHECK</div>
           <h1 className="ak-title">CODM Clan Intelligence</h1>
-          <p className="ak-lead">Versione V5.5.2: build fix definitivo, logo MIRZA inserito direttamente nel layout senza import DeveloperBrand, FastLane import stabile mantenuto.</p>
-          <div className="notice top-gap"><strong>Marker:</strong> V5_5_2_NO_DEVELOPERBRAND_IMPORT_OK</div>
-          <div className="notice top-gap"><strong>Backend OCR:</strong> 2.0.10-v5-4-fastlane-import-stabile-ak47dx</div>
+          <p className="ak-lead">Versione V5.6.0-profile-fastlane-stabile: Import partite V5.4 mantenuto stabile, Import profilo/statistiche allineato con FastLane no-block.</p>
+          <div className="notice top-gap"><strong>Marker:</strong> V5_6_PROFILE_FASTLANE_STABILE_OK</div>
+          <div className="notice top-gap"><strong>Backend OCR:</strong> 2.0.11-v5-6-profile-fastlane-stabile-ak47dx</div>
           <div className="ak-quick-links">
             <a href="/cache-reset">Reset cache sicuro</a>
             <a href="/calibration">Calibrazione</a>
