@@ -34,7 +34,7 @@ class OcrPlayerRow(BaseModel):
 
 
 class ScoreboardCedResult(BaseModel):
-    engine_version: str = "2.0.6-v4-7-template-priority-import-ak47dx"
+    engine_version: str = "2.0.8-v5-0-import-score-kda-definitivo-ak47dx"
     screen_type: str = "scoreboard_ced"
     result: Optional[Literal["WIN", "LOSE", "DRAW"]] = None
     winning_team: Optional[Literal["blue", "red", "draw"]] = None
@@ -47,7 +47,7 @@ class ScoreboardCedResult(BaseModel):
     layout_confidence: float = 0.0
     ocr_confidence: float = 0.0
     needs_manual_review: bool = True
-    ignored: dict = {"player_score": True, "impact": True, "kd_total": True, "accuracy": True, "headshot": True}
+    ignored: dict = {"player_score": False, "impact": True, "kd_total": True, "accuracy": True, "headshot": True}
     teams: dict[str, list[OcrPlayerRow]]
     boxes: list[OcrBox]
     warnings: list[str] = []
@@ -56,7 +56,7 @@ class ScoreboardCedResult(BaseModel):
 
 
 class ProfileOcrResult(BaseModel):
-    engine_version: str = "2.0.6-v4-7-template-priority-import-ak47dx"
+    engine_version: str = "2.0.8-v5-0-import-score-kda-definitivo-ak47dx"
     screen_type: str = "profile_base"
     nickname: str = ""
     uid: str = ""

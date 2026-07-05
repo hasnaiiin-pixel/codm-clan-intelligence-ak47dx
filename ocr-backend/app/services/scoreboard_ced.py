@@ -548,44 +548,86 @@ def _rebuild_cells_from_team_tables(layout, mode_hint: str = "CED"):
 
 
 
-
-def _has_priority_template_cells(layout, team: str) -> bool:
-    """True quando il template contiene celle calibrate individuali per il team scelto.
-
-    In V4.6 il table-lock ricostruiva le celle da TEAM_*_TABLE_FULL e poteva spostarle
-    rispetto ai riquadri salvati dall'utente. In V4.7 diamo priorità assoluta ai box
-    BLUE/RED_Rx_NICK e BLUE/RED_Rx_KDA salvati in calibrazione.
+def _layout_has_individual_score_kda(layout, team: str) -> bool:
+    """True se il layout/template contiene già riquadri riga singola per score e K/D/A.
+    In questo caso NON dobbiamo ricostruire le celle dalla tabella: import deve usare
+    esattamente i box salvati in calibrazione o rilevati dal detector.
     """
-    nick_rows = set()
-    kda_rows = set()
-    for b in layout.boxes:
-        if b.team != team or not b.row:
-            continue
-        if not str(b.name).startswith('cal_'):
-            continue
-        if b.role == 'nickname':
-            nick_rows.add(int(b.row))
-        if b.role == 'kda':
-            kda_rows.add(int(b.row))
-    return len(kda_rows) >= 5 or (len(kda_rows) >= 4 and len(nick_rows) >= 4)
+    boxes = layout.boxes
+    score_ok = sum(1 for row in range(1, 6) if find_box(boxes, "score", team, row)) >= 4
+    kda_ok = sum(1 for row in range(1, 6) if find_box(boxes, "kda", team, row)) >= 4
+    return score_ok and kda_ok
 
 
-def _debug_overlay_boxes(layout, our_team: str, mode: str = 'all_template'):
-    """Restituisce i riquadri da mostrare in overlay frontend.
-
-    Per debug V4.7 mostriamo tutti i riquadri di template applicati, non solo quelli
-    usati per leggere. Così si vede subito se il template è allineato o se il frame è sbagliato.
+def _rebuild_fast_score_kda_from_team_tables(layout, mode_hint: str = "CED"):
+    """Fallback veloce: se non esistono i box individuali, li crea da TEAM_*_TABLE_FULL.
+    Diverso da _rebuild_cells_from_team_tables perché mantiene anche SCORE player.
     """
-    if mode == 'used_only':
-        return []
-    out = []
-    for b in layout.boxes:
-        is_cal = str(b.name).startswith('cal_')
-        if not is_cal:
+    keep_roles = {"nickname", "score", "kda", "impact", "player_row"}
+    kept = [b for b in layout.boxes if b.role not in keep_roles]
+    added = []
+    def table_for(team: str):
+        return next((b for b in layout.boxes if b.role == "team_table" and b.team == team), None)
+    for team in ("blue", "red"):
+        table = table_for(team)
+        if not table:
             continue
-        if b.team in (None, our_team) or b.role in {'result_label', 'blue_score', 'red_score', 'match_datetime', 'mode_map', 'team_table'}:
-            out.append(b)
-    return out
+        tx, ty, tw, th = table.x, table.y, table.w, table.h
+        header_h = int(th * (0.205 if mode_hint == "POSTAZIONE" else 0.145))
+        usable_y = ty + header_h
+        usable_h = max(1, th - header_h)
+        row_h = usable_h / 5.0
+        # Offset basati sul layout reale CODM 2048x921, scalati sulla tabella.
+        cols = {
+            "nickname": (0.110, 0.285),
+            "score": (0.425, 0.145),
+            "kda": (0.595, 0.165),
+        }
+        for idx in range(5):
+            y = int(usable_y + idx * row_h)
+            h = max(1, int(row_h))
+            added.append(make_box(f"{team}_v5_row_{idx+1}", "player_row", team, idx + 1, tx, y, tw, h, layout.image_w, layout.image_h, 0.96))
+            for role, (cx, cw) in cols.items():
+                added.append(make_box(f"{team}_v5_{idx+1}_{role}", role, team, idx + 1, int(tx + tw * cx), y, int(tw * cw), h, layout.image_w, layout.image_h, 0.96))
+    if added:
+        layout.boxes = kept + added
+        layout.layout_confidence = max(layout.layout_confidence, 0.91)
+        layout.warnings.append(f"V5.0 fallback table-lock leggero ({mode_hint}): ricostruiti SCORE + K/D/A da TEAM_TABLE perché mancavano box individuali.")
+    return layout
+
+
+def _fast_parse_score_text(text: str) -> tuple[int, float]:
+    cleaned = (text or "").upper()
+    cleaned = cleaned.replace("O", "0").replace("D", "0").replace("Q", "0")
+    cleaned = cleaned.replace("I", "1").replace("L", "1").replace("|", "1")
+    cleaned = cleaned.replace("S", "5").replace("B", "8")
+    nums = [int(x) for x in re.findall(r"\d{2,4}", cleaned)]
+    nums = [n for n in nums if 0 <= n <= 2500]
+    if nums:
+        # Se OCR trova più numeri, il punteggio player normalmente è il più alto/plausibile.
+        return max(nums), 0.72
+    one = [int(x) for x in re.findall(r"\d{1}", cleaned)]
+    if one:
+        return one[0], 0.35
+    return 0, 0.0
+
+
+def _fast_read_score_cell_v5(img: np.ndarray) -> tuple[int, float, str]:
+    """Lettura SCORE player con massimo 2 pass OCR.
+    1) OCR veloce su crop singolo.
+    2) fallback robusto solo se il primo non produce numero plausibile.
+    """
+    raw = _fast_tesseract_text(img, "number", timeout=0.9)
+    value, conf = _fast_parse_score_text(raw)
+    if conf >= 0.55:
+        return value, conf, raw
+    try:
+        value2, conf2, raw2, _ = _read_score_cell_robust(img)
+        if conf2 > conf:
+            return int(value2), float(conf2), raw2
+    except Exception:
+        pass
+    return int(value), float(conf), raw
 
 def _winner_from_scores(blue_score: Optional[int], red_score: Optional[int], result_hint: str | None = None) -> str | None:
     if blue_score is not None and red_score is not None:
@@ -637,31 +679,13 @@ def _fast_tesseract_text(img: np.ndarray, kind: str = "text", timeout: float = 1
         return ""
     try:
         gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
-        gray = cv2.copyMakeBorder(gray, 6, 6, 8, 8, cv2.BORDER_REPLICATE)
+        gray = cv2.copyMakeBorder(gray, 4, 4, 4, 4, cv2.BORDER_REPLICATE)
+        # Per KDA il grigio semplice è più affidabile delle binarizzazioni aggressive.
+        proc = cv2.resize(gray, None, fx=5.0 if kind == "kda" else 2.8, fy=5.0 if kind == "kda" else 2.8, interpolation=cv2.INTER_CUBIC)
         if kind == "kda":
-            # V4.8: K/D/A CODM viene letto meglio con grigio grande + psm 7/11.
-            # Le soglie binarie spesso cancellano lo slash, quindi proviamo prima raw/CLAHE.
-            clahe = cv2.createCLAHE(clipLimit=2.8, tileGridSize=(8, 8)).apply(gray)
-            variants = [("raw", gray), ("clahe", clahe)]
-            results = []
-            for name, base in variants:
-                for scale in (6.0, 8.0, 9.5):
-                    proc = cv2.resize(base, None, fx=scale, fy=scale, interpolation=cv2.INTER_CUBIC)
-                    for psm in (7, 11, 13):
-                        try:
-                            txt = pytesseract.image_to_string(proc, lang="eng", config=f"--psm {psm} -c tessedit_char_whitelist=0123456789/|IlO", timeout=timeout).strip()
-                            if txt:
-                                results.append(txt)
-                        except Exception:
-                            pass
-            # restituisci il primo testo che contiene già uno slash, altrimenti il più lungo
-            slashy = [r for r in results if "/" in r or "|" in r]
-            pool = slashy or results
-            if pool:
-                return sorted(pool, key=lambda x: (x.count('/') + x.count('|'), len(x)), reverse=True)[0]
-            return ""
-        proc = cv2.resize(gray, None, fx=2.8, fy=2.8, interpolation=cv2.INTER_CUBIC)
-        if kind == "number":
+            config = "--psm 6 -c tessedit_char_whitelist=0123456789/|IlO"
+            lang = "eng"
+        elif kind == "number":
             config = "--psm 7 -c tessedit_char_whitelist=0123456789:.-"
             lang = "eng"
         else:
@@ -696,7 +720,7 @@ def _fast_clean_nickname(text: str) -> str:
     return text[:40]
 
 
-def parse_scoreboard_ced_fast(image_bytes: bytes, calibration_template: str | None = None, calibration_frame: str | None = None, calibration_mode: str = "table_lock", our_team: str = "blue", extract_scope: str = "our_only", template_priority: str = "true", debug_boxes: str = "all_template") -> ScoreboardCedResult:
+def parse_scoreboard_ced_fast(image_bytes: bytes, calibration_template: str | None = None, calibration_frame: str | None = None, calibration_mode: str = "table_lock", our_team: str = "blue", extract_scope: str = "our_only") -> ScoreboardCedResult:
     original = read_image_bytes(image_bytes)
     our_team = "red" if str(our_team).lower() == "red" else "blue"
     calibration_mode = (calibration_mode or "table_lock").strip().lower()
@@ -724,14 +748,6 @@ def parse_scoreboard_ced_fast(image_bytes: bytes, calibration_template: str | No
         except Exception as exc:
             layout.warnings.append(f"V4.6 fast: template non applicato: {exc}")
 
-    template_priority_active = False
-    if calibration_template and calibration_template.strip() and str(template_priority).strip().lower() not in {"false", "0", "off", "no"}:
-        template_priority_active = _has_priority_template_cells(layout, our_team)
-        if template_priority_active:
-            layout.warnings.append(f"V4.8 TEMPLATE PRIORITY attivo: uso i riquadri salvati BLUE/RED_Rx_NICK e BLUE/RED_Rx_KDA del team {our_team}. Non ricostruisco le celle dalla tabella, quindi import e calibrazione hanno la stessa posizione.")
-        else:
-            layout.warnings.append(f"V4.7 TEMPLATE PRIORITY richiesto ma celle individuali insufficienti per team {our_team}: fallback table-lock da TEAM_*_TABLE_FULL.")
-
     # Header rapido: massimo 1 OCR largo, non blocca Render.
     raw_parts: list[str] = []
     mode = "CED"
@@ -746,10 +762,14 @@ def parse_scoreboard_ced_fast(image_bytes: bytes, calibration_template: str | No
     except Exception:
         mode, map_name = "CED", None
 
-    # V4.7: se esistono riquadri individuali salvati, hanno priorità assoluta.
-    # Solo se mancano, usiamo table-lock per ricostruire celle da TEAM_*_TABLE_FULL.
-    if not template_priority_active:
-        layout = _rebuild_cells_from_team_tables(layout, mode)
+    # V5.0: priorità reale ai riquadri individuali salvati/rilevati.
+    # La V4.6 era stabile ma non leggeva SCORE player perché ricostruiva solo nickname+KDA.
+    # Ora usiamo direttamente SCORE + KDA se presenti; fallback table-lock leggero solo se mancano.
+    if _layout_has_individual_score_kda(layout, our_team):
+        layout.layout_confidence = max(layout.layout_confidence, 0.92)
+        layout.warnings.append(f"V5.0 template-priority import: uso riquadri individuali SCORE + K/D/A del team {our_team}; nessuna ricostruzione pesante.")
+    else:
+        layout = _rebuild_fast_score_kda_from_team_tables(layout, mode)
     boxes = layout.boxes
 
     result_hint = _detect_result_color(img) or _detect_result(header_text, None, None)
@@ -765,7 +785,6 @@ def parse_scoreboard_ced_fast(image_bytes: bytes, calibration_template: str | No
 
     teams: dict[str, list[OcrPlayerRow]] = {"blue": [], "red": []}
     confs: list[float] = []
-    overlay_boxes = _debug_overlay_boxes(layout, our_team, debug_boxes)
     parsed_boxes = []
 
     for row in range(1, 6):
@@ -783,23 +802,26 @@ def parse_scoreboard_ced_fast(image_bytes: bytes, calibration_template: str | No
         if not nick or len(nick) < 2:
             nick = f"{('Blu' if our_team == 'blue' else 'Rosso')} {row}"
 
-        k, d, a, conf = 0, 0, 0, 0.0
+        score_val, score_conf, score_raw = 0, 0.0, ""
+        score_box = find_box(boxes, "score", our_team, row)
+        if score_box:
+            score_crop = crop_box(img, _box_tuple(score_box), pad=3)
+            score_val, score_conf, score_raw = _fast_read_score_cell_v5(score_crop)
+            row_boxes.append(score_box)
+            parsed_boxes.append(score_box)
+
+        k, d, a, kda_conf = 0, 0, 0, 0.0
         kda_raw = ""
-        kda_debug = []
         if kda_box:
-            # V4.8: crop più largo perché molti template salvati sono corretti visivamente ma troppo stretti per Tesseract.
-            kda_crop = crop_box(img, _box_tuple(kda_box), pad=10)
-            k, d, a, conf, robust_raw, robust_candidates = _read_kda_cell_robust(kda_crop, mode_hint=mode)
-            kda_raw = robust_raw or ""
-            kda_debug = robust_candidates[:5] if robust_candidates else []
-            if conf <= 0.0:
-                # fallback veloce ad alta scala: utile su Render quando numeric_ocr_candidates non emette candidati.
-                kda_raw = _fast_tesseract_text(kda_crop, "kda", timeout=1.4)
-                k, d, a, conf = _fast_parse_kda_text(kda_raw)
+            kda_crop = crop_box(img, _box_tuple(kda_box), pad=3)
+            kda_raw = _fast_tesseract_text(kda_crop, "kda", timeout=1.0)
+            k, d, a, kda_conf = _fast_parse_kda_text(kda_raw)
             row_boxes.append(kda_box)
             parsed_boxes.append(kda_box)
+        row_conf_parts = [c for c in (score_conf, kda_conf) if c > 0]
+        conf = sum(row_conf_parts) / len(row_conf_parts) if row_conf_parts else 0.0
         confs.append(conf)
-        raw_parts.append(f"[V4.8 template priority {our_team} r{row}] nick={nick!r} kda_raw={kda_raw!r} -> {k}/{d}/{a} conf={conf:.2f} debug={kda_debug}")
+        raw_parts.append(f"[V5.0 fast {our_team} r{row}] nick={nick!r} score_raw={score_raw!r}->{score_val} score_conf={score_conf:.2f} kda_raw={kda_raw!r}->{k}/{d}/{a} kda_conf={kda_conf:.2f}")
 
         mvp_label = None
         if row == 1:
@@ -811,7 +833,7 @@ def parse_scoreboard_ced_fast(image_bytes: bytes, calibration_template: str | No
         teams[our_team].append(OcrPlayerRow(
             rank=row,
             nickname_ocr=nick,
-            score=0,
+            score=int(score_val),
             kills=k,
             deaths=d,
             assists=a,
@@ -823,9 +845,9 @@ def parse_scoreboard_ced_fast(image_bytes: bytes, calibration_template: str | No
 
     ocr_conf = sum(confs) / len(confs) if confs else 0.0
     warnings = list(layout.warnings)
-    warnings.append("V4.8 import definitivo: lettura solo nostro team, template priority, crop K/D/A allargato e fallback OCR robusto. Niente lettura avversari, niente score player/impatto.")
+    warnings.append("V5.0 import definitivo: lettura solo nostro team con template-priority leggero. Importa SCORE player + Kill/Death/Assist. Niente lettura statistiche avversari; avversario resta solo clan/score/esito.")
     if ocr_conf < 0.45:
-        warnings.append("OCR K/D/A ancora a bassa confidenza: la posizione template è stata rispettata, ma Tesseract non ha letto abbastanza cifre. Controlla solo i campi gialli; raw_text contiene i crop/debug per taratura definitiva.")
+        warnings.append("OCR SCORE/K/D/A a bassa confidenza: controlla manualmente i campi gialli prima di salvare.")
 
     return ScoreboardCedResult(
         result=result,
@@ -839,16 +861,17 @@ def parse_scoreboard_ced_fast(image_bytes: bytes, calibration_template: str | No
         layout_confidence=round(max(layout.layout_confidence, 0.80), 3),
         ocr_confidence=round(ocr_conf, 3),
         needs_manual_review=ocr_conf < 0.55 or result is None,
+        ignored={"player_score": False, "impact": True, "kd_total": True, "accuracy": True, "headshot": True},
         teams=teams,
-        boxes=list({(b.name, b.role, b.team, b.row): b for b in (overlay_boxes + parsed_boxes)}.values()),
+        boxes=parsed_boxes,
         warnings=warnings,
         score_diagnostics={"policy": "V4.6 fast-own-team-template-frame", "our_team": our_team, "blue_score": blue_score, "red_score": red_score, "result_hint": result_hint},
         raw_text="\n".join(raw_parts),
     )
 
-def parse_scoreboard_ced(image_bytes: bytes, calibration_template: str | None = None, calibration_frame: str | None = None, calibration_mode: str = "table_lock", our_team: str = "blue", extract_scope: str = "our_only", template_priority: str = "true", debug_boxes: str = "all_template") -> ScoreboardCedResult:
+def parse_scoreboard_ced(image_bytes: bytes, calibration_template: str | None = None, calibration_frame: str | None = None, calibration_mode: str = "table_lock", our_team: str = "blue", extract_scope: str = "our_only") -> ScoreboardCedResult:
     if (extract_scope or "").strip().lower() in {"our_only", "own_team", "ally_only", "fast_our_only"}:
-        return parse_scoreboard_ced_fast(image_bytes, calibration_template=calibration_template, calibration_frame=calibration_frame, calibration_mode=calibration_mode, our_team=our_team, extract_scope=extract_scope, template_priority=template_priority, debug_boxes=debug_boxes)
+        return parse_scoreboard_ced_fast(image_bytes, calibration_template=calibration_template, calibration_frame=calibration_frame, calibration_mode=calibration_mode, our_team=our_team, extract_scope=extract_scope)
     original = read_image_bytes(image_bytes)
     has_calibration = bool(calibration_template and calibration_template.strip())
     calibration_mode = (calibration_mode or "table_lock").strip().lower()

@@ -118,7 +118,7 @@ def numeric_ocr_candidates(img: np.ndarray, kind: str = "number") -> list[dict]:
         adaptive = cv2.adaptiveThreshold(clahe_gray, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C, cv2.THRESH_BINARY, 31, 7)
         variants.append(("adaptive", adaptive))
         if kind == "kda":
-            scales = (3.6, 4.8, 5.8, 7.5, 9.0)
+            scales = (3.6, 4.8, 5.8)
         else:
             scales = (3.2, 4.8) if kind in ("score", "impact") else (3.2, 4.2)
         seen = set()

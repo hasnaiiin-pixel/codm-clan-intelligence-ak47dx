@@ -38,6 +38,7 @@ type BackendOcrBox = {
 type BackendOcrRow = {
   rank: number;
   nickname_ocr?: string;
+  score?: number;
   kills?: number;
   deaths?: number;
   assists?: number;
@@ -269,7 +270,7 @@ function ImportMatchEditor() {
         kills: row.kills || 0,
         deaths: row.deaths || 0,
         assists: row.assists || 0,
-        score: 0,
+        score: row.score || 0,
         impact: null,
         captures: 0,
         objectiveTimeText: '',
@@ -354,7 +355,7 @@ function ImportMatchEditor() {
     setBackendRawJson('');
     setOcrProgressPct(3);
     setOcrProgress('Preparazione screenshot e verifica backend OCR...');
-    setMessage('Import veloce V4.6: viene letta SOLO la squadra selezionata come nostro team. Se dopo analisi vuoi cambiare BLU/ROSSO, cambia selezione e premi di nuovo Importa risultati.');
+    setMessage('Import definitivo V5.0: legge SOLO il nostro team ma importa anche SCORE player + Kill/Death/Assist usando il template salvato. Se scegli BLU/ROSSO sbagliato, cambia selezione e premi di nuovo Importa risultati.');
     try {
       let backendUrl = '';
       let backendVersion = 'unknown';
@@ -400,8 +401,7 @@ function ImportMatchEditor() {
       }
       formData.append('our_team', ourTeam);
       formData.append('extract_scope', 'fast_our_only');
-      formData.append('template_priority', 'true');
-      formData.append('debug_boxes', 'all_template');
+      formData.append('import_profile', 'v5_score_kda_template_priority');
 
       const parsed = await postFormDataWithProgress(`${backendUrl}/ocr/scoreboard/ced`, formData, 90000, (percent, label) => {
         setOcrProgressPct(percent);
@@ -431,11 +431,11 @@ function ImportMatchEditor() {
       const warnings = parsed.warnings?.length ? ` Warning: ${parsed.warnings.join(' | ')}` : '';
       setOcrProgressPct(100);
       setOcrProgress('Import completato. Controlla righe gialle prima di salvare.');
-      setMessage(`Import nostro team completato con priorità template. Layout=${Math.round((parsed.layout_confidence || 0) * 100)}%, OCR=${Math.round((parsed.ocr_confidence || 0) * 100)}%. Righe lette nostro team=${ourCount}. Avversari salvati solo come clan/score/esito. Vincente=${parsed.winning_team || 'da verificare'}. Controlla campi gialli e salva partita.${warnings}`);
+      setMessage(`Import nostro team completato. Layout=${Math.round((parsed.layout_confidence || 0) * 100)}%, OCR=${Math.round((parsed.ocr_confidence || 0) * 100)}%. Righe lette nostro team=${ourCount}. Avversari salvati solo come clan/score/esito. Vincente=${parsed.winning_team || 'da verificare'}. Controlla campi gialli e salva partita.${warnings}`);
     } catch (error) {
       setOcrProgressPct(100);
       setOcrProgress('Import OCR fermato. Controlla messaggio e stato backend.');
-      setMessage(error instanceof Error ? (error.name === 'AbortError' ? 'OCR fermato per timeout: il backend non ha risposto entro 90 secondi. V4.7 usa template-priority + modalità veloce; se succede ancora apri /ocr-status e /health Render, poi riprova. Se localhost funziona e online no, Render è in cold start o piano free troppo lento.' : error.message) : 'Errore Backend OCR Pro.');
+      setMessage(error instanceof Error ? (error.name === 'AbortError' ? 'OCR fermato per timeout: il backend non ha risposto entro 90 secondi. V5.0 usa template salvato + SCORE/KDA leggero. Se succede ancora apri /ocr-status e /health Render; se localhost funziona e online no, Render free è troppo lento/cold start.' : error.message) : 'Errore Backend OCR Pro.');
     } finally {
       setWorking(false);
     }
@@ -517,7 +517,7 @@ function ImportMatchEditor() {
       our_team: ourTeam,
       match_notes: matchNotes || null,
       match_date: parseBackendMatchDate(matchDateText) || new Date().toISOString(),
-      notes: `${matchNotes ? `${matchNotes}\n\n` : ''}Import risultati 2.0. Screenshot prova=${screenshotPath || screenshotUrl || 'non caricato'}. Template=${useCalibrationTemplate ? `${selectedCalibrationPhone}/${calibrationMode}/priority/frame=${imageContentFrame.reason}` : 'OFF'}. OurTeam=${ourTeam}. WinningTeam=${winningTeam || '-'}. MatchDateText=${matchDateText || '-'}.`
+      notes: `${matchNotes ? `${matchNotes}\n\n` : ''}Import risultati 2.0. Screenshot prova=${screenshotPath || screenshotUrl || 'non caricato'}. Template=${useCalibrationTemplate ? `${selectedCalibrationPhone}/${calibrationMode}/frame=${imageContentFrame.reason}` : 'OFF'}. OurTeam=${ourTeam}. WinningTeam=${winningTeam || '-'}. MatchDateText=${matchDateText || '-'}.`
     }).select('id').single();
 
     if (matchError || !match) return setMessage(matchError?.message || 'Partita non creata.');
@@ -546,7 +546,7 @@ function ImportMatchEditor() {
           kills: row.kills || 0,
           deaths: row.deaths || 0,
           assists: row.assists || 0,
-          score: 0,
+          score: row.score || 0,
           impact: null,
           mvp_type: mvpType,
           rank_medal: row.rankPosition === 1 ? 'gold' : row.rankPosition === 2 ? 'silver' : row.rankPosition === 3 ? 'bronze' : row.rankPosition ? 'ranked' : null,
@@ -566,7 +566,7 @@ function ImportMatchEditor() {
           kills: row.kills || 0,
           deaths: row.deaths || 0,
           assists: row.assists || 0,
-          score: 0,
+          score: row.score || 0,
           objective_score: 0,
           captures: row.captures || 0,
           impact: null,
@@ -575,7 +575,7 @@ function ImportMatchEditor() {
           accuracy_percent: null,
           headshot_percent: null,
           kd_ratio: row.deaths ? Number((row.kills / row.deaths).toFixed(2)) : row.kills,
-          raw_kda_text: `${row.kills}/${row.deaths}/${row.assists}`,
+          raw_kda_text: `score=${row.score || 0}; kda=${row.kills}/${row.deaths}/${row.assists}`, 
           team_side: row.teamSide || 'ALLY',
           rank_position: row.rankPosition || null,
           is_mvp: isMvp,
@@ -583,7 +583,7 @@ function ImportMatchEditor() {
             kills: row.kills,
             deaths: row.deaths,
             assists: row.assists,
-            objectiveScore: 0,
+            objectiveScore: row.score || 0,
             captures: 0,
             impact: 0,
             objectiveTimeSeconds: 0,
@@ -633,7 +633,7 @@ function ImportMatchEditor() {
           <table className="table compact import-table-clean">
             <thead>
               <tr>
-                <th>#</th><th>Medaglia</th><th>Player roster</th><th>Nome giocatore</th><th>Clan appartenenza</th><th>🗡️ Kill</th><th>💀 Death</th><th>🤝 Assist</th><th>🏆 MVP</th><th>Stato</th>
+                <th>#</th><th>Medaglia</th><th>Player roster</th><th>Nome giocatore</th><th>Clan appartenenza</th><th>🎯 Score</th><th>🗡️ Kill</th><th>💀 Death</th><th>🤝 Assist</th><th>🏆 MVP</th><th>Stato</th>
               </tr>
             </thead>
             <tbody>
@@ -649,6 +649,7 @@ function ImportMatchEditor() {
                   </td>
                   <td><input className="input nick-input" value={row.nickname} onChange={(e) => updateRow(index, 'nickname', e.target.value)} placeholder="Nome giocatore" /></td>
                   <td><input className="input clan-input" value={row.playerClanName || ''} onChange={(e) => updateRow(index, 'playerClanName', e.target.value)} placeholder={side === 'ALLY' ? clanName : 'Clan avversario'} /></td>
+                  <td><input className="input mini" value={row.score || 0} onChange={(e) => updateRow(index, 'score', e.target.value)} /></td>
                   <td><input className="input mini" value={row.kills} onChange={(e) => updateRow(index, 'kills', e.target.value)} /></td>
                   <td><input className="input mini" value={row.deaths} onChange={(e) => updateRow(index, 'deaths', e.target.value)} /></td>
                   <td><input className="input mini" value={row.assists} onChange={(e) => updateRow(index, 'assists', e.target.value)} /></td>
@@ -656,7 +657,7 @@ function ImportMatchEditor() {
                   <td><span className={row.needsReview ? 'badge warn' : 'badge ok'}>{row.needsReview ? 'Controlla' : (row.readStatus || 'ok')}</span></td>
                 </tr>
               ))}
-              {!indexedRows.length && <tr><td colSpan={10} className="muted">Nessuna riga. Aggiungi player manualmente.</td></tr>}
+              {!indexedRows.length && <tr><td colSpan={11} className="muted">Nessuna riga. Aggiungi player manualmente.</td></tr>}
             </tbody>
           </table>
         </div>
@@ -700,7 +701,7 @@ function ImportMatchEditor() {
             <div className="grid grid-2 top-gap">
               <div className="field"><label>Usa calibrazione</label><select className="select" value={useCalibrationTemplate ? 'yes' : 'no'} onChange={(e) => setUseCalibrationTemplate(e.target.value === 'yes')}><option value="yes">Sì, usa template salvato</option><option value="no">No, layout automatico</option></select></div>
               <div className="field"><label>Template telefono</label><select className="select" value={selectedCalibrationPhone} onChange={(e) => { setSelectedCalibrationPhone(e.target.value); setActivePhoneProfile('scoreboard_ced', e.target.value); }} disabled={!useCalibrationTemplate}>{calibrationProfiles.map((p) => <option key={p} value={p}>{p}</option>)}</select></div>
-              <div className="field"><label>Modo template</label><select className="select" value={calibrationMode} onChange={(e) => setCalibrationMode(e.target.value as 'table_lock' | 'content_frame' | 'strict_image')} disabled={!useCalibrationTemplate}><option value="table_lock">Table-lock consigliato</option><option value="content_frame">Content frame</option><option value="strict_image">Coordinate immagine esatta</option></select><small className="muted">V4.7 usa priorità template: i riquadri salvati NICK/KDA hanno precedenza sul table-lock. Frame frontend: {imageContentFrame.reason} ({Math.round(imageContentFrame.x * 100)}%, {Math.round(imageContentFrame.y * 100)}%, {Math.round(imageContentFrame.w * 100)}% x {Math.round(imageContentFrame.h * 100)}%).</small></div>
+              <div className="field"><label>Modo template</label><select className="select" value={calibrationMode} onChange={(e) => setCalibrationMode(e.target.value as 'table_lock' | 'content_frame' | 'strict_image')} disabled={!useCalibrationTemplate}><option value="table_lock">Table-lock consigliato</option><option value="content_frame">Content frame</option><option value="strict_image">Coordinate immagine esatta</option></select><small className="muted">V4.6 invia anche il frame calcolato dal frontend: {imageContentFrame.reason} ({Math.round(imageContentFrame.x * 100)}%, {Math.round(imageContentFrame.y * 100)}%, {Math.round(imageContentFrame.w * 100)}% x {Math.round(imageContentFrame.h * 100)}%).</small></div>
               <div className="field"><label>Conferma nostro team</label><select className="select" value={ourTeam} onChange={(e) => setOurTeam(e.target.value as 'blue' | 'red')}><option value="blue">Blu / sinistra</option><option value="red">Rosso / destra</option></select></div>
             </div>
             <div className="top-gap"><a className="btn small secondary" href="/calibration">🎯 Apri calibrazione</a></div>
@@ -723,8 +724,8 @@ function ImportMatchEditor() {
       </section>
 
       <section className="card top-gap">
-        <h2>Statistiche nostro team — Kill / Death / Assist</h2>
-        <p className="muted">Vengono salvati solo i player del tuo clan. Dell'avversario restano solo nome clan, score ed esito partita.</p>
+        <h2>Statistiche nostro team — Score + Kill / Death / Assist</h2>
+        <p className="muted">Vengono salvati solo i player del tuo clan. Ora importiamo anche il punteggio player oltre a K/D/A. Dell'avversario restano solo nome clan, score team ed esito partita.</p>
         <div className="team-grid ak-ally-only-table">
           {renderRowsTable('ALLY', ourTeam === 'blue' ? '🔵 Nostro team: blu / sinistra' : '🔴 Nostro team: rosso / destra', allyRows, ourTeam === 'blue' ? 'team-blue' : 'team-red')}
           <div className="ak-opponent-summary"><strong>Avversario:</strong> {opponent || 'da compilare'}<br /><span>Score avversario: {enemyScore || '-'} • Esito nostro: {result}</span><br /><small>Le statistiche dei player avversari non vengono importate né salvate.</small></div>

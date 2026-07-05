@@ -1,6 +1,6 @@
 {
   "name": "codm-clan-intelligence-ak47dx",
-  "version": "4.8.0-eventi-ocr-definitivo",
+  "version": "5.0.0-import-score-kda-definitivo",
   "private": true,
   "scripts": {
     "dev": "next dev",

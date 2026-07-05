@@ -1,6 +1,6 @@
-# CODM Clan Intelligence AK47DX — V4 allineata
+# CODM Clan Intelligence AK47DX — V5.0 import definitivo
 
-Versione consolidata per Vercel + Supabase + Telegram + OCR Hybrid 2.0.
+Versione consolidata per Vercel + Supabase + Telegram + OCR Hybrid 2.0.8 con import SCORE + K/D/A da template-priority leggero.
 
 ## Cosa contiene
 
@@ -13,6 +13,7 @@ Versione consolidata per Vercel + Supabase + Telegram + OCR Hybrid 2.0.
 - Calendario eventi `/events` con link Google Calendar.
 - API Telegram reminder `/api/telegram/reminders` per messaggi 2h e 10m prima.
 - Pagina `/ocr-status` per controllare OCR backend pubblico/locale.
+- Import partita V5.0: legge solo nostro team, ma importa Score player + Kill/Death/Assist.
 
 ## Comandi locali
 
