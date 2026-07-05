@@ -2,33 +2,37 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
+import { roleLabel, useCodmAuth } from '@/lib/authRoles';
 
-type NavItem = { href: string; label: string; emoji: string; group: 'public' | 'player' | 'admin' | 'system' };
+type NavAudience = 'public' | 'player' | 'write' | 'owner' | 'system';
+type NavItem = { href: string; label: string; emoji: string; group: string; audience: NavAudience };
 
 const navItems: NavItem[] = [
-  { href: '/', label: 'Home', emoji: '🏠', group: 'public' },
-  { href: '/dashboard', label: 'Dashboard', emoji: '📊', group: 'public' },
-  { href: '/matches', label: 'Partite', emoji: '🎮', group: 'public' },
-  { href: '/players', label: 'Roster', emoji: '👥', group: 'public' },
-  { href: '/analytics', label: 'Statistiche', emoji: '📈', group: 'public' },
-  { href: '/clan', label: 'Clan HQ', emoji: '🛡️', group: 'public' },
-  { href: '/events', label: 'Eventi', emoji: '📅', group: 'public' },
-  { href: '/loadouts', label: 'Loadout', emoji: '🔫', group: 'public' },
-  { href: '/join', label: 'Entra nel clan', emoji: '➕', group: 'player' },
-  { href: '/profile-import', label: 'Profilo player', emoji: '🪪', group: 'player' },
-  { href: '/import/profile', label: 'Importa profilo', emoji: '🖼️', group: 'player' },
-  { href: '/import/match', label: 'Carica risultato', emoji: '🏆', group: 'admin' },
-  { href: '/invite', label: 'Inviti', emoji: '📨', group: 'admin' },
-  { href: '/admin/users', label: 'Gestione utenti', emoji: '🔐', group: 'admin' },
-  { href: '/calibration', label: 'Calibrazione OCR', emoji: '🎯', group: 'admin' },
-  { href: '/deploy', label: 'Deploy', emoji: '🚀', group: 'admin' },
-  { href: '/ocr-status', label: 'Stato OCR', emoji: '🤖', group: 'system' },
-  { href: '/version', label: 'Versione', emoji: '✅', group: 'system' },
+  { href: '/', label: 'Home', emoji: '🏠', group: 'Pubblico', audience: 'public' },
+  { href: '/dashboard', label: 'Dashboard', emoji: '📊', group: 'Pubblico', audience: 'public' },
+  { href: '/matches', label: 'Partite', emoji: '🎮', group: 'Pubblico', audience: 'public' },
+  { href: '/players', label: 'Roster', emoji: '👥', group: 'Pubblico', audience: 'public' },
+  { href: '/analytics', label: 'Statistiche', emoji: '📈', group: 'Pubblico', audience: 'public' },
+  { href: '/clan', label: 'Clan HQ', emoji: '🛡️', group: 'Pubblico', audience: 'public' },
+  { href: '/events', label: 'Eventi', emoji: '📅', group: 'Pubblico', audience: 'public' },
+  { href: '/loadouts', label: 'Loadout', emoji: '🔫', group: 'Pubblico', audience: 'public' },
+  { href: '/join', label: 'Entra nel clan', emoji: '➕', group: 'Player', audience: 'public' },
+  { href: '/profile-import', label: 'Profilo player', emoji: '🪪', group: 'Player', audience: 'player' },
+  { href: '/import/profile', label: 'Importa profilo', emoji: '🖼️', group: 'Player', audience: 'player' },
+  { href: '/import/match', label: 'Carica risultato', emoji: '🏆', group: 'Staff / Coach', audience: 'write' },
+  { href: '/invite', label: 'Inviti', emoji: '📨', group: 'Staff / Coach', audience: 'write' },
+  { href: '/calibration', label: 'Calibrazione OCR', emoji: '🎯', group: 'Staff / Coach', audience: 'write' },
+  { href: '/admin/users', label: 'Gestione utenti', emoji: '🔐', group: 'Owner', audience: 'owner' },
+  { href: '/deploy', label: 'Deploy', emoji: '🚀', group: 'Owner', audience: 'owner' },
+  { href: '/ocr-status', label: 'Stato OCR', emoji: '🤖', group: 'Sistema', audience: 'system' },
+  { href: '/version', label: 'Versione', emoji: '✅', group: 'Sistema', audience: 'system' },
+  { href: '/cache-reset', label: 'Reset cache', emoji: '🧹', group: 'Sistema', audience: 'system' },
 ];
 
 export function MobileSidebar() {
   const pathname = usePathname();
+  const auth = useCodmAuth();
   const [open, setOpen] = useState(false);
 
   useEffect(() => { setOpen(false); }, [pathname]);
@@ -37,24 +41,66 @@ export function MobileSidebar() {
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
   }, []);
+  useEffect(() => {
+    document.documentElement.classList.toggle('ak-sidebar-open', open);
+    document.body.classList.toggle('ak-sidebar-open', open);
+    return () => {
+      document.documentElement.classList.remove('ak-sidebar-open');
+      document.body.classList.remove('ak-sidebar-open');
+    };
+  }, [open]);
+
+  const visibleItems = useMemo(() => {
+    return navItems.filter((item) => {
+      if (item.audience === 'public') return true;
+      if (item.audience === 'player') return !!auth.user;
+      if (item.audience === 'write') return auth.canWrite;
+      if (item.audience === 'owner') return auth.canManageUsers;
+      if (item.audience === 'system') return auth.canWrite || auth.canManageUsers;
+      return false;
+    });
+  }, [auth.user, auth.canWrite, auth.canManageUsers]);
+
+  const groups = useMemo(() => {
+    const ordered: string[] = [];
+    const byGroup = new Map<string, NavItem[]>();
+    for (const item of visibleItems) {
+      if (!byGroup.has(item.group)) {
+        byGroup.set(item.group, []);
+        ordered.push(item.group);
+      }
+      byGroup.get(item.group)!.push(item);
+    }
+    return ordered.map((group) => ({ group, items: byGroup.get(group)! }));
+  }, [visibleItems]);
 
   return (
     <>
-      <button aria-label="Apri menu AK47DX" onClick={() => setOpen((value) => !value)} className="ak-menu-button">
+      <button aria-label={open ? 'Chiudi menu AK47DX' : 'Apri menu AK47DX'} onClick={() => setOpen((value) => !value)} className="ak-menu-button">
         {open ? '×' : '☰'}
       </button>
       {open && <button aria-label="Chiudi menu" onClick={() => setOpen(false)} className="ak-sidebar-backdrop" />}
       <aside className={`ak-sidebar ${open ? 'open' : ''}`} aria-hidden={!open}>
         <div className="ak-sidebar-brand">
-          <div className="ak-sidebar-title">AK47DX</div>
-          <div className="ak-sidebar-subtitle">CODM Intelligence</div>
+          <div>
+            <div className="ak-sidebar-title">AK47DX</div>
+            <div className="ak-sidebar-subtitle">CODM Intelligence</div>
+          </div>
         </div>
+
+        <div className="ak-sidebar-user-card">
+          <span>Accesso corrente</span>
+          <strong>{auth.loading ? 'Verifica ruolo...' : roleLabel(auth.role)}</strong>
+          {auth.user?.email && <small>{auth.user.email}</small>}
+        </div>
+
         <nav>
-          <NavGroup title="Pubblico" items={navItems.filter((x) => x.group === 'public')} pathname={pathname} />
-          <NavGroup title="Player" items={navItems.filter((x) => x.group === 'player')} pathname={pathname} />
-          <NavGroup title="Admin" items={navItems.filter((x) => x.group === 'admin')} pathname={pathname} />
-          <NavGroup title="Sistema" items={navItems.filter((x) => x.group === 'system')} pathname={pathname} />
-          <Link href="/login" className="ak-login-link">🔑 Login / Registrati</Link>
+          {groups.map(({ group, items }) => <NavGroup key={group} title={group} items={items} pathname={pathname} />)}
+          {!auth.user ? (
+            <Link href="/login" className="ak-login-link">🔑 Login / Registrati</Link>
+          ) : (
+            <button type="button" className="ak-login-link ak-logout-button" onClick={() => void auth.signOut()}>🚪 Logout</button>
+          )}
         </nav>
       </aside>
     </>

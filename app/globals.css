@@ -844,3 +844,305 @@ button { cursor: pointer; }
   .ak-login-card, .ak-info-card { border-radius: 24px; padding: 20px; }
   .ak-title { font-size: 34px; }
 }
+
+/* =========================================================
+   CODM V4.3 - MOBILE LAYOUT HARDENING + ROLE MENU
+   Fix schermate telefono: niente riquadri fuori viewport, niente menu visibile
+   quando chiuso, tabelle scrollabili dentro la card, form sempre responsive.
+   ========================================================= */
+html, body {
+  width: 100%;
+  max-width: 100%;
+  min-height: 100%;
+  overflow-x: hidden !important;
+  -webkit-text-size-adjust: 100%;
+}
+body.ak-sidebar-open {
+  overflow: hidden !important;
+}
+.codm-app-content {
+  width: 100%;
+  max-width: 100vw;
+  min-width: 0;
+  overflow-x: clip;
+}
+.container,
+.container.wide,
+.page-shell {
+  width: 100%;
+  max-width: min(1380px, calc(100vw - 28px));
+  margin-left: auto;
+  margin-right: auto;
+  padding-left: 14px;
+  padding-right: 14px;
+}
+.grid,
+.grid-2,
+.grid-3,
+.grid-4,
+.grid-6,
+.hero,
+.team-grid,
+.player-grid,
+.action-layout-2-0,
+.action-panel-grid {
+  min-width: 0;
+}
+.grid > *,
+.grid-2 > *,
+.grid-3 > *,
+.grid-4 > *,
+.grid-6 > *,
+.hero > *,
+.team-grid > *,
+.player-grid > *,
+.action-layout-2-0 > *,
+.action-panel-grid > * {
+  min-width: 0;
+}
+.card,
+.gaming-panel,
+.team-box,
+.clan-hero,
+.import-hero,
+.kpi,
+.notice-card,
+.login-card,
+.ak-login-card,
+.ak-info-card {
+  max-width: 100%;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.card:has(table),
+.gaming-panel:has(table),
+.team-box:has(table) {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+.table-scroll {
+  max-width: 100%;
+  min-width: 0;
+  overflow-x: auto !important;
+  overflow-y: hidden;
+  -webkit-overflow-scrolling: touch;
+}
+.table-scroll .table,
+.team-box .table,
+.card > .table,
+.gaming-panel > .table {
+  min-width: 760px;
+}
+.team-box .table {
+  min-width: 1040px;
+}
+.player-stats-table {
+  min-width: 1040px !important;
+}
+.input,
+.select,
+.textarea,
+.ak-input,
+input,
+select,
+textarea,
+.nick-input,
+.clan-input,
+.roster-select {
+  max-width: 100%;
+  min-width: 0 !important;
+}
+.preview,
+.ocr-overlay-image,
+.ocr-image-wrap img {
+  max-width: 100%;
+  height: auto;
+}
+.save-row,
+.import-actions,
+.quick-actions,
+.auth-block-actions,
+.cal-buttons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  min-width: 0;
+}
+.save-row > *,
+.import-actions > *,
+.quick-actions > *,
+.auth-block-actions > * {
+  min-width: 0;
+}
+
+/* sidebar: chiusa = completamente fuori pagina, senza layer fantasma */
+.ak-menu-button {
+  z-index: 1200 !important;
+  left: max(12px, env(safe-area-inset-left)) !important;
+  top: max(12px, env(safe-area-inset-top)) !important;
+}
+.ak-sidebar-backdrop { z-index: 1190 !important; }
+.ak-sidebar {
+  z-index: 1210 !important;
+  width: min(360px, 90vw) !important;
+  max-width: 90vw !important;
+  transform: translate3d(-120%, 0, 0) !important;
+  visibility: hidden;
+  pointer-events: none;
+  will-change: transform;
+}
+.ak-sidebar.open {
+  transform: translate3d(0, 0, 0) !important;
+  visibility: visible;
+  pointer-events: auto;
+}
+.ak-sidebar-user-card {
+  border: 1px solid rgba(255,255,255,.10);
+  border-radius: 18px;
+  background: rgba(255,255,255,.055);
+  padding: 12px;
+  margin-bottom: 18px;
+}
+.ak-sidebar-user-card span,
+.ak-sidebar-user-card small {
+  display: block;
+  color: #94a3b8;
+  font-size: 12px;
+  overflow-wrap: anywhere;
+}
+.ak-sidebar-user-card strong {
+  display: block;
+  color: #fff;
+  margin-top: 4px;
+}
+.ak-logout-button {
+  width: 100%;
+  border: 0;
+  cursor: pointer;
+}
+
+/* progress OCR */
+.ak-progress-panel {
+  border: 1px solid rgba(34, 211, 238, .28);
+  background: linear-gradient(180deg, rgba(8,47,73,.42), rgba(15,23,42,.64));
+  border-radius: 18px;
+  padding: 14px;
+  margin-top: 16px;
+}
+.ak-progress-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  color: #cffafe;
+  font-weight: 900;
+  font-size: 13px;
+}
+.ak-progress-track {
+  margin-top: 10px;
+  height: 12px;
+  border-radius: 999px;
+  overflow: hidden;
+  background: rgba(15,23,42,.88);
+  border: 1px solid rgba(255,255,255,.10);
+}
+.ak-progress-fill {
+  height: 100%;
+  width: var(--ak-progress, 0%);
+  border-radius: 999px;
+  background: linear-gradient(90deg, #22d3ee, #a78bfa, #ff365b);
+  box-shadow: 0 0 22px rgba(34,211,238,.28);
+  transition: width .22s ease;
+}
+.ak-progress-note {
+  margin-top: 8px;
+  color: #cbd5e1;
+  font-size: 13px;
+}
+
+@media (max-width: 900px) {
+  .container,
+  .container.wide,
+  .page-shell {
+    max-width: 100vw !important;
+    width: 100% !important;
+    margin: 0 !important;
+    padding: calc(env(safe-area-inset-top) + 78px) 10px 42px !important;
+  }
+  .ak-login-page {
+    padding: calc(env(safe-area-inset-top) + 76px) 10px 32px !important;
+  }
+  .ak-login-wrap,
+  .grid-2,
+  .grid-3,
+  .grid-4,
+  .grid-6,
+  .hero,
+  .team-grid,
+  .player-grid,
+  .action-layout-2-0,
+  .action-panel-grid {
+    grid-template-columns: 1fr !important;
+  }
+  .card,
+  .gaming-panel,
+  .team-box,
+  .clan-hero,
+  .import-hero,
+  .kpi,
+  .notice-card {
+    border-radius: 18px !important;
+    padding: 14px !important;
+  }
+  .ak-login-card,
+  .ak-info-card {
+    border-radius: 22px !important;
+    padding: 18px !important;
+  }
+  .table-scroll {
+    margin-left: -4px;
+    margin-right: -4px;
+    padding-bottom: 8px;
+  }
+  .table th,
+  .table td {
+    padding: 9px 10px !important;
+    white-space: nowrap;
+  }
+  .team-box .table {
+    min-width: 980px;
+  }
+  .btn,
+  .ak-submit {
+    min-height: 46px;
+  }
+  .big-title,
+  .ak-title,
+  h1 {
+    font-size: clamp(28px, 9vw, 42px) !important;
+    line-height: 1.05;
+  }
+}
+
+@media (max-width: 420px) {
+  .container,
+  .container.wide,
+  .page-shell {
+    padding-left: 8px !important;
+    padding-right: 8px !important;
+  }
+  .ak-menu-button {
+    width: 42px !important;
+    height: 42px !important;
+    border-radius: 15px !important;
+    font-size: 23px !important;
+  }
+  .ak-sidebar {
+    width: min(330px, 92vw) !important;
+    max-width: 92vw !important;
+  }
+  .card,
+  .gaming-panel,
+  .team-box {
+    padding: 12px !important;
+  }
+}

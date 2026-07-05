@@ -272,9 +272,11 @@ def _read_kda_cell_robust(img: np.ndarray, mode_hint: str = "CED") -> tuple[int,
     crops = [
         ("full", img),
         ("center", img[:, int(w * 0.03): int(w * 0.98)]),
+        ("wide", img[:, max(0, int(w * -0.03)): int(w * 1.00)]),
+        ("right_bias", img[:, int(w * 0.00): int(w * 0.92)]),
     ]
     for crop_name, crop in crops:
-        for cand in numeric_ocr_candidates(crop, "kda")[:4]:
+        for cand in numeric_ocr_candidates(crop, "kda")[:12]:
             all_candidates.append({**cand, "crop": crop_name})
 
     (k, d, a), conf, scored = vote_kda_from_candidates(all_candidates)

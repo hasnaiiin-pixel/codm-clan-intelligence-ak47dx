@@ -108,16 +108,18 @@ def numeric_ocr_candidates(img: np.ndarray, kind: str = "number") -> list[dict]:
         clahe_gray = clahe.apply(gray0)
         blur = cv2.GaussianBlur(clahe_gray, (0, 0), 1.0)
         sharp = cv2.addWeighted(clahe_gray, 1.55, blur, -0.55, 0)
-        # 1.2 Fix2: K/D/A veloce e stabile. Per kda usiamo poche varianti
-        # così il pulsante non resta in lettura.
+        # V4.3: K/D/A più robusto su screenshot mobile e Render.
+        # Prima erano solo gray+sharp a scala singola: veloce, ma perdeva molte righe.
+        # Ora usiamo anche soglie binarie/invertite e due scale, senza leggere score/impact.
+        variants = [("gray", clahe_gray), ("sharp", sharp)]
+        _, bw_otsu = cv2.threshold(clahe_gray, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
+        variants.append(("bin_otsu", bw_otsu))
+        variants.append(("inv_otsu", cv2.bitwise_not(bw_otsu)))
+        adaptive = cv2.adaptiveThreshold(clahe_gray, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C, cv2.THRESH_BINARY, 31, 7)
+        variants.append(("adaptive", adaptive))
         if kind == "kda":
-            variants: list[tuple[str, np.ndarray]] = [("gray", clahe_gray), ("sharp", sharp)]
-            scales = (3.8,)
+            scales = (3.6, 4.8, 5.8)
         else:
-            variants = [("gray", clahe_gray), ("sharp", sharp)]
-            _, bw_otsu = cv2.threshold(clahe_gray, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
-            variants.append(("bin_otsu", bw_otsu))
-            variants.append(("inv_otsu", cv2.bitwise_not(bw_otsu)))
             scales = (3.2, 4.8) if kind in ("score", "impact") else (3.2, 4.2)
         seen = set()
         for name, base in variants:

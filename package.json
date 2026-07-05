@@ -1,6 +1,6 @@
 {
   "name": "codm-clan-intelligence-ak47dx",
-  "version": "4.2.0-grafica-ocr-render-fix",
+  "version": "4.3.0-mobile-permessi-ocr-progress",
   "private": true,
   "scripts": {
     "dev": "next dev",

@@ -1,31 +1,19 @@
-export const dynamic = 'force-static';
-
-const release = {
-  name: 'AK47DX CODM Clan Intelligence',
-  version: 'CODM_AK47DX_V4_2_GRAFICA_OCR_RENDER_FIX',
-  marker: 'V4_2_GRAFICA_MENU_LOGIN_OCR_RENDER_OK',
-  note: 'Se vedi questa pagina, Vercel sta servendo la versione V4.2 con grafica generale corretta, menu laterale reale, login moderno e timeout OCR Render aumentati.',
-};
-
 export default function VersionPage() {
   return (
-    <main style={{ minHeight: '100vh', padding: 24, background: '#06070d', color: '#f8fafc', fontFamily: 'Arial, sans-serif' }}>
-      <section style={{ maxWidth: 820, margin: '0 auto', border: '1px solid rgba(255,255,255,0.14)', borderRadius: 20, padding: 24, background: 'linear-gradient(135deg, rgba(220,38,38,0.18), rgba(15,23,42,0.95))' }}>
-        <p style={{ color: '#fb7185', fontWeight: 800, letterSpacing: 1, marginBottom: 8 }}>AK47DX DEPLOY CHECK</p>
-        <h1 style={{ fontSize: 34, lineHeight: 1.1, margin: '0 0 16px' }}>{release.name}</h1>
-        <div style={{ display: 'grid', gap: 12 }}>
-          <div style={{ padding: 16, borderRadius: 14, background: 'rgba(0,0,0,0.28)' }}>
-            <strong>Versione:</strong>
-            <pre style={{ whiteSpace: 'pre-wrap', margin: '8px 0 0', color: '#86efac' }}>{release.version}</pre>
-          </div>
-          <div style={{ padding: 16, borderRadius: 14, background: 'rgba(0,0,0,0.28)' }}>
-            <strong>Marker:</strong>
-            <pre style={{ whiteSpace: 'pre-wrap', margin: '8px 0 0', color: '#93c5fd' }}>{release.marker}</pre>
-          </div>
-          <p style={{ color: '#cbd5e1', margin: 0 }}>{release.note}</p>
-          <a href="/dashboard" style={{ display: 'inline-flex', width: 'fit-content', marginTop: 12, padding: '12px 16px', borderRadius: 12, background: '#dc2626', color: 'white', textDecoration: 'none', fontWeight: 800 }}>
-            Apri Dashboard
-          </a>
+    <main className="ak-login-page">
+      <section className="ak-login-card" style={{ maxWidth: 760, margin: '0 auto' }}>
+        <div className="ak-pill">AK47DX DEPLOY CHECK</div>
+        <h1 className="ak-title">CODM V4.3</h1>
+        <p className="ak-lead">Versione unica allineata: layout mobile, menu permessi, OCR progress, Telegram test, eventi e Render OCR.</p>
+        <div className="ak-message">
+          <b>Marker:</b> V4_3_MOBILE_PERMESSI_OCR_PROGRESS_OK<br />
+          Se vedi questa pagina, Vercel sta servendo la V4.3 e non una vecchia cache.
+        </div>
+        <div className="ak-quick-links">
+          <a href="/cache-reset">Reset cache</a>
+          <a href="/api/health">API health</a>
+          <a href="/api/telegram/status">Telegram status</a>
+          <a href="/login">Login</a>
         </div>
       </section>
     </main>

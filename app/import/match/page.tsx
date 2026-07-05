@@ -207,6 +207,7 @@ function ImportMatchEditor() {
   const [ourTeam, setOurTeam] = useState<'blue' | 'red'>('blue');
   const [winningTeam, setWinningTeam] = useState<'blue' | 'red' | 'draw' | ''>('');
   const [working, setWorking] = useState(false);
+  const [ocrProgressPct, setOcrProgressPct] = useState(0);
 
   useEffect(() => {
     loadRoster();
@@ -286,18 +287,64 @@ function ImportMatchEditor() {
     ]);
   }
 
+
+  function postFormDataWithProgress(
+    url: string,
+    formData: FormData,
+    timeoutMs: number,
+    onProgress: (percent: number, label: string) => void
+  ): Promise<BackendOcrResult> {
+    return new Promise((resolve, reject) => {
+      const xhr = new XMLHttpRequest();
+      xhr.open('POST', url);
+      xhr.timeout = timeoutMs;
+      xhr.responseType = 'text';
+
+      xhr.upload.onprogress = (event) => {
+        if (event.lengthComputable && event.total > 0) {
+          const uploadPct = 30 + Math.round((event.loaded / event.total) * 25);
+          onProgress(Math.min(55, uploadPct), 'Caricamento screenshot verso OCR Render...');
+        } else {
+          onProgress(38, 'Caricamento screenshot verso OCR Render...');
+        }
+      };
+
+      xhr.onload = () => {
+        if (xhr.status >= 200 && xhr.status < 300) {
+          try {
+            onProgress(88, 'Risposta OCR ricevuta. Creo tabella di revisione...');
+            resolve(JSON.parse(xhr.responseText || '{}') as BackendOcrResult);
+          } catch (error) {
+            reject(new Error(`Risposta OCR non valida: ${error instanceof Error ? error.message : 'JSON non leggibile'}`));
+          }
+          return;
+        }
+        reject(new Error(`Backend OCR non risponde correttamente (${xhr.status}): ${xhr.responseText || xhr.statusText}`));
+      };
+
+      xhr.onerror = () => reject(new Error('Errore rete verso Backend OCR Render. Controlla NEXT_PUBLIC_OCR_BACKEND_URL e CORS.'));
+      xhr.ontimeout = () => reject(new DOMException('OCR timeout', 'AbortError'));
+
+      onProgress(30, 'Invio screenshot al backend OCR...');
+      xhr.send(formData);
+    });
+  }
+
   async function runBackendOcr() {
     if (!file) return setMessage('Seleziona prima lo screenshot scoreboard.');
     setWorking(true);
     setBackendBoxes([]);
     setBackendRawJson('');
-    setOcrProgress('Invio screenshot al Backend OCR Hybrid Pro 2.0...');
+    setOcrProgressPct(3);
+    setOcrProgress('Preparazione screenshot e verifica backend OCR...');
     setMessage('Import risultati in corso. Supporto CED e Postazione/Hardpoint. Vengono importati Nickname + Kill / Death / Assist + classifica 1-5 con Gold/Silver/Bronze. Punteggio player e impatto sono esclusi.');
     try {
       let backendUrl = '';
       let backendVersion = 'unknown';
       const attempts: string[] = [];
       for (const candidate of backendCandidates()) {
+        setOcrProgressPct(10);
+        setOcrProgress(`Verifica backend OCR: ${candidate}/health`);
         try {
           const healthResponse = await fetchWithTimeout(`${candidate}/health`, { cache: 'no-store' }, 25000);
           if (!healthResponse.ok) {
@@ -311,6 +358,8 @@ function ImportMatchEditor() {
             continue;
           }
           backendUrl = candidate;
+          setOcrProgressPct(22);
+          setOcrProgress(`Backend OCR attivo (${backendVersion}). Preparazione upload...`);
           break;
         } catch (healthError) {
           attempts.push(`${candidate} -> ${healthError instanceof Error ? healthError.message : 'Failed to fetch'}`);
@@ -333,10 +382,10 @@ function ImportMatchEditor() {
       }
       formData.append('our_team', ourTeam);
 
-      const response = await fetchWithTimeout(`${backendUrl}/ocr/scoreboard/ced`, { method: 'POST', body: formData }, 180000);
-      if (!response.ok) throw new Error(`Backend OCR non risponde correttamente (${response.status}): ${await response.text()}`);
-
-      const parsed = await response.json() as BackendOcrResult;
+      const parsed = await postFormDataWithProgress(`${backendUrl}/ocr/scoreboard/ced`, formData, 180000, (percent, label) => {
+        setOcrProgressPct(percent);
+        setOcrProgress(label);
+      });
       setBackendRawJson(JSON.stringify(parsed, null, 2));
       setBackendBoxes(parsed.boxes || []);
       setRawText(parsed.raw_text || JSON.stringify(parsed, null, 2));
@@ -351,17 +400,22 @@ function ImportMatchEditor() {
       if (parsed.match_datetime) setMatchDateText(parsed.match_datetime);
       setTeamScore(parsed.blue_score === null || parsed.blue_score === undefined ? '' : String(parsed.blue_score));
       setEnemyScore(parsed.red_score === null || parsed.red_score === undefined ? '' : String(parsed.red_score));
+      setOcrProgressPct(94);
+      setOcrProgress('OCR completato. Applico dati letti alla tabella...');
       applyBackendRows(parsed);
 
       const blueCount = parsed.teams?.blue?.length || 0;
       const redCount = parsed.teams?.red?.length || 0;
       const warnings = parsed.warnings?.length ? ` Warning: ${parsed.warnings.join(' | ')}` : '';
+      setOcrProgressPct(100);
+      setOcrProgress('Import completato. Controlla righe gialle prima di salvare.');
       setMessage(`Import risultati completato. Layout=${Math.round((parsed.layout_confidence || 0) * 100)}%, OCR=${Math.round((parsed.ocr_confidence || 0) * 100)}%. Team blu ${blueCount}, team rosso ${redCount}. Vincente=${parsed.winning_team || 'da verificare'}. Ora controlla campi gialli e salva partita.${warnings}`);
     } catch (error) {
+      setOcrProgressPct(100);
+      setOcrProgress('Import OCR fermato. Controlla messaggio e stato backend.');
       setMessage(error instanceof Error ? (error.name === 'AbortError' ? 'OCR fermato per timeout dopo 180 secondi: Render potrebbe essere in cold start o il motore OCR è troppo lento. Apri /ocr-status, aspetta che /health risponda, poi riprova.' : error.message) : 'Errore Backend OCR Pro.');
     } finally {
       setWorking(false);
-      setOcrProgress('');
     }
   }
 
@@ -611,7 +665,13 @@ function ImportMatchEditor() {
               {!!backendBoxes.length && <div className="ocr-overlay-layer">{backendBoxes.map((box, index) => <div key={`${box.name}-${index}`} className={`ocr-box ${box.team === 'blue' ? 'ocr-box-blue' : box.team === 'red' ? 'ocr-box-red' : 'ocr-box-neutral'}`} title={`${box.name} | ${box.role}`} style={{ left: `${box.x_norm * 100}%`, top: `${box.y_norm * 100}%`, width: `${box.w_norm * 100}%`, height: `${box.h_norm * 100}%` }} />)}</div>}
             </div>
           ) : <div className="empty-state">🖼️ Carica lo screenshot della partita.</div>}
-          {ocrProgress && <div className="notice top-gap">{ocrProgress}</div>}
+          {(working || ocrProgress) && (
+            <div className="ak-progress-panel">
+              <div className="ak-progress-row"><span>{working ? 'Lavorazione OCR in corso' : 'Stato OCR'}</span><span>{ocrProgressPct}%</span></div>
+              <div className="ak-progress-track"><div className="ak-progress-fill" style={{ width: `${ocrProgressPct}%` }} /></div>
+              <div className="ak-progress-note">{ocrProgress}</div>
+            </div>
+          )}
           {message && <div className="notice top-gap">{message}</div>}
           <details className="top-gap">
             <summary>⚙️ Impostazioni avanzate OCR</summary>
