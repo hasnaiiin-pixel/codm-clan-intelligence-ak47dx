@@ -1,6 +1,6 @@
 {
   "name": "codm-clan-intelligence-ak47dx",
-  "version": "4.4.0-clan-events-ocr-ownteam",
+  "version": "4.5.0-import-events-reminders-fix",
   "private": true,
   "scripts": {
     "dev": "next dev",

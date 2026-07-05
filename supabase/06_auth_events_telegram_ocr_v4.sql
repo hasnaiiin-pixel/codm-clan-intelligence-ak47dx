@@ -234,3 +234,20 @@ update public.profiles p
 set email = u.email
 from auth.users u
 where p.id = u.id and (p.email is null or p.email = '');
+
+-- CODM V4.5 - Eventi avanzati, reminder multipli, messaggi Telegram personalizzati
+alter table public.codm_events add column if not exists reminder_minutes integer[] default array[120,10];
+alter table public.codm_events add column if not exists sent_reminders jsonb default '{}'::jsonb;
+alter table public.codm_events add column if not exists telegram_message_template text;
+alter table public.codm_events add column if not exists event_notes text;
+
+-- Assicura che gli utenti appena registrati possano comparire con email/nome in gestione admin
+alter table public.profiles add column if not exists email text;
+alter table public.profiles add column if not exists full_name text;
+alter table public.profiles add column if not exists codm_nickname text;
+alter table public.profiles add column if not exists codm_uid text;
+
+-- Default sicuro per reminder esistenti
+update public.codm_events
+set reminder_minutes = array[120,10]
+where reminder_minutes is null or array_length(reminder_minutes, 1) is null;

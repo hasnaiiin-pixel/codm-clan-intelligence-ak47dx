@@ -6,6 +6,7 @@ import json
 
 import numpy as np
 import cv2
+import pytesseract
 
 from app.models import OcrPlayerRow, ScoreboardCedResult
 from app.services.detector import detect_ced_layout, find_box, make_box
@@ -562,7 +563,190 @@ def _parse_match_datetime(text: str) -> str | None:
         return f"{time.group(0)} {date.group(0)}"
     return None
 
+
+
+# -----------------------------
+# V4.5 FAST OCR PATH
+# -----------------------------
+# Render free può essere troppo lento se ogni riga usa 15+ chiamate Tesseract.
+# Questa modalità legge SOLO il nostro team e usa massimo 1-2 OCR per riga.
+# Obiettivo: niente timeout online, valori K/D/A subito disponibili e revisione manuale chiara.
+
+def _fast_tesseract_text(img: np.ndarray, kind: str = "text", timeout: float = 1.0) -> str:
+    if img.size == 0:
+        return ""
+    try:
+        gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+        gray = cv2.copyMakeBorder(gray, 4, 4, 4, 4, cv2.BORDER_REPLICATE)
+        # Per KDA il grigio semplice è più affidabile delle binarizzazioni aggressive.
+        proc = cv2.resize(gray, None, fx=5.0 if kind == "kda" else 2.8, fy=5.0 if kind == "kda" else 2.8, interpolation=cv2.INTER_CUBIC)
+        if kind == "kda":
+            config = "--psm 6 -c tessedit_char_whitelist=0123456789/|IlO"
+            lang = "eng"
+        elif kind == "number":
+            config = "--psm 7 -c tessedit_char_whitelist=0123456789:.-"
+            lang = "eng"
+        else:
+            config = "--psm 7"
+            lang = "eng"
+        return pytesseract.image_to_string(proc, lang=lang, config=config, timeout=timeout).strip()
+    except Exception:
+        return ""
+
+
+def _fast_parse_kda_text(text: str) -> tuple[int, int, int, float]:
+    cleaned = (text or "").replace(" ", "").replace("|", "/").replace("\\", "/")
+    cleaned = cleaned.replace("I", "1").replace("l", "1").replace("O", "0").replace("o", "0")
+    m = re.search(r"(\d{1,3})/(\d{1,3})/(\d{1,3})", cleaned)
+    if m:
+        k, d, a = [int(x) for x in m.groups()]
+        if all(0 <= v <= 120 for v in (k, d, a)):
+            return k, d, a, 0.82
+    nums = [int(x) for x in re.findall(r"\d{1,3}", cleaned)]
+    if len(nums) >= 3:
+        k, d, a = nums[:3]
+        if all(0 <= v <= 120 for v in (k, d, a)):
+            return k, d, a, 0.60
+    return 0, 0, 0, 0.0
+
+
+def _fast_clean_nickname(text: str) -> str:
+    text = re.sub(r"\s+", " ", (text or "").strip())
+    # Rimuovi artefatti frequenti di OCR su icone/medaglie.
+    text = re.sub(r"\b(MVP|400|Gold|Silver|Bronze)\b", "", text, flags=re.I)
+    text = re.sub(r"[^\wÀ-ÿ\-.'’#@★☆ঐѦҞ ]+", "", text).strip()
+    return text[:40]
+
+
+def parse_scoreboard_ced_fast(image_bytes: bytes, calibration_template: str | None = None, calibration_mode: str = "table_lock", our_team: str = "blue", extract_scope: str = "our_only") -> ScoreboardCedResult:
+    original = read_image_bytes(image_bytes)
+    our_team = "red" if str(our_team).lower() == "red" else "blue"
+    calibration_mode = (calibration_mode or "table_lock").strip().lower()
+
+    # Mantieni dimensione simile al template, ma non esagerare: meno pixel = meno timeout Render.
+    img, _ = resize_long_edge(original, target=1920)
+    layout = detect_ced_layout(img)
+
+    content_frame = None
+    template_meta = None
+    if calibration_template and calibration_template.strip():
+        try:
+            if calibration_mode == "strict_image":
+                content_frame = (0, 0, img.shape[1], img.shape[0])
+            else:
+                fx, fy, fw, fh, _, _ = detect_content_frame(img)
+                content_frame = (fx, fy, fw, fh)
+            layout, template_meta = _apply_calibration_template(layout, calibration_template, content_frame=content_frame)
+        except Exception as exc:
+            layout.warnings.append(f"V4.5 fast: template non applicato: {exc}")
+
+    # Header rapido: massimo 1 OCR largo, non blocca Render.
+    raw_parts: list[str] = []
+    mode = "CED"
+    map_name = None
+    header_text = ""
+    try:
+        hh, ww = img.shape[:2]
+        header_crop = img[int(hh * 0.000): int(hh * 0.245), int(ww * 0.000): int(ww * 0.475)]
+        header_text = _fast_tesseract_text(header_crop, "text", timeout=1.2)
+        raw_parts.append(f"[V4.5 fast header] {header_text}")
+        mode, map_name = _mode_map(header_text)
+    except Exception:
+        mode, map_name = "CED", None
+
+    # Ricostruzione cella KDA coerente per modalità.
+    layout = _rebuild_cells_from_team_tables(layout, mode)
+    boxes = layout.boxes
+
+    result_hint = _detect_result_color(img) or _detect_result(header_text, None, None)
+    blue_score, red_score = _extract_match_score_from_text(header_text, mode)
+    if blue_score is None or red_score is None:
+        b2, r2, debug = _read_ced_score_color(img)
+        raw_parts.extend(f"[V4.5 score_color] {x}" for x in debug)
+        blue_score, red_score = b2, r2
+    final_b, final_r = _validate_score_pair(mode, result_hint, blue_score, red_score, "v4_5_fast_header", {"accepted_candidates": [], "rejected_candidates": []})
+    blue_score, red_score = final_b, final_r
+    winning_team = _winner_from_scores(blue_score, red_score, result_hint)
+    result = _result_for_our_team(winning_team, our_team) or result_hint
+
+    teams: dict[str, list[OcrPlayerRow]] = {"blue": [], "red": []}
+    confs: list[float] = []
+    parsed_boxes = []
+
+    for row in range(1, 6):
+        nick = ""
+        nick_box = find_box(boxes, "nickname", our_team, row)
+        kda_box = find_box(boxes, "kda", our_team, row)
+        row_boxes = []
+
+        if nick_box:
+            nick_crop = crop_box(img, _box_tuple(nick_box), pad=2)
+            # Ritocco leggero: Tesseract sui nickname CODM con simboli non è perfetto, ma se fallisce non blocchiamo import.
+            nick = _fast_clean_nickname(_fast_tesseract_text(nick_crop, "text", timeout=0.9))
+            row_boxes.append(nick_box)
+            parsed_boxes.append(nick_box)
+        if not nick or len(nick) < 2:
+            nick = f"{('Blu' if our_team == 'blue' else 'Rosso')} {row}"
+
+        k, d, a, conf = 0, 0, 0, 0.0
+        kda_raw = ""
+        if kda_box:
+            kda_crop = crop_box(img, _box_tuple(kda_box), pad=3)
+            kda_raw = _fast_tesseract_text(kda_crop, "kda", timeout=1.0)
+            k, d, a, conf = _fast_parse_kda_text(kda_raw)
+            row_boxes.append(kda_box)
+            parsed_boxes.append(kda_box)
+        confs.append(conf)
+        raw_parts.append(f"[V4.5 fast {our_team} r{row}] nick={nick!r} kda_raw={kda_raw!r} -> {k}/{d}/{a} conf={conf:.2f}")
+
+        mvp_label = None
+        if row == 1:
+            if winning_team == our_team:
+                mvp_label = "MVP_WIN"
+            elif winning_team in ("blue", "red"):
+                mvp_label = "MVP_LOSE"
+
+        teams[our_team].append(OcrPlayerRow(
+            rank=row,
+            nickname_ocr=nick,
+            score=0,
+            kills=k,
+            deaths=d,
+            assists=a,
+            impact=0,
+            mvp_label=mvp_label,
+            confidence=round(conf, 3),
+            boxes=row_boxes,
+        ))
+
+    ocr_conf = sum(confs) / len(confs) if confs else 0.0
+    warnings = list(layout.warnings)
+    warnings.append("V4.5 fast import: lettura solo nostro team, massimo ~10 chiamate OCR. Niente lettura avversari, niente score player/impatto.")
+    if ocr_conf < 0.45:
+        warnings.append("OCR K/D/A a bassa confidenza: controlla manualmente i campi gialli prima di salvare.")
+
+    return ScoreboardCedResult(
+        result=result,
+        winning_team=winning_team,
+        our_team=our_team,
+        blue_score=blue_score,
+        red_score=red_score,
+        mode=mode,
+        map=map_name,
+        match_datetime=_parse_match_datetime(header_text),
+        layout_confidence=round(max(layout.layout_confidence, 0.80), 3),
+        ocr_confidence=round(ocr_conf, 3),
+        needs_manual_review=ocr_conf < 0.55 or result is None,
+        teams=teams,
+        boxes=parsed_boxes,
+        warnings=warnings,
+        score_diagnostics={"policy": "V4.5 fast-own-team", "our_team": our_team, "blue_score": blue_score, "red_score": red_score, "result_hint": result_hint},
+        raw_text="\n".join(raw_parts),
+    )
+
 def parse_scoreboard_ced(image_bytes: bytes, calibration_template: str | None = None, calibration_mode: str = "table_lock", our_team: str = "blue", extract_scope: str = "our_only") -> ScoreboardCedResult:
+    if (extract_scope or "").strip().lower() in {"our_only", "own_team", "ally_only", "fast_our_only"}:
+        return parse_scoreboard_ced_fast(image_bytes, calibration_template=calibration_template, calibration_mode=calibration_mode, our_team=our_team, extract_scope=extract_scope)
     original = read_image_bytes(image_bytes)
     has_calibration = bool(calibration_template and calibration_template.strip())
     calibration_mode = (calibration_mode or "table_lock").strip().lower()

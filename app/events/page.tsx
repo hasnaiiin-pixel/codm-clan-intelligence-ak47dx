@@ -21,6 +21,10 @@ type CodmEvent = {
   created_at: string;
   convocations?: Array<{ id: string; nickname: string }> | null;
   convocations_text?: string | null;
+  reminder_minutes?: number[] | null;
+  sent_reminders?: Record<string, string> | null;
+  telegram_message_template?: string | null;
+  event_notes?: string | null;
 };
 
 type PlayerRow = { id: string; nickname: string; clan_name?: string | null; status?: string | null };
@@ -48,6 +52,9 @@ export default function EventsPage() {
   const [startsAt, setStartsAt] = useState(toLocalInputValue(new Date(Date.now() + 12 * 60 * 1000)));
   const [endsAt, setEndsAt] = useState(toLocalInputValue(new Date(Date.now() + 72 * 60 * 1000)));
   const [telegramEnabled, setTelegramEnabled] = useState(true);
+  const [reminderMinutes, setReminderMinutes] = useState('120,10');
+  const [telegramTemplate, setTelegramTemplate] = useState('🎮 <b>AK47DX Reminder</b>\n\n<b>{title}</b>\n⏱️ Mancano {minutes} minuti\n🕒 {date}\n📍 {location}\n\n{description}\n\n<b>Convocati:</b>\n{convocati}');
+  const [eventNotes, setEventNotes] = useState('');
   const [selectedPlayers, setSelectedPlayers] = useState<string[]>([]);
   const [message, setMessage] = useState('');
   const [calendarMonth, setCalendarMonth] = useState(monthKey(new Date()));
@@ -91,6 +98,23 @@ export default function EventsPage() {
     setSelectedPlayers((current) => current.includes(id) ? current.filter((x) => x !== id) : [...current, id]);
   }
 
+  function parseReminderMinutes() {
+    const values = reminderMinutes
+      .split(',')
+      .map((x) => Number(x.trim()))
+      .filter((n) => Number.isFinite(n) && n > 0 && n <= 10080);
+    return Array.from(new Set(values.length ? values : [120, 10])).sort((a, b) => b - a);
+  }
+
+  async function deleteEvent(eventId: string) {
+    if (!canWrite) return setMessage('Solo staff/coach/owner possono cancellare eventi.');
+    if (!confirm('Cancellare questo evento e le convocazioni collegate?')) return;
+    const { error } = await supabase.from('codm_events').delete().eq('id', eventId);
+    if (error) return setMessage(error.message);
+    setMessage('Evento cancellato.');
+    await loadEvents();
+  }
+
   async function createEvent() {
     if (!auth.clanId) return setMessage('Clan non trovato. Crea prima il clan/onboarding o controlla Supabase.');
     if (!canWrite) return setMessage('Solo owner, coach o staff possono creare eventi.');
@@ -98,7 +122,7 @@ export default function EventsPage() {
     const endIso = endsAt ? new Date(endsAt).toISOString() : null;
     const selected = players.filter((player) => selectedPlayers.includes(player.id));
     const convocationsText = selected.length ? selected.map((p) => `• ${p.nickname}`).join('\n') : '';
-    const fullDescription = [description, convocationsText ? `\nConvocati:\n${convocationsText}` : ''].filter(Boolean).join('\n');
+    const fullDescription = [description, eventNotes ? `\nNote interne:\n${eventNotes}` : '', convocationsText ? `\nConvocati:\n${convocationsText}` : ''].filter(Boolean).join('\n');
     const googleUrl = buildGoogleCalendarUrl({ title, description: fullDescription, location, startsAt: startIso, endsAt: endIso });
 
     const { data: created, error } = await supabase.from('codm_events').insert({
@@ -110,6 +134,9 @@ export default function EventsPage() {
       starts_at: startIso,
       ends_at: endIso,
       telegram_enabled: telegramEnabled,
+      reminder_minutes: parseReminderMinutes(),
+      telegram_message_template: telegramTemplate || null,
+      event_notes: eventNotes || null,
       google_calendar_url: googleUrl,
       convocations: selected.map((p) => ({ id: p.id, nickname: p.nickname })),
       convocations_text: convocationsText || null,
@@ -198,8 +225,11 @@ export default function EventsPage() {
               <div className="field"><label>Titolo</label><input value={title} onChange={(e) => setTitle(e.target.value)} className="input" /></div>
               <div className="grid grid-2"><div className="field"><label>Tipo</label><select value={eventType} onChange={(e) => setEventType(e.target.value)} className="select"><option value="scrim">Scrim</option><option value="allenamento">Allenamento</option><option value="torneo">Torneo</option><option value="riunione">Riunione clan</option></select></div><div className="field"><label>Luogo/link</label><input value={location} onChange={(e) => setLocation(e.target.value)} className="input" /></div></div>
               <div className="grid grid-2"><div className="field"><label>Inizio</label><input type="datetime-local" value={startsAt} onChange={(e) => setStartsAt(e.target.value)} className="input" /></div><div className="field"><label>Fine</label><input type="datetime-local" value={endsAt} onChange={(e) => setEndsAt(e.target.value)} className="input" /></div></div>
-              <label className="check-line ak-check-card"><input type="checkbox" checked={telegramEnabled} onChange={(e) => setTelegramEnabled(e.target.checked)} /> Reminder Telegram 2h + 10m</label>
+              <label className="check-line ak-check-card"><input type="checkbox" checked={telegramEnabled} onChange={(e) => setTelegramEnabled(e.target.checked)} /> Reminder Telegram attivo</label>
+              <div className="field"><label>Reminder minuti prima</label><input value={reminderMinutes} onChange={(e) => setReminderMinutes(e.target.value)} className="input" placeholder="120,10 oppure 60,30,10" /><small className="muted">Puoi mettere più reminder separati da virgola: esempio 120,60,10.</small></div>
               <div className="field"><label>Descrizione</label><textarea value={description} onChange={(e) => setDescription(e.target.value)} className="input" rows={4} /></div>
+              <div className="field"><label>Note evento</label><textarea value={eventNotes} onChange={(e) => setEventNotes(e.target.value)} className="input" rows={3} placeholder="Note interne, regole, mappe da provare, presenza obbligatoria..." /></div>
+              <div className="field"><label>Messaggio Telegram personalizzato</label><textarea value={telegramTemplate} onChange={(e) => setTelegramTemplate(e.target.value)} className="input" rows={5} /><small className="muted">Variabili disponibili: {'{title}'}, {'{minutes}'}, {'{date}'}, {'{location}'}, {'{description}'}, {'{convocati}'}.</small></div>
               <div className="field"><label>Convocati</label><div className="ak-player-pick-list">{players.length === 0 && <p className="muted">Nessun player nel roster.</p>}{players.map((player) => <label key={player.id} className="ak-player-pick"><input type="checkbox" checked={selectedPlayers.includes(player.id)} onChange={() => togglePlayer(player.id)} /> <span>{player.nickname}</span><small>{player.clan_name || auth.clanName}</small></label>)}</div></div>
               <button onClick={() => void createEvent()} className="btn">Crea evento e convocazioni</button>
             </div>
@@ -224,9 +254,9 @@ export default function EventsPage() {
                   <p className="muted">{new Date(event.starts_at).toLocaleString('it-IT')} {event.location ? `• ${event.location}` : ''}</p>
                   {event.description && <p>{event.description}</p>}
                   {!!convocati.length && <p className="ak-convocati"><strong>Convocati:</strong> {convocati.join(', ')}</p>}
-                  <p className="muted small-text">Telegram: {event.telegram_enabled ? 'attivo' : 'off'} • 2h: {event.reminder_2h_sent_at ? 'inviato' : 'pending'} • 10m: {event.reminder_10m_sent_at ? 'inviato' : 'pending'}</p>
+                  <p className="muted small-text">Telegram: {event.telegram_enabled ? 'attivo' : 'off'} • reminder: {(event.reminder_minutes || [120, 10]).join(', ')} min</p>
                 </div>
-                <a href={googleUrl} target="_blank" rel="noreferrer" className="btn secondary">Google Calendar</a>
+                <div className="ak-event-actions"><a href={googleUrl} target="_blank" rel="noreferrer" className="btn secondary">Google Calendar</a>{canWrite && <button className="btn danger secondary" onClick={() => void deleteEvent(event.id)}>Cancella</button>}</div>
               </article>
             );
           })}

@@ -347,7 +347,7 @@ function ImportMatchEditor() {
     setBackendRawJson('');
     setOcrProgressPct(3);
     setOcrProgress('Preparazione screenshot e verifica backend OCR...');
-    setMessage('Import in corso: viene letta SOLO la squadra selezionata come nostro team. La squadra avversaria viene salvata solo come clan/score/esito, senza statistiche player.');
+    setMessage('Import veloce V4.5: viene letta SOLO la squadra selezionata come nostro team. Se dopo analisi vuoi cambiare BLU/ROSSO, cambia selezione e premi di nuovo Importa risultati.');
     try {
       let backendUrl = '';
       let backendVersion = 'unknown';
@@ -391,9 +391,9 @@ function ImportMatchEditor() {
         formData.append('calibration_mode', calibrationMode);
       }
       formData.append('our_team', ourTeam);
-      formData.append('extract_scope', 'our_only');
+      formData.append('extract_scope', 'fast_our_only');
 
-      const parsed = await postFormDataWithProgress(`${backendUrl}/ocr/scoreboard/ced`, formData, 180000, (percent, label) => {
+      const parsed = await postFormDataWithProgress(`${backendUrl}/ocr/scoreboard/ced`, formData, 90000, (percent, label) => {
         setOcrProgressPct(percent);
         setOcrProgress(label);
       });
@@ -425,7 +425,7 @@ function ImportMatchEditor() {
     } catch (error) {
       setOcrProgressPct(100);
       setOcrProgress('Import OCR fermato. Controlla messaggio e stato backend.');
-      setMessage(error instanceof Error ? (error.name === 'AbortError' ? 'OCR fermato per timeout: Render è troppo lento. La V4.4 legge solo il nostro team, ma se continua apri /ocr-status, scalda /health e riprova con screenshot originale non compresso.' : error.message) : 'Errore Backend OCR Pro.');
+      setMessage(error instanceof Error ? (error.name === 'AbortError' ? 'OCR fermato per timeout: il backend non ha risposto entro 90 secondi. V4.5 usa modalità veloce; se succede ancora apri /ocr-status e /health Render, poi riprova. Se localhost funziona e online no, Render è in cold start o piano free troppo lento.' : error.message) : 'Errore Backend OCR Pro.');
     } finally {
       setWorking(false);
     }
@@ -704,7 +704,7 @@ function ImportMatchEditor() {
           <div className="form">
             <div className="grid grid-2"><div className="field"><label>Tipo partita</label><select className="select" value={matchType} onChange={(e) => setMatchType(e.target.value as MatchType)}>{types.map((m) => <option key={m}>{m}</option>)}</select></div><div className="field"><label>Modalità</label><select className="select" value={mode} onChange={(e) => setMode(e.target.value as GameMode)}>{modes.map((m) => <option key={m} value={m}>{modeLabel(m)}</option>)}</select></div></div>
             <div className="grid grid-2"><div className="field"><label>Mappa</label><input className="input" value={mapName} onChange={(e) => setMapName(e.target.value)} /></div><div className="field"><label>Data/ora partita</label><input className="input" value={matchDateText} onChange={(e) => setMatchDateText(e.target.value)} placeholder="23:09:36 26-07-01" /></div></div>
-            <div className="ak-import-mode-card"><div className="field"><label>Nostro team nello screenshot</label><select className="select" value={ourTeam} onChange={(e) => setOurTeam(e.target.value as 'blue' | 'red')}><option value="blue">Noi siamo BLU / sinistra</option><option value="red">Noi siamo ROSSI / destra</option></select></div><p className="muted">L'OCR importerà solo le statistiche della squadra scelta qui.</p></div><div className="grid grid-2"><div className="field"><label>Clan avversario</label><input className="input" value={opponent} onChange={(e) => { setOpponent(e.target.value); setRows((current) => current.map((r) => r.teamSide === 'ENEMY' && (!r.playerClanName || r.playerClanName === 'Avversari') ? { ...r, playerClanName: e.target.value } : r)); }} placeholder="AP / clan avversario" /></div><div className="field"><label>Squadra vincente</label><select className="select" value={winningTeam} onChange={(e) => setWinningTeam(e.target.value as 'blue' | 'red' | 'draw' | '')}><option value="">Da verificare</option><option value="blue">Blu / sinistra</option><option value="red">Rosso / destra</option><option value="draw">Pareggio</option></select></div></div>
+            <div className="ak-import-mode-card"><div className="field"><label>Nostro team nello screenshot</label><select className="select" value={ourTeam} onChange={(e) => setOurTeam(e.target.value as 'blue' | 'red')}><option value="blue">Noi siamo BLU / sinistra</option><option value="red">Noi siamo ROSSI / destra</option></select></div><p className="muted">L'OCR importerà solo la squadra scelta. Puoi cambiare BLU/ROSSO anche dopo una lettura e premere di nuovo Importa risultati per ricalcolare.</p></div><div className="grid grid-2"><div className="field"><label>Clan avversario</label><input className="input" value={opponent} onChange={(e) => { setOpponent(e.target.value); setRows((current) => current.map((r) => r.teamSide === 'ENEMY' && (!r.playerClanName || r.playerClanName === 'Avversari') ? { ...r, playerClanName: e.target.value } : r)); }} placeholder="AP / clan avversario" /></div><div className="field"><label>Squadra vincente</label><select className="select" value={winningTeam} onChange={(e) => setWinningTeam(e.target.value as 'blue' | 'red' | 'draw' | '')}><option value="">Da verificare</option><option value="blue">Blu / sinistra</option><option value="red">Rosso / destra</option><option value="draw">Pareggio</option></select></div></div>
             <div className="grid grid-3"><div className="field"><label>Esito nostro team</label><select className="select" value={result} onChange={(e) => setResult(e.target.value as MatchResult)}><option>WIN</option><option>LOSE</option><option>DRAW</option></select></div><div className="field"><label>Score blu</label><input className="input" value={teamScore} onChange={(e) => setTeamScore(e.target.value)} /></div><div className="field"><label>Score rosso</label><input className="input" value={enemyScore} onChange={(e) => setEnemyScore(e.target.value)} /></div></div>
             <div className="field"><label>Note partita</label><textarea className="input" rows={4} value={matchNotes} onChange={(e) => setMatchNotes(e.target.value)} placeholder="Note scrim, correzioni OCR, contestazioni, strategia, ecc." /></div>
             <div className="notice"><strong>Manuale/ospite:</strong> se scrivi un nome che non è nel roster, l'app crea un player provvisorio e salva le sue statistiche. In futuro potrai completarlo/associarlo al profilo registrato.</div>

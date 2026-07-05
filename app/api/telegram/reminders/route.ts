@@ -7,10 +7,14 @@ type EventRow = {
   description: string | null;
   starts_at: string;
   location: string | null;
-  reminder_2h_sent_at: string | null;
-  reminder_10m_sent_at: string | null;
   telegram_enabled: boolean | null;
   convocations_text?: string | null;
+  reminder_minutes?: number[] | null;
+  sent_reminders?: Record<string, string> | null;
+  telegram_message_template?: string | null;
+  event_notes?: string | null;
+  reminder_2h_sent_at?: string | null;
+  reminder_10m_sent_at?: string | null;
 };
 
 function serverSupabase() {
@@ -32,19 +36,40 @@ async function sendTelegram(text: string) {
   if (!response.ok) throw new Error(`Telegram HTTP ${response.status}: ${await response.text()}`);
 }
 
-function reminderText(event: EventRow, label: string) {
+function safeHtml(value: string | null | undefined) {
+  return String(value || '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;');
+}
+
+function renderReminderText(event: EventRow, minutes: number) {
   const when = new Date(event.starts_at).toLocaleString('it-IT', { timeZone: 'Europe/Rome' });
-  return `🎮 <b>AK47DX Reminder ${label}</b>\n\n<b>${event.title}</b>\n🕒 ${when}\n📍 ${event.location || 'CODM'}\n\n${event.description || 'Preparati per evento clan.'}`;
+  const convocati = event.convocations_text?.trim() || 'Da confermare';
+  const template = event.telegram_message_template || '🎮 <b>AK47DX Reminder</b>\n\n<b>{title}</b>\n⏱️ Mancano {minutes} minuti\n🕒 {date}\n📍 {location}\n\n{description}\n\n<b>Convocati:</b>\n{convocati}';
+  return template
+    .replaceAll('{title}', safeHtml(event.title))
+    .replaceAll('{minutes}', String(minutes))
+    .replaceAll('{date}', safeHtml(when))
+    .replaceAll('{location}', safeHtml(event.location || 'CODM'))
+    .replaceAll('{description}', safeHtml(event.description || event.event_notes || 'Preparati per evento clan.'))
+    .replaceAll('{convocati}', safeHtml(convocati));
+}
+
+function normalizeReminderMinutes(event: EventRow) {
+  const raw = Array.isArray(event.reminder_minutes) && event.reminder_minutes.length ? event.reminder_minutes : [120, 10];
+  return Array.from(new Set(raw.map(Number).filter((n) => Number.isFinite(n) && n > 0 && n <= 10080))).sort((a, b) => b - a);
 }
 
 async function processReminders() {
   const supabase = serverSupabase();
   const now = new Date();
-  const until = new Date(now.getTime() + 2 * 60 * 60 * 1000 + 15 * 60 * 1000).toISOString();
+  const maxWindow = 7 * 24 * 60 * 60 * 1000;
+  const until = new Date(now.getTime() + maxWindow).toISOString();
 
   const { data, error } = await supabase
     .from('codm_events')
-    .select('id,title,description,starts_at,location,reminder_2h_sent_at,reminder_10m_sent_at,telegram_enabled,convocations_text')
+    .select('id,title,description,starts_at,location,telegram_enabled,convocations_text,reminder_minutes,sent_reminders,telegram_message_template,event_notes,reminder_2h_sent_at,reminder_10m_sent_at')
     .eq('telegram_enabled', true)
     .gte('starts_at', now.toISOString())
     .lte('starts_at', until)
@@ -52,23 +77,28 @@ async function processReminders() {
   if (error) throw error;
 
   const sent: string[] = [];
+  const checked: string[] = [];
   const events = (data || []) as EventRow[];
   for (const event of events) {
     const diffMinutes = Math.round((new Date(event.starts_at).getTime() - now.getTime()) / 60000);
-
-    if (!event.reminder_2h_sent_at && diffMinutes <= 125 && diffMinutes >= 105) {
-      await sendTelegram(reminderText(event, '2 ore prima'));
-      await supabase.from('codm_events').update({ reminder_2h_sent_at: new Date().toISOString() }).eq('id', event.id).is('reminder_2h_sent_at', null);
-      sent.push(`${event.title}:2h`);
-    }
-
-    if (!event.reminder_10m_sent_at && diffMinutes <= 15 && diffMinutes >= 0) {
-      await sendTelegram(reminderText(event, '10 minuti prima'));
-      await supabase.from('codm_events').update({ reminder_10m_sent_at: new Date().toISOString() }).eq('id', event.id).is('reminder_10m_sent_at', null);
-      sent.push(`${event.title}:10m`);
+    const sentMap = event.sent_reminders || {};
+    for (const minutes of normalizeReminderMinutes(event)) {
+      const key = String(minutes);
+      checked.push(`${event.title}:${minutes}m:${diffMinutes}m_left`);
+      // Finestra generosa: il cron gira ogni 10 minuti, quindi manda se siamo tra N e N-10 minuti.
+      const inWindow = diffMinutes <= minutes && diffMinutes >= Math.max(0, minutes - 10);
+      if (!sentMap[key] && inWindow) {
+        await sendTelegram(renderReminderText(event, minutes));
+        sentMap[key] = new Date().toISOString();
+        const updatePayload: Record<string, any> = { sent_reminders: sentMap };
+        if (minutes === 120 && !event.reminder_2h_sent_at) updatePayload.reminder_2h_sent_at = sentMap[key];
+        if (minutes === 10 && !event.reminder_10m_sent_at) updatePayload.reminder_10m_sent_at = sentMap[key];
+        await supabase.from('codm_events').update(updatePayload).eq('id', event.id);
+        sent.push(`${event.title}:${minutes}m`);
+      }
     }
   }
-  return sent;
+  return { sent, checked };
 }
 
 export async function GET(request: NextRequest) {
@@ -76,8 +106,8 @@ export async function GET(request: NextRequest) {
     const secret = process.env.CRON_SECRET;
     const given = request.nextUrl.searchParams.get('secret') || request.headers.get('authorization')?.replace(/^Bearer\s+/i, '');
     if (secret && given !== secret) return NextResponse.json({ ok: false, error: 'Unauthorized cron secret.' }, { status: 401 });
-    const sent = await processReminders();
-    return NextResponse.json({ ok: true, sent, count: sent.length });
+    const result = await processReminders();
+    return NextResponse.json({ ok: true, sent: result.sent, count: result.sent.length, checked: result.checked });
   } catch (error) {
     return NextResponse.json({ ok: false, error: error instanceof Error ? error.message : 'Errore reminder Telegram.' }, { status: 500 });
   }
