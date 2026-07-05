@@ -400,6 +400,8 @@ function ImportMatchEditor() {
       }
       formData.append('our_team', ourTeam);
       formData.append('extract_scope', 'fast_our_only');
+      formData.append('template_priority', 'true');
+      formData.append('debug_boxes', 'all_template');
 
       const parsed = await postFormDataWithProgress(`${backendUrl}/ocr/scoreboard/ced`, formData, 90000, (percent, label) => {
         setOcrProgressPct(percent);
@@ -429,11 +431,11 @@ function ImportMatchEditor() {
       const warnings = parsed.warnings?.length ? ` Warning: ${parsed.warnings.join(' | ')}` : '';
       setOcrProgressPct(100);
       setOcrProgress('Import completato. Controlla righe gialle prima di salvare.');
-      setMessage(`Import nostro team completato. Layout=${Math.round((parsed.layout_confidence || 0) * 100)}%, OCR=${Math.round((parsed.ocr_confidence || 0) * 100)}%. Righe lette nostro team=${ourCount}. Avversari salvati solo come clan/score/esito. Vincente=${parsed.winning_team || 'da verificare'}. Controlla campi gialli e salva partita.${warnings}`);
+      setMessage(`Import nostro team completato con priorità template. Layout=${Math.round((parsed.layout_confidence || 0) * 100)}%, OCR=${Math.round((parsed.ocr_confidence || 0) * 100)}%. Righe lette nostro team=${ourCount}. Avversari salvati solo come clan/score/esito. Vincente=${parsed.winning_team || 'da verificare'}. Controlla campi gialli e salva partita.${warnings}`);
     } catch (error) {
       setOcrProgressPct(100);
       setOcrProgress('Import OCR fermato. Controlla messaggio e stato backend.');
-      setMessage(error instanceof Error ? (error.name === 'AbortError' ? 'OCR fermato per timeout: il backend non ha risposto entro 90 secondi. V4.6 usa template salvato + modalità veloce; se succede ancora apri /ocr-status e /health Render, poi riprova. Se localhost funziona e online no, Render è in cold start o piano free troppo lento.' : error.message) : 'Errore Backend OCR Pro.');
+      setMessage(error instanceof Error ? (error.name === 'AbortError' ? 'OCR fermato per timeout: il backend non ha risposto entro 90 secondi. V4.7 usa template-priority + modalità veloce; se succede ancora apri /ocr-status e /health Render, poi riprova. Se localhost funziona e online no, Render è in cold start o piano free troppo lento.' : error.message) : 'Errore Backend OCR Pro.');
     } finally {
       setWorking(false);
     }
@@ -515,7 +517,7 @@ function ImportMatchEditor() {
       our_team: ourTeam,
       match_notes: matchNotes || null,
       match_date: parseBackendMatchDate(matchDateText) || new Date().toISOString(),
-      notes: `${matchNotes ? `${matchNotes}\n\n` : ''}Import risultati 2.0. Screenshot prova=${screenshotPath || screenshotUrl || 'non caricato'}. Template=${useCalibrationTemplate ? `${selectedCalibrationPhone}/${calibrationMode}/frame=${imageContentFrame.reason}` : 'OFF'}. OurTeam=${ourTeam}. WinningTeam=${winningTeam || '-'}. MatchDateText=${matchDateText || '-'}.`
+      notes: `${matchNotes ? `${matchNotes}\n\n` : ''}Import risultati 2.0. Screenshot prova=${screenshotPath || screenshotUrl || 'non caricato'}. Template=${useCalibrationTemplate ? `${selectedCalibrationPhone}/${calibrationMode}/priority/frame=${imageContentFrame.reason}` : 'OFF'}. OurTeam=${ourTeam}. WinningTeam=${winningTeam || '-'}. MatchDateText=${matchDateText || '-'}.`
     }).select('id').single();
 
     if (matchError || !match) return setMessage(matchError?.message || 'Partita non creata.');
@@ -698,7 +700,7 @@ function ImportMatchEditor() {
             <div className="grid grid-2 top-gap">
               <div className="field"><label>Usa calibrazione</label><select className="select" value={useCalibrationTemplate ? 'yes' : 'no'} onChange={(e) => setUseCalibrationTemplate(e.target.value === 'yes')}><option value="yes">Sì, usa template salvato</option><option value="no">No, layout automatico</option></select></div>
               <div className="field"><label>Template telefono</label><select className="select" value={selectedCalibrationPhone} onChange={(e) => { setSelectedCalibrationPhone(e.target.value); setActivePhoneProfile('scoreboard_ced', e.target.value); }} disabled={!useCalibrationTemplate}>{calibrationProfiles.map((p) => <option key={p} value={p}>{p}</option>)}</select></div>
-              <div className="field"><label>Modo template</label><select className="select" value={calibrationMode} onChange={(e) => setCalibrationMode(e.target.value as 'table_lock' | 'content_frame' | 'strict_image')} disabled={!useCalibrationTemplate}><option value="table_lock">Table-lock consigliato</option><option value="content_frame">Content frame</option><option value="strict_image">Coordinate immagine esatta</option></select><small className="muted">V4.6 invia anche il frame calcolato dal frontend: {imageContentFrame.reason} ({Math.round(imageContentFrame.x * 100)}%, {Math.round(imageContentFrame.y * 100)}%, {Math.round(imageContentFrame.w * 100)}% x {Math.round(imageContentFrame.h * 100)}%).</small></div>
+              <div className="field"><label>Modo template</label><select className="select" value={calibrationMode} onChange={(e) => setCalibrationMode(e.target.value as 'table_lock' | 'content_frame' | 'strict_image')} disabled={!useCalibrationTemplate}><option value="table_lock">Table-lock consigliato</option><option value="content_frame">Content frame</option><option value="strict_image">Coordinate immagine esatta</option></select><small className="muted">V4.7 usa priorità template: i riquadri salvati NICK/KDA hanno precedenza sul table-lock. Frame frontend: {imageContentFrame.reason} ({Math.round(imageContentFrame.x * 100)}%, {Math.round(imageContentFrame.y * 100)}%, {Math.round(imageContentFrame.w * 100)}% x {Math.round(imageContentFrame.h * 100)}%).</small></div>
               <div className="field"><label>Conferma nostro team</label><select className="select" value={ourTeam} onChange={(e) => setOurTeam(e.target.value as 'blue' | 'red')}><option value="blue">Blu / sinistra</option><option value="red">Rosso / destra</option></select></div>
             </div>
             <div className="top-gap"><a className="btn small secondary" href="/calibration">🎯 Apri calibrazione</a></div>

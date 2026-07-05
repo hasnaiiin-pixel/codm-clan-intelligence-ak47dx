@@ -1,6 +1,6 @@
 {
   "name": "codm-clan-intelligence-ak47dx",
-  "version": "4.6.0-template-notifications-fix",
+  "version": "4.7.0-template-priority-import",
   "private": true,
   "scripts": {
     "dev": "next dev",

@@ -6,7 +6,7 @@ export default function VersionPage() {
           <div className="ak-pill">AK47DX DEPLOY CHECK</div>
           <h1 className="ak-title">CODM Clan Intelligence</h1>
           <p className="ak-lead">Versione V4.6: import usa davvero il template salvato, frame frontend allineato, notifiche in-app/Telegram personalizzabili e utenti collegabili a player.</p>
-          <div className="notice top-gap"><strong>Marker:</strong> V4_6_TEMPLATE_NOTIFICHE_PERMESSI_OK</div>
+          <div className="notice top-gap"><strong>Marker:</strong> V4_7_TEMPLATE_PRIORITY_IMPORT_OK</div>
           <div className="ak-quick-links">
             <a href="/cache-reset">Reset cache</a>
             <a href="/login">Login</a>

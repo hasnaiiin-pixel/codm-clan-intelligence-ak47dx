@@ -34,7 +34,7 @@ class OcrPlayerRow(BaseModel):
 
 
 class ScoreboardCedResult(BaseModel):
-    engine_version: str = "2.0.5-v4-6-template-notifications-ak47dx"
+    engine_version: str = "2.0.6-v4-7-template-priority-import-ak47dx"
     screen_type: str = "scoreboard_ced"
     result: Optional[Literal["WIN", "LOSE", "DRAW"]] = None
     winning_team: Optional[Literal["blue", "red", "draw"]] = None
@@ -56,7 +56,7 @@ class ScoreboardCedResult(BaseModel):
 
 
 class ProfileOcrResult(BaseModel):
-    engine_version: str = "2.0.5-v4-6-template-notifications-ak47dx"
+    engine_version: str = "2.0.6-v4-7-template-priority-import-ak47dx"
     screen_type: str = "profile_base"
     nickname: str = ""
     uid: str = ""

@@ -547,6 +547,46 @@ def _rebuild_cells_from_team_tables(layout, mode_hint: str = "CED"):
     return layout
 
 
+
+
+def _has_priority_template_cells(layout, team: str) -> bool:
+    """True quando il template contiene celle calibrate individuali per il team scelto.
+
+    In V4.6 il table-lock ricostruiva le celle da TEAM_*_TABLE_FULL e poteva spostarle
+    rispetto ai riquadri salvati dall'utente. In V4.7 diamo priorità assoluta ai box
+    BLUE/RED_Rx_NICK e BLUE/RED_Rx_KDA salvati in calibrazione.
+    """
+    nick_rows = set()
+    kda_rows = set()
+    for b in layout.boxes:
+        if b.team != team or not b.row:
+            continue
+        if not str(b.name).startswith('cal_'):
+            continue
+        if b.role == 'nickname':
+            nick_rows.add(int(b.row))
+        if b.role == 'kda':
+            kda_rows.add(int(b.row))
+    return len(kda_rows) >= 5 or (len(kda_rows) >= 4 and len(nick_rows) >= 4)
+
+
+def _debug_overlay_boxes(layout, our_team: str, mode: str = 'all_template'):
+    """Restituisce i riquadri da mostrare in overlay frontend.
+
+    Per debug V4.7 mostriamo tutti i riquadri di template applicati, non solo quelli
+    usati per leggere. Così si vede subito se il template è allineato o se il frame è sbagliato.
+    """
+    if mode == 'used_only':
+        return []
+    out = []
+    for b in layout.boxes:
+        is_cal = str(b.name).startswith('cal_')
+        if not is_cal:
+            continue
+        if b.team in (None, our_team) or b.role in {'result_label', 'blue_score', 'red_score', 'match_datetime', 'mode_map', 'team_table'}:
+            out.append(b)
+    return out
+
 def _winner_from_scores(blue_score: Optional[int], red_score: Optional[int], result_hint: str | None = None) -> str | None:
     if blue_score is not None and red_score is not None:
         if blue_score > red_score:
@@ -638,7 +678,7 @@ def _fast_clean_nickname(text: str) -> str:
     return text[:40]
 
 
-def parse_scoreboard_ced_fast(image_bytes: bytes, calibration_template: str | None = None, calibration_frame: str | None = None, calibration_mode: str = "table_lock", our_team: str = "blue", extract_scope: str = "our_only") -> ScoreboardCedResult:
+def parse_scoreboard_ced_fast(image_bytes: bytes, calibration_template: str | None = None, calibration_frame: str | None = None, calibration_mode: str = "table_lock", our_team: str = "blue", extract_scope: str = "our_only", template_priority: str = "true", debug_boxes: str = "all_template") -> ScoreboardCedResult:
     original = read_image_bytes(image_bytes)
     our_team = "red" if str(our_team).lower() == "red" else "blue"
     calibration_mode = (calibration_mode or "table_lock").strip().lower()
@@ -666,6 +706,14 @@ def parse_scoreboard_ced_fast(image_bytes: bytes, calibration_template: str | No
         except Exception as exc:
             layout.warnings.append(f"V4.6 fast: template non applicato: {exc}")
 
+    template_priority_active = False
+    if calibration_template and calibration_template.strip() and str(template_priority).strip().lower() not in {"false", "0", "off", "no"}:
+        template_priority_active = _has_priority_template_cells(layout, our_team)
+        if template_priority_active:
+            layout.warnings.append(f"V4.7 TEMPLATE PRIORITY attivo: uso i riquadri salvati BLUE/RED_Rx_NICK e BLUE/RED_Rx_KDA del team {our_team}. Non ricostruisco le celle dalla tabella, quindi import e calibrazione hanno la stessa posizione.")
+        else:
+            layout.warnings.append(f"V4.7 TEMPLATE PRIORITY richiesto ma celle individuali insufficienti per team {our_team}: fallback table-lock da TEAM_*_TABLE_FULL.")
+
     # Header rapido: massimo 1 OCR largo, non blocca Render.
     raw_parts: list[str] = []
     mode = "CED"
@@ -680,8 +728,10 @@ def parse_scoreboard_ced_fast(image_bytes: bytes, calibration_template: str | No
     except Exception:
         mode, map_name = "CED", None
 
-    # Ricostruzione cella KDA coerente per modalità.
-    layout = _rebuild_cells_from_team_tables(layout, mode)
+    # V4.7: se esistono riquadri individuali salvati, hanno priorità assoluta.
+    # Solo se mancano, usiamo table-lock per ricostruire celle da TEAM_*_TABLE_FULL.
+    if not template_priority_active:
+        layout = _rebuild_cells_from_team_tables(layout, mode)
     boxes = layout.boxes
 
     result_hint = _detect_result_color(img) or _detect_result(header_text, None, None)
@@ -697,6 +747,7 @@ def parse_scoreboard_ced_fast(image_bytes: bytes, calibration_template: str | No
 
     teams: dict[str, list[OcrPlayerRow]] = {"blue": [], "red": []}
     confs: list[float] = []
+    overlay_boxes = _debug_overlay_boxes(layout, our_team, debug_boxes)
     parsed_boxes = []
 
     for row in range(1, 6):
@@ -764,15 +815,15 @@ def parse_scoreboard_ced_fast(image_bytes: bytes, calibration_template: str | No
         ocr_confidence=round(ocr_conf, 3),
         needs_manual_review=ocr_conf < 0.55 or result is None,
         teams=teams,
-        boxes=parsed_boxes,
+        boxes=list({(b.name, b.role, b.team, b.row): b for b in (overlay_boxes + parsed_boxes)}.values()),
         warnings=warnings,
         score_diagnostics={"policy": "V4.6 fast-own-team-template-frame", "our_team": our_team, "blue_score": blue_score, "red_score": red_score, "result_hint": result_hint},
         raw_text="\n".join(raw_parts),
     )
 
-def parse_scoreboard_ced(image_bytes: bytes, calibration_template: str | None = None, calibration_frame: str | None = None, calibration_mode: str = "table_lock", our_team: str = "blue", extract_scope: str = "our_only") -> ScoreboardCedResult:
+def parse_scoreboard_ced(image_bytes: bytes, calibration_template: str | None = None, calibration_frame: str | None = None, calibration_mode: str = "table_lock", our_team: str = "blue", extract_scope: str = "our_only", template_priority: str = "true", debug_boxes: str = "all_template") -> ScoreboardCedResult:
     if (extract_scope or "").strip().lower() in {"our_only", "own_team", "ally_only", "fast_our_only"}:
-        return parse_scoreboard_ced_fast(image_bytes, calibration_template=calibration_template, calibration_frame=calibration_frame, calibration_mode=calibration_mode, our_team=our_team, extract_scope=extract_scope)
+        return parse_scoreboard_ced_fast(image_bytes, calibration_template=calibration_template, calibration_frame=calibration_frame, calibration_mode=calibration_mode, our_team=our_team, extract_scope=extract_scope, template_priority=template_priority, debug_boxes=debug_boxes)
     original = read_image_bytes(image_bytes)
     has_calibration = bool(calibration_template and calibration_template.strip())
     calibration_mode = (calibration_mode or "table_lock").strip().lower()
