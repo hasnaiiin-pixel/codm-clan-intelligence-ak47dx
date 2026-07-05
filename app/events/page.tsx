@@ -58,6 +58,8 @@ export default function EventsPage() {
   const [selectedPlayers, setSelectedPlayers] = useState<string[]>([]);
   const [message, setMessage] = useState('');
   const [calendarMonth, setCalendarMonth] = useState(monthKey(new Date()));
+  const [eventFilter, setEventFilter] = useState<'future' | 'all' | 'past'>('future');
+  const [eventsLoading, setEventsLoading] = useState(false);
   const canWrite = auth.canWrite;
 
   async function loadPlayers() {
@@ -66,27 +68,34 @@ export default function EventsPage() {
   }
 
   async function loadEvents() {
+    setEventsLoading(true);
+    setMessage('');
     const { data, error } = await supabase
       .from('codm_events')
       .select('*')
       .order('starts_at', { ascending: true })
-      .limit(200);
+      .limit(300);
     if (error) {
-      setMessage(error.message);
+      setMessage(`Errore caricamento eventi: ${error.message}`);
+      setEventsLoading(false);
       return;
     }
-    setEvents((data || []) as CodmEvent[]);
+    const rows = (data || []) as CodmEvent[];
+    setEvents(rows);
+    try { localStorage.setItem('codm_events_last_cache', JSON.stringify(rows)); } catch {}
 
-    const eventIds = (data || []).map((event: any) => event.id).filter(Boolean);
+    const eventIds = rows.map((event: any) => event.id).filter(Boolean);
     if (eventIds.length) {
-      const { data: epRows } = await supabase
+      const { data: epRows, error: epError } = await supabase
         .from('codm_event_players')
         .select('event_id,player_id,nickname')
         .in('event_id', eventIds);
+      if (epError) setMessage(`Eventi caricati, ma convocati non letti: ${epError.message}`);
       setEventPlayers((epRows || []) as EventPlayerRow[]);
     } else {
       setEventPlayers([]);
     }
+    setEventsLoading(false);
   }
 
   useEffect(() => {
@@ -185,7 +194,13 @@ export default function EventsPage() {
     });
   }, [calendarMonth, eventsByDay]);
 
-  const upcoming = useMemo(() => events.filter((event) => new Date(event.starts_at).getTime() >= Date.now() - 60 * 60 * 1000), [events]);
+  const futureEvents = useMemo(() => events.filter((event) => new Date(event.starts_at).getTime() >= Date.now() - 60 * 60 * 1000), [events]);
+  const pastEvents = useMemo(() => events.filter((event) => new Date(event.starts_at).getTime() < Date.now() - 60 * 60 * 1000).reverse(), [events]);
+  const visibleEvents = useMemo(() => {
+    if (eventFilter === 'all') return events;
+    if (eventFilter === 'past') return pastEvents;
+    return futureEvents;
+  }, [events, eventFilter, futureEvents, pastEvents]);
 
   function convocatiForEvent(event: CodmEvent) {
     const fromJoin = eventPlayers.filter((row) => row.event_id === event.id).map((row) => row.nickname);
@@ -240,10 +255,23 @@ export default function EventsPage() {
       </section>
 
       <section className="card top-gap">
-        <h2>Prossimi eventi</h2>
+        <div className="section-title">
+          <div>
+            <h2>Eventi</h2>
+            <p className="muted">Caricati: {events.length} • futuri: {futureEvents.length} • passati: {pastEvents.length}</p>
+          </div>
+          <div className="ak-event-toolbar">
+            <select className="select compact-select" value={eventFilter} onChange={(e) => setEventFilter(e.target.value as any)}>
+              <option value="future">Solo futuri</option>
+              <option value="all">Tutti</option>
+              <option value="past">Passati</option>
+            </select>
+            <button className="btn secondary" onClick={() => void loadEvents()}>{eventsLoading ? 'Carico...' : 'Ricarica'}</button>
+          </div>
+        </div>
         <div className="ak-events-list top-gap">
-          {upcoming.length === 0 && <p className="empty-state">Nessun evento programmato.</p>}
-          {upcoming.map((event) => {
+          {visibleEvents.length === 0 && <p className="empty-state">Nessun evento da mostrare. Se hai appena creato un evento, premi Ricarica; se non compare, riesegui lo SQL V4.8 su Supabase.</p>}
+          {visibleEvents.map((event) => {
             const googleUrl = event.google_calendar_url || buildGoogleCalendarUrl({ title: event.title, description: event.description, location: event.location, startsAt: event.starts_at, endsAt: event.ends_at });
             const convocati = convocatiForEvent(event);
             return (
@@ -254,7 +282,7 @@ export default function EventsPage() {
                   <p className="muted">{new Date(event.starts_at).toLocaleString('it-IT')} {event.location ? `• ${event.location}` : ''}</p>
                   {event.description && <p>{event.description}</p>}
                   {!!convocati.length && <p className="ak-convocati"><strong>Convocati:</strong> {convocati.join(', ')}</p>}
-                  <p className="muted small-text">Telegram: {event.telegram_enabled ? 'attivo' : 'off'} • reminder: {(event.reminder_minutes || [120, 10]).join(', ')} min</p>
+                  <p className="muted small-text">Telegram: {event.telegram_enabled ? 'attivo' : 'off'} • reminder: {(event.reminder_minutes || [120, 10]).join(', ')} min • ID {event.id.slice(0, 8)}</p>
                 </div>
                 <div className="ak-event-actions"><a href={googleUrl} target="_blank" rel="noreferrer" className="btn secondary">Google Calendar</a>{canWrite && <button className="btn danger secondary" onClick={() => void deleteEvent(event.id)}>Cancella</button>}</div>
               </article>

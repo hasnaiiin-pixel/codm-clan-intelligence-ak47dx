@@ -8,7 +8,7 @@ from app.services.scoreboard_ced import parse_scoreboard_ced
 from app.services.profile_ocr import parse_profile
 from app.services.ocr_engines import engine_status
 
-ENGINE_VERSION = "2.0.6-v4-7-template-priority-import-ak47dx"
+ENGINE_VERSION = "2.0.7-v4-8-events-ocr-definitive-ak47dx"
 
 app = FastAPI(title="CODM OCR Hybrid Engine", version=ENGINE_VERSION)
 

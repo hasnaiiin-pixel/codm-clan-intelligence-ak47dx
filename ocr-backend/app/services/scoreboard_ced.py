@@ -637,13 +637,31 @@ def _fast_tesseract_text(img: np.ndarray, kind: str = "text", timeout: float = 1
         return ""
     try:
         gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
-        gray = cv2.copyMakeBorder(gray, 4, 4, 4, 4, cv2.BORDER_REPLICATE)
-        # Per KDA il grigio semplice è più affidabile delle binarizzazioni aggressive.
-        proc = cv2.resize(gray, None, fx=5.0 if kind == "kda" else 2.8, fy=5.0 if kind == "kda" else 2.8, interpolation=cv2.INTER_CUBIC)
+        gray = cv2.copyMakeBorder(gray, 6, 6, 8, 8, cv2.BORDER_REPLICATE)
         if kind == "kda":
-            config = "--psm 6 -c tessedit_char_whitelist=0123456789/|IlO"
-            lang = "eng"
-        elif kind == "number":
+            # V4.8: K/D/A CODM viene letto meglio con grigio grande + psm 7/11.
+            # Le soglie binarie spesso cancellano lo slash, quindi proviamo prima raw/CLAHE.
+            clahe = cv2.createCLAHE(clipLimit=2.8, tileGridSize=(8, 8)).apply(gray)
+            variants = [("raw", gray), ("clahe", clahe)]
+            results = []
+            for name, base in variants:
+                for scale in (6.0, 8.0, 9.5):
+                    proc = cv2.resize(base, None, fx=scale, fy=scale, interpolation=cv2.INTER_CUBIC)
+                    for psm in (7, 11, 13):
+                        try:
+                            txt = pytesseract.image_to_string(proc, lang="eng", config=f"--psm {psm} -c tessedit_char_whitelist=0123456789/|IlO", timeout=timeout).strip()
+                            if txt:
+                                results.append(txt)
+                        except Exception:
+                            pass
+            # restituisci il primo testo che contiene già uno slash, altrimenti il più lungo
+            slashy = [r for r in results if "/" in r or "|" in r]
+            pool = slashy or results
+            if pool:
+                return sorted(pool, key=lambda x: (x.count('/') + x.count('|'), len(x)), reverse=True)[0]
+            return ""
+        proc = cv2.resize(gray, None, fx=2.8, fy=2.8, interpolation=cv2.INTER_CUBIC)
+        if kind == "number":
             config = "--psm 7 -c tessedit_char_whitelist=0123456789:.-"
             lang = "eng"
         else:
@@ -710,7 +728,7 @@ def parse_scoreboard_ced_fast(image_bytes: bytes, calibration_template: str | No
     if calibration_template and calibration_template.strip() and str(template_priority).strip().lower() not in {"false", "0", "off", "no"}:
         template_priority_active = _has_priority_template_cells(layout, our_team)
         if template_priority_active:
-            layout.warnings.append(f"V4.7 TEMPLATE PRIORITY attivo: uso i riquadri salvati BLUE/RED_Rx_NICK e BLUE/RED_Rx_KDA del team {our_team}. Non ricostruisco le celle dalla tabella, quindi import e calibrazione hanno la stessa posizione.")
+            layout.warnings.append(f"V4.8 TEMPLATE PRIORITY attivo: uso i riquadri salvati BLUE/RED_Rx_NICK e BLUE/RED_Rx_KDA del team {our_team}. Non ricostruisco le celle dalla tabella, quindi import e calibrazione hanno la stessa posizione.")
         else:
             layout.warnings.append(f"V4.7 TEMPLATE PRIORITY richiesto ma celle individuali insufficienti per team {our_team}: fallback table-lock da TEAM_*_TABLE_FULL.")
 
@@ -767,14 +785,21 @@ def parse_scoreboard_ced_fast(image_bytes: bytes, calibration_template: str | No
 
         k, d, a, conf = 0, 0, 0, 0.0
         kda_raw = ""
+        kda_debug = []
         if kda_box:
-            kda_crop = crop_box(img, _box_tuple(kda_box), pad=3)
-            kda_raw = _fast_tesseract_text(kda_crop, "kda", timeout=1.0)
-            k, d, a, conf = _fast_parse_kda_text(kda_raw)
+            # V4.8: crop più largo perché molti template salvati sono corretti visivamente ma troppo stretti per Tesseract.
+            kda_crop = crop_box(img, _box_tuple(kda_box), pad=10)
+            k, d, a, conf, robust_raw, robust_candidates = _read_kda_cell_robust(kda_crop, mode_hint=mode)
+            kda_raw = robust_raw or ""
+            kda_debug = robust_candidates[:5] if robust_candidates else []
+            if conf <= 0.0:
+                # fallback veloce ad alta scala: utile su Render quando numeric_ocr_candidates non emette candidati.
+                kda_raw = _fast_tesseract_text(kda_crop, "kda", timeout=1.4)
+                k, d, a, conf = _fast_parse_kda_text(kda_raw)
             row_boxes.append(kda_box)
             parsed_boxes.append(kda_box)
         confs.append(conf)
-        raw_parts.append(f"[V4.6 fast {our_team} r{row}] nick={nick!r} kda_raw={kda_raw!r} -> {k}/{d}/{a} conf={conf:.2f}")
+        raw_parts.append(f"[V4.8 template priority {our_team} r{row}] nick={nick!r} kda_raw={kda_raw!r} -> {k}/{d}/{a} conf={conf:.2f} debug={kda_debug}")
 
         mvp_label = None
         if row == 1:
@@ -798,9 +823,9 @@ def parse_scoreboard_ced_fast(image_bytes: bytes, calibration_template: str | No
 
     ocr_conf = sum(confs) / len(confs) if confs else 0.0
     warnings = list(layout.warnings)
-    warnings.append("V4.6 fast import: lettura solo nostro team, massimo ~10 chiamate OCR. Usa template salvato con frame frontend. Niente lettura avversari, niente score player/impatto.")
+    warnings.append("V4.8 import definitivo: lettura solo nostro team, template priority, crop K/D/A allargato e fallback OCR robusto. Niente lettura avversari, niente score player/impatto.")
     if ocr_conf < 0.45:
-        warnings.append("OCR K/D/A a bassa confidenza: controlla manualmente i campi gialli prima di salvare.")
+        warnings.append("OCR K/D/A ancora a bassa confidenza: la posizione template è stata rispettata, ma Tesseract non ha letto abbastanza cifre. Controlla solo i campi gialli; raw_text contiene i crop/debug per taratura definitiva.")
 
     return ScoreboardCedResult(
         result=result,

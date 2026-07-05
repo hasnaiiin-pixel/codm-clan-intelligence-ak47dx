@@ -74,3 +74,7 @@ http://localhost:3000/**
 - `/ocr-status`
 - `/api/telegram/reminders?secret=CRON_SECRET`
 
+
+
+## V4.8
+Fix eventi futuri e OCR K/D/A template priority definitivo. Marker: V4_8_EVENTI_OCR_DEFINITIVO_OK

@@ -1260,3 +1260,8 @@ textarea,
 .ak-notification-card p { margin: 0 0 6px; color: rgba(226,232,240,.84); }
 .ak-notification-card small { color: rgba(148,163,184,.95); }
 @media (max-width: 700px) { .ak-notification-card { align-items: stretch; flex-direction: column; } }
+
+/* CODM V4.8 eventi: toolbar visibile e lista futuri stabile */
+.ak-event-toolbar { display:flex; gap:10px; align-items:center; flex-wrap:wrap; justify-content:flex-end; }
+.compact-select { max-width:180px; }
+@media (max-width: 720px) { .ak-event-toolbar { width:100%; justify-content:stretch; } .ak-event-toolbar .select, .ak-event-toolbar .btn { width:100%; max-width:none; } }
