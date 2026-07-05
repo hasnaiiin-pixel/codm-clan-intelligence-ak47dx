@@ -10,11 +10,11 @@ const types: Array<MatchType | 'ALL'> = ['ALL', 'scrim', 'ranked', 'private', 't
 const results: Array<MatchResult | 'ALL'> = ['ALL', 'WIN', 'LOSE', 'DRAW'];
 
 function rankMedal(rank?: number | null) {
-  if (rank === 1) return { icon: '🥇', label: 'Gold / MVP', className: 'medal-gold' };
-  if (rank === 2) return { icon: '🥈', label: 'Silver', className: 'medal-silver' };
-  if (rank === 3) return { icon: '🥉', label: 'Bronze', className: 'medal-bronze' };
-  if (rank === 4) return { icon: '4️⃣', label: '4°', className: 'medal-normal' };
-  if (rank === 5) return { icon: '5️⃣', label: '5°', className: 'medal-normal' };
+  if (rank === 1) return { icon: '🥇', label: 'Oro / MVP', className: 'medal-gold' };
+  if (rank === 2) return { icon: '🥈', label: 'Argento', className: 'medal-silver' };
+  if (rank === 3) return { icon: '🥉', label: 'Bronzo', className: 'medal-bronze' };
+  if (rank === 4) return { icon: '🪵', label: 'Legno', className: 'medal-wood' };
+  if (rank === 5) return { icon: '🏛️', label: 'Olimpico', className: 'medal-olympic' };
   return { icon: '•', label: '-', className: 'medal-normal' };
 }
 
@@ -123,7 +123,7 @@ export default function MatchesPage() {
       <section className="card gaming-panel">
         <p className="eyebrow">🎞️ Archivio partite 2.0</p>
         <h1>Storico partite + Action Panel</h1>
-        <p className="muted">Apri una partita dall'elenco: lo screenshot prova rimane visibile nel pannello azione, insieme a note, MVP, ranking Gold/Silver/Bronze, classifica 1–5 e Kill / Death / Assist.</p>
+        <p className="muted">Apri una partita dall'elenco: lo screenshot prova rimane visibile nel pannello azione, insieme a note, MVP, ranking Oro/Argento/Bronzo/Legno/Olimpico, classifica 1–5 e Kill / Death / Assist.</p>
         {message && <div className="notice">{message}</div>}
         <div className="grid grid-5 top-gap">
           <div className="field"><label>Da data</label><input className="input" type="date" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} /></div>

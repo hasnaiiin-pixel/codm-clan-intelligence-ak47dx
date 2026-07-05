@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="MIRZA Developer Logo">
+  <defs>
+    <linearGradient id="g" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#ff2d2d"/>
+      <stop offset="0.55" stop-color="#f59e0b"/>
+      <stop offset="1" stop-color="#22d3ee"/>
+    </linearGradient>
+    <filter id="glow" x="-40%" y="-40%" width="180%" height="180%">
+      <feGaussianBlur stdDeviation="10" result="b"/>
+      <feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+  </defs>
+  <rect x="24" y="24" width="464" height="464" rx="108" fill="#050816"/>
+  <path d="M74 350V162h54l58 85 58-85h54v188h-50V238l-50 72h-25l-50-72v112H74Z" fill="url(#g)" filter="url(#glow)"/>
+  <path d="M324 162h116v43h-61v28h50c35 0 57 23 57 57 0 37-27 60-68 60h-94V162Zm55 110v35h36c13 0 21-6 21-18 0-11-8-17-21-17h-36Z" fill="#f8fafc"/>
+  <text x="256" y="417" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-size="44" font-weight="900" fill="#f8fafc" letter-spacing="8">MIRZA</text>
+  <text x="256" y="454" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-size="18" font-weight="700" fill="#94a3b8" letter-spacing="5">DEVELOPER</text>
+</svg>

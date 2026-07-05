@@ -1,6 +1,6 @@
 {
   "name": "codm-clan-intelligence-ak47dx",
-  "version": "5.4.0-fastlane-import-stabile",
+  "version": "5.5.0-clean-start-logo-medals",
   "private": true,
   "scripts": {
     "dev": "next dev",

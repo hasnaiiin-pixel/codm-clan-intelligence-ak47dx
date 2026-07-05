@@ -34,9 +34,11 @@ type ScoreboardRow = {
 };
 
 function medalLabel(rank?: number | null) {
-  if (rank === 1) return '🥇 Gold / MVP';
-  if (rank === 2) return '🥈 Silver';
-  if (rank === 3) return '🥉 Bronze';
+  if (rank === 1) return '🥇 Oro / MVP';
+  if (rank === 2) return '🥈 Argento';
+  if (rank === 3) return '🥉 Bronzo';
+  if (rank === 4) return '🪵 Legno';
+  if (rank === 5) return '🏛️ Olimpico';
   if (rank === 4) return '4°';
   if (rank === 5) return '5°';
   return '-';
@@ -137,7 +139,7 @@ export default function DashboardPage() {
         <div className="kpi kpi-glow"><span>Partite</span><strong>{summary.matches}</strong></div>
         <div className="kpi kpi-glow"><span>Win Rate</span><strong>{summary.wr}%</strong></div>
         <div className="kpi kpi-glow"><span>Giocatori</span><strong>{summary.players}</strong></div>
-        <div className="kpi kpi-glow"><span>MVP / Gold</span><strong>{summary.mvp}</strong></div>
+        <div className="kpi kpi-glow"><span>MVP / Oro</span><strong>{summary.mvp}</strong></div>
         <div className="kpi kpi-glow"><span>K/D Clan</span><strong>{summary.kd}</strong></div>
       </section>
 
@@ -175,7 +177,7 @@ export default function DashboardPage() {
 
         <div className="card">
           <p className="eyebrow">🏆 Top player</p>
-          <h2>Ranking Gold / Silver / Bronze</h2>
+          <h2>Ranking Oro / Argento / Bronzo / Legno / Olimpico</h2>
           <div className="player-mini-list">
             {topPlayers.map((p, idx) => (
               <div className="player-mini" key={`${p.clan}-${p.name}`}>

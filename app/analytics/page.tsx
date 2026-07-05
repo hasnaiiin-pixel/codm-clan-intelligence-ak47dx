@@ -187,7 +187,7 @@ export default function AnalyticsPage() {
       <section className="card hero-compact gaming-panel">
         <p className="eyebrow">📊 Analytics 2.0</p>
         <h1>Statistiche clan e player</h1>
-        <p className="muted">Grafici a torta, classifiche e filtri per clan, modalità, MVP, mappa, posizione e medaglie Gold/Silver/Bronze. I player manuali restano visibili nelle statistiche anche senza profilo registrato.</p>
+        <p className="muted">Grafici a torta, classifiche e filtri per clan, modalità, MVP, mappa, posizione e medaglie Oro/Argento/Bronzo/Legno/Olimpico. I player manuali restano visibili nelle statistiche anche senza profilo registrato.</p>
         {message && <div className="notice">{message}</div>}
         <div className="grid grid-2 top-gap">
           <div className="field"><label>Clan appartenenza</label><select className="select" value={filterClan} onChange={(e) => setFilterClan(e.target.value)}>{clanOptions.map((c) => <option key={c} value={c}>{c === 'ALL' ? 'Tutti i clan' : c}</option>)}</select></div>
@@ -222,7 +222,7 @@ export default function AnalyticsPage() {
       <section className="card top-gap">
         <h2>Top player filtrati</h2>
         <div className="table-scroll">
-          <table className="table compact"><thead><tr><th>Player</th><th>Clan</th><th>Match/Righe</th><th>Kill</th><th>Death</th><th>Assist</th><th>K/D</th><th>🥇 Gold</th><th>🥈 Silver</th><th>🥉 Bronze</th><th>MVP</th><th>Pos. media</th></tr></thead><tbody>{topPlayers.map((p) => <tr key={`${p.name}-${p.clan}`}><td>{p.name}</td><td>{p.clan}</td><td>{p.rows}</td><td>{p.kills}</td><td>{p.deaths}</td><td>{p.assists}</td><td>{p.kd}</td><td>{p.gold}</td><td>{p.silver}</td><td>{p.bronze}</td><td>{p.mvp}</td><td>{p.avgRank}</td></tr>)}{!topPlayers.length && <tr><td colSpan={12} className="muted">Nessun player trovato.</td></tr>}</tbody></table>
+          <table className="table compact"><thead><tr><th>Player</th><th>Clan</th><th>Match/Righe</th><th>Kill</th><th>Death</th><th>Assist</th><th>K/D</th><th>🥇 Oro</th><th>🥈 Argento</th><th>🥉 Bronzo</th><th>MVP</th><th>Pos. media</th></tr></thead><tbody>{topPlayers.map((p) => <tr key={`${p.name}-${p.clan}`}><td>{p.name}</td><td>{p.clan}</td><td>{p.rows}</td><td>{p.kills}</td><td>{p.deaths}</td><td>{p.assists}</td><td>{p.kd}</td><td>{p.gold}</td><td>{p.silver}</td><td>{p.bronze}</td><td>{p.mvp}</td><td>{p.avgRank}</td></tr>)}{!topPlayers.length && <tr><td colSpan={12} className="muted">Nessun player trovato.</td></tr>}</tbody></table>
         </div>
       </section>
     </main>

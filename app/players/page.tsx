@@ -212,7 +212,7 @@ export default function PlayersPage() {
         <h2>Elenco player con statistiche</h2>
         <div className="table-scroll">
           <table className="table compact player-stats-table">
-            <thead><tr><th>Player</th><th>Clan</th><th>Tipo</th><th>Match</th><th>W/R</th><th>WR%</th><th>Kill</th><th>Death</th><th>Assist</th><th>K/D</th><th>🥇 Gold/MVP</th><th>🥈 Silver</th><th>🥉 Bronze</th><th>Pos. media</th><th>Azione clan</th></tr></thead>
+            <thead><tr><th>Player</th><th>Clan</th><th>Tipo</th><th>Match</th><th>W/R</th><th>WR%</th><th>Kill</th><th>Death</th><th>Assist</th><th>K/D</th><th>🥇 Oro/MVP</th><th>🥈 Argento</th><th>🥉 Bronzo</th><th>Pos. media</th><th>Azione clan</th></tr></thead>
             <tbody>{playerCards.map((card) => (
               <tr key={card.player.id}>
                 <td><b>{card.player.nickname}</b><br /><span className="muted">{card.player.uid_codm ? `UID ${card.player.uid_codm}` : 'profilo CODM da collegare'}</span></td>

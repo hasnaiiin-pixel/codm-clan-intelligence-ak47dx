@@ -147,11 +147,11 @@ function parseBackendMatchDate(textValue: string) {
 
 
 function rankMedal(rank?: number | null) {
-  if (rank === 1) return { icon: '🥇', label: 'Gold / MVP', className: 'medal-gold' };
-  if (rank === 2) return { icon: '🥈', label: 'Silver', className: 'medal-silver' };
-  if (rank === 3) return { icon: '🥉', label: 'Bronze', className: 'medal-bronze' };
-  if (rank === 4) return { icon: '4️⃣', label: '4° posto', className: 'medal-normal' };
-  if (rank === 5) return { icon: '5️⃣', label: '5° posto', className: 'medal-normal' };
+  if (rank === 1) return { icon: '🥇', label: 'Oro / MVP', className: 'medal-gold' };
+  if (rank === 2) return { icon: '🥈', label: 'Argento', className: 'medal-silver' };
+  if (rank === 3) return { icon: '🥉', label: 'Bronzo', className: 'medal-bronze' };
+  if (rank === 4) return { icon: '🪵', label: 'Legno', className: 'medal-wood' };
+  if (rank === 5) return { icon: '🏛️', label: 'Olimpico', className: 'medal-olympic' };
   return { icon: '•', label: 'Da ordinare', className: 'medal-normal' };
 }
 
@@ -611,7 +611,7 @@ function ImportMatchEditor() {
           score: row.score || 0,
           impact: null,
           mvp_type: mvpType,
-          rank_medal: row.rankPosition === 1 ? 'gold' : row.rankPosition === 2 ? 'silver' : row.rankPosition === 3 ? 'bronze' : row.rankPosition ? 'ranked' : null,
+          rank_medal: row.rankPosition === 1 ? 'gold' : row.rankPosition === 2 ? 'silver' : row.rankPosition === 3 ? 'bronze' : row.rankPosition === 4 ? 'wood' : row.rankPosition === 5 ? 'olympic' : null,
           read_status: row.readStatus || 'manual',
           needs_review: !!row.needsReview
         });

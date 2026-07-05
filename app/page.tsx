@@ -5,7 +5,7 @@ export default function HomePage() {
         <div>
           <p className="eyebrow">🐺 AK47DX · Versione definitiva</p>
           <h1>CODM Clan Intelligence 2.0</h1>
-          <p className="clan-motto">Una sola piattaforma: import risultati, Action Panel con screenshot prova, inviti player, Clan HQ, statistiche, ranking Gold/Silver/Bronze e OCR Hybrid.</p>
+          <p className="clan-motto">Una sola piattaforma: import risultati, Action Panel con screenshot prova, inviti player, Clan HQ, statistiche, ranking Oro/Argento/Bronzo/Legno/Olimpico e OCR Hybrid.</p>
           <div className="hero-actions">
             <a className="btn import-main-btn" href="/dashboard">🎮 Entra in dashboard</a>
             <a className="btn secondary" href="/import/match">⚡ Importa risultati</a>
@@ -22,7 +22,7 @@ export default function HomePage() {
         <div className="card"><h2>🎞️ Action Panel</h2><p className="muted">Lo screenshot della partita resta visibile dentro il pannello azione, senza aprire nuove pagine.</p></div>
         <div className="card"><h2>🔗 Inviti</h2><p className="muted">Genera link e QR per iscrizione player, trial, vice o staff.</p></div>
         <div className="card"><h2>🐺 Clan HQ</h2><p className="muted">Storia, capi clan, vice, social, avvisi e statistiche per clan.</p></div>
-        <div className="card"><h2>🏆 Ranking</h2><p className="muted">1° Gold/MVP, 2° Silver, 3° Bronze, posizione media con decimali.</p></div>
+        <div className="card"><h2>🏆 Ranking</h2><p className="muted">1° Oro/MVP, 2° Argento, 3° Bronzo, posizione media con decimali.</p></div>
       </section>
     </main>
   );

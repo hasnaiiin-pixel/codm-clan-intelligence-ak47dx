@@ -2,6 +2,7 @@ import './globals.css';
 import type { Metadata, Viewport } from 'next';
 import { MobileSidebar } from '@/components/MobileSidebar';
 import { PwaInstaller } from '@/components/PwaInstaller';
+import { DeveloperTopBadge, DeveloperFooter } from '@/components/DeveloperBrand';
 
 export const metadata: Metadata = {
   title: 'CODM Clan Intelligence',
@@ -22,7 +23,9 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     <html lang="it">
       <body>
         <MobileSidebar />
+        <DeveloperTopBadge />
         <main className="codm-app-content">{children}</main>
+        <DeveloperFooter />
         <PwaInstaller />
       </body>
     </html>

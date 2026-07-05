@@ -1,8 +1,8 @@
 {
   "app": "AK47DX CODM Clan Intelligence",
-  "version": "CODM_AK47DX_V5_3_IMPORT_NO_ABORT_TEMPLATE_TABLE",
-  "marker": "V5_3_IMPORT_NO_ABORT_TEMPLATE_TABLE_OK",
-  "backend_ocr": "2.0.9-v5-2-template-kda-table-definitivo-ak47dx",
+  "version": "CODM_AK47DX_V5_5_CLEAN_START_LOGO_MEDALS",
+  "marker": "V5_5_CLEAN_START_LOGO_MEDALS_OK",
+  "backend_ocr": "2.0.10-v5-4-fastlane-import-stabile-ak47dx",
   "routes": [
     "/version",
     "/cache-reset",

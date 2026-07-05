@@ -5,8 +5,8 @@ export default function VersionPage() {
         <div className="ak-login-card">
           <div className="ak-pill">AK47DX DEPLOY CHECK</div>
           <h1 className="ak-title">CODM Clan Intelligence</h1>
-          <p className="ak-lead">Versione V5.4: FastLane import stabile, niente blocchi 10%/86%, template e tabella a pagina intera.</p>
-          <div className="notice top-gap"><strong>Marker:</strong> V5_4_FASTLANE_IMPORT_STABILE_OK</div>
+          <p className="ak-lead">Versione V5.5: FastLane import stabile mantenuto, medaglie 1-5 aggiornate, logo sviluppatore MIRZA e SQL reset database pulito.</p>
+          <div className="notice top-gap"><strong>Marker:</strong> V5_5_CLEAN_START_LOGO_MEDALS_OK</div>
           <div className="notice top-gap"><strong>Backend OCR:</strong> 2.0.10-v5-4-fastlane-import-stabile-ak47dx</div>
           <div className="ak-quick-links">
             <a href="/cache-reset">Reset cache sicuro</a>
