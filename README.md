@@ -1,77 +1,76 @@
-# CODM Clan Intelligence 2.0.1 Deployable PWA YOLO - AK47DX
+# CODM Clan Intelligence AK47DX — V4 allineata
 
-Versione 2.0 resa distribuibile al clan.
+Versione consolidata per Vercel + Supabase + Telegram + OCR Hybrid 2.0.
 
-## Incluso
+## Cosa contiene
 
-- Dashboard gaming AK47DX.
-- Action Panel con screenshot partita visibile nella pagina.
-- Archivio partite, players, clan, analytics.
-- Invito giocatori con link + QR.
-- Pagina iscrizione `/join`.
-- PWA installabile su telefono.
-- Vercel config per frontend.
-- Supabase Storage/Auth/DB migration.
-- Backend OCR FastAPI Docker-ready.
-- Render free-ready.
-- Cloud Run-ready.
-- Dataset YOLO/OCR-ready.
+- Dashboard pubblica in sola lettura.
+- Login e registrazione email con nome, nickname CODM e UID opzionale.
+- Nuovi utenti visibili in `/admin/users` dopo SQL V4 e conferma/login.
+- Permessi: visitor/registered/viewer/player/staff/coach/owner.
+- Pagine operative protette per Staff, Coach e Owner.
+- Sidebar mobile laterale a scomparsa.
+- Calendario eventi `/events` con link Google Calendar.
+- API Telegram reminder `/api/telegram/reminders` per messaggi 2h e 10m prima.
+- Pagina `/ocr-status` per controllare OCR backend pubblico/locale.
 
-## Avvio locale
+## Comandi locali
 
 ```bat
-setup_ocr_backend.bat
-npm.cmd install
-start_all.bat
-```
-
-Backend:
-
-```text
-http://127.0.0.1:8780/health
-```
-
-Versione attesa:
-
-```json
-"version": "2.0.1-deployable-pwa-yolo-ak47dx"
-```
-
-## Deploy gratuito / economico
-
-Leggi:
-
-```text
-docs/DEPLOYMENT_FREE_AK47DX.md
-```
-
-## YOLO
-
-Leggi:
-
-```text
-docs/YOLO_REQUIREMENTS_AK47DX.md
+npm ci --legacy-peer-deps
+npm run build
+npm run dev
 ```
 
 ## Supabase
 
-Esegui nel SQL Editor Supabase:
+Eseguire in ordine le migrazioni storiche se non già eseguite, poi la migrazione V4:
 
-```text
+```txt
+supabase/schema.sql
 supabase/migration_2_0_definitive_ak47dx.sql
 supabase/migration_2_0_deployable_pwa_yolo_ak47dx.sql
+supabase/06_auth_events_telegram_ocr_v4.sql
 ```
 
-## Pagine importanti
+## Vercel Environment Variables
 
-```text
-/dashboard
-/import/match
-/matches
-/players
-/clan
-/invite
-/join
-/deploy
-/yolo
+Obbligatorie:
+
+```txt
+NEXT_PUBLIC_SUPABASE_URL
+NEXT_PUBLIC_SUPABASE_ANON_KEY
+NEXT_PUBLIC_APP_URL
+SUPABASE_SERVICE_ROLE_KEY
+TELEGRAM_BOT_TOKEN
+TELEGRAM_CHAT_ID
+CRON_SECRET
 ```
+
+Opzionale OCR:
+
+```txt
+NEXT_PUBLIC_OCR_BACKEND_URL
+```
+
+## Supabase Auth Redirect
+
+In Supabase → Authentication → URL Configuration:
+
+```txt
+Site URL = https://TUO-LINK-VERCEL.vercel.app
+Redirect URLs:
+https://TUO-LINK-VERCEL.vercel.app/**
+http://localhost:3000/**
+```
+
+## Test dopo deploy
+
+- `/version`
+- `/cache-reset`
+- `/login`
+- `/admin/users`
+- `/events`
+- `/ocr-status`
+- `/api/telegram/reminders?secret=CRON_SECRET`
+

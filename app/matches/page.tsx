@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import { supabase } from '@/lib/supabaseClient';
+import { useCodmAuth } from '@/lib/authRoles';
 import type { GameMode, Match, MatchResult, MatchType } from '@/lib/types';
 
 const modes: Array<GameMode | 'ALL'> = ['ALL', 'CED', 'TDM', 'PRIMA_LINEA', 'DOMINIO', 'POSTAZIONE', 'KILL_CONFIRMED', 'BR_SOLO', 'BR_DUO', 'BR_SQUAD'];
@@ -36,6 +37,8 @@ type ScoreboardRow = {
 };
 
 export default function MatchesPage() {
+  const auth = useCodmAuth();
+  const canWrite = auth.canWrite;
   const [matches, setMatches] = useState<Match[]>([]);
   const [rows, setRows] = useState<ScoreboardRow[]>([]);
   const [selected, setSelected] = useState<Match | null>(null);
@@ -159,7 +162,7 @@ export default function MatchesPage() {
                     <td>{m.opponent || '-'}</td>
                     <td>{m.team_score ?? '-'}:{m.enemy_score ?? '-'}</td>
                     <td><span className={`badge ${m.result === 'WIN' ? 'win' : m.result === 'LOSE' ? 'lose' : ''}`}>{m.result}</span></td>
-                    <td><button className="btn small secondary" onClick={() => setSelected(m)}>Apri</button> <button className="btn small danger" onClick={() => deleteMatch(m)}>Cancella</button></td>
+                    <td><button className="btn small secondary" onClick={() => setSelected(m)}>Apri</button> {canWrite && <button className="btn small danger" onClick={() => deleteMatch(m)}>Cancella</button>}</td>
                   </tr>
                 ))}
                 {!filteredMatches.length && <tr><td colSpan={7} className="muted">Nessuna partita trovata.</td></tr>}

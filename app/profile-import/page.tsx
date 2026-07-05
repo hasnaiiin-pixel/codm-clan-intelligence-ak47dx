@@ -41,7 +41,13 @@ export default function ProfileImportPage() {
       if (!clan?.id) throw new Error('Clan non trovato. Prima crea/configura il clan AK47DX.');
 
       const displayName = nickname.trim();
-      await supabase.from('profiles').upsert({ id: auth.user.id, display_name: displayName });
+      await supabase.from('profiles').upsert({
+        id: auth.user.id,
+        display_name: displayName,
+        player_nickname: displayName,
+        codm_uid: uidCodm.trim() || null,
+        updated_at: new Date().toISOString(),
+      });
 
       const { error } = await supabase.from('clan_invite_requests').upsert(
         {

@@ -33,12 +33,15 @@ function slug(value: string) { return (value || 'default').toLowerCase().replace
 type DragMode = 'move' | 'resize';
 type DragState = { name: string; mode: DragMode; startX: number; startY: number; start: CalibratedRegion; handle?: 'se' | 'sw' | 'ne' | 'nw' } | null;
 
+
 export default function CalibrationPage() {
-  // CODM_AUTH_ROLE_GUARD_INSERTED
   const codmAuth = useCodmAuth();
   if (codmAuth.loading) return <WriteAccessBlock loading />;
-  if (!codmAuth.canWrite) return <WriteAccessBlock role={codmAuth.role} />;
+  if (!codmAuth.canWrite) return <WriteAccessBlock role={codmAuth.role} title="Solo Staff, Coach o Owner può usare la calibrazione" description="La calibrazione OCR modifica impostazioni operative e resta riservata agli utenti autorizzati." />;
+  return <CalibrationEditor />;
+}
 
+function CalibrationEditor() {
   const [kind, setKind] = useState<CalibrationKind>('scoreboard_ced');
   const [phoneProfile, setPhoneProfile] = useState('default');
   const [templateName, setTemplateName] = useState('Scoreboard CED');

@@ -8,14 +8,13 @@ import { supabase } from '@/lib/supabaseClient';
 import { findBestNicknameMatch, type ParsedScoreRow } from '@/lib/ocrParsers';
 import { calculatePlayerRating } from '@/lib/statistics';
 import { getActivePhoneProfile, listCalibrationPhoneProfiles, loadCalibrationBundle, setActivePhoneProfile } from '@/lib/calibration';
+import { EXPECTED_OCR_BACKEND_VERSION, getOcrBackendCandidates } from '@/lib/ocrBackend';
 import type { GameMode, MatchResult, MatchType, Player, TeamSide } from '@/lib/types';
 
 const modes: GameMode[] = ['CED', 'TDM', 'PRIMA_LINEA', 'DOMINIO', 'POSTAZIONE', 'KILL_CONFIRMED', 'BR_SOLO', 'BR_DUO', 'BR_SQUAD'];
 const types: MatchType[] = ['scrim', 'ranked', 'private', 'training', 'tournament', 'br'];
 
-const EXPECTED_BACKEND_VERSION = '2.0.0-definitive-ak47dx';
-const ENV_BACKEND_URL = process.env.NEXT_PUBLIC_OCR_BACKEND_URL || '';
-const DEFAULT_BACKEND_URL = 'http://127.0.0.1:8780';
+const EXPECTED_BACKEND_VERSION = EXPECTED_OCR_BACKEND_VERSION;
 
 type UiScoreRow = ParsedScoreRow & {
   playerClanName?: string | null;
@@ -63,10 +62,7 @@ type BackendOcrResult = {
 };
 
 function backendCandidates() {
-  const urls = [DEFAULT_BACKEND_URL, ENV_BACKEND_URL, 'http://localhost:8780', 'http://127.0.0.1:8770', 'http://localhost:8770']
-    .map((url) => url.trim())
-    .filter(Boolean);
-  return Array.from(new Set(urls));
+  return getOcrBackendCandidates();
 }
 
 async function fetchWithTimeout(input: RequestInfo | URL, init: RequestInit = {}, timeoutMs = 30000) {
@@ -320,7 +316,10 @@ function ImportMatchEditor() {
         }
       }
       if (!backendUrl) {
-        throw new Error(`Backend OCR Hybrid 2.0 non raggiungibile o non allineato. Verifica http://127.0.0.1:8780/health e che risponda version ${EXPECTED_BACKEND_VERSION}. Tentativi: ${attempts.join(' | ')}`);
+        const hint = typeof window !== 'undefined' && !['localhost', '127.0.0.1'].includes(window.location.hostname)
+          ? 'Su Vercel devi impostare NEXT_PUBLIC_OCR_BACKEND_URL con un backend OCR pubblico HTTPS. Non viene usato localhost/127.0.0.1 online.'
+          : 'In locale avvia il backend OCR e verifica http://127.0.0.1:8780/health.';
+        throw new Error(`Backend OCR Hybrid 2.0 non raggiungibile o non allineato. ${hint} Versione attesa ${EXPECTED_BACKEND_VERSION}. Tentativi: ${attempts.join(' | ') || 'nessun URL configurato'}`);
       }
 
       const formData = new FormData();

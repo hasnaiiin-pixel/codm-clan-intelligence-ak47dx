@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { supabase } from '@/lib/supabaseClient';
 import { kdRatio } from '@/lib/statistics';
+import { useCodmAuth } from '@/lib/authRoles';
 import type { MatchPlayerStat, Player, PlayerSnapshot } from '@/lib/types';
 
 type StatWithMatch = MatchPlayerStat & {
@@ -36,6 +37,8 @@ function profileStatus(player: Player) {
 }
 
 export default function PlayersPage() {
+  const auth = useCodmAuth();
+  const canWrite = auth.canWrite;
   const [players, setPlayers] = useState<Player[]>([]);
   const [snapshots, setSnapshots] = useState<PlayerSnapshot[]>([]);
   const [stats, setStats] = useState<StatWithMatch[]>([]);
@@ -74,6 +77,7 @@ export default function PlayersPage() {
 
   async function addPlayer() {
     setMessage('');
+    if (!canWrite) return setMessage('Solo Staff, Coach o Owner possono aggiungere player.');
     if (!clanId) return setMessage('Prima crea il clan in Onboarding.');
     if (!nickname.trim()) return setMessage('Inserisci nickname.');
     const { error } = await supabase.from('players').insert({
@@ -94,6 +98,7 @@ export default function PlayersPage() {
   }
 
   async function updatePlayerClan(player: Player) {
+    if (!canWrite) return setMessage('Solo Staff, Coach o Owner possono modificare player.');
     const nextClan = (clanEdits[player.id] || '').trim() || null;
     const { error } = await supabase.from('players').update({ clan_name: nextClan }).eq('id', player.id);
     if (error) return setMessage(`Errore aggiornamento clan ${player.nickname}: ${error.message}`);
@@ -177,15 +182,17 @@ export default function PlayersPage() {
         <div className="card gaming-panel">
           <p className="eyebrow">👥 Roster e player manuali</p>
           <h1>Tutti i giocatori e statistiche</h1>
-          <p className="muted">Qui vedi player registrati e manuali. Puoi assegnare o correggere il clan, mantenendo le statistiche importate. In futuro un player manuale può essere collegato a un profilo completo.</p>
-          <div className="form">
+          <p className="muted">Qui vedi player registrati e manuali. La consultazione è pubblica; aggiunta e modifica sono riservate a Staff, Coach e Owner.</p>
+          {!canWrite && <div className="notice top-gap">🔒 Modalità sola lettura: fai login con ruolo Staff, Coach o Owner per aggiungere o modificare player.</div>}
+          {canWrite && <div className="form">
             <div className="grid grid-2"><div className="field"><label>Nickname</label><input className="input" value={nickname} onChange={(e) => setNickname(e.target.value)} placeholder="ѦҞঐMIRZA" /></div><div className="field"><label>Clan appartenenza</label><input className="input" value={playerClanName} onChange={(e) => setPlayerClanName(e.target.value)} placeholder="AK / AP / ospite" /></div></div>
             <div className="field"><label>UID CODM opzionale</label><input className="input" value={uid} onChange={(e) => setUid(e.target.value)} placeholder="vuoto = player manuale/provvisorio" /></div>
             <div className="grid grid-2"><div className="field"><label>Rank MP</label><input className="input" value={rankMp} onChange={(e) => setRankMp(e.target.value)} /></div><div className="field"><label>Rank BR</label><input className="input" value={rankBr} onChange={(e) => setRankBr(e.target.value)} /></div></div>
             <div className="field"><label>Ruolo</label><select className="select" value={role} onChange={(e) => setRole(e.target.value)}><option>Slayer</option><option>Objective</option><option>Sniper</option><option>Anchor</option><option>Support</option></select></div>
             <button className="btn" onClick={addPlayer}>➕ Aggiungi player</button>
             {message && <div className="notice">{message}</div>}
-          </div>
+          </div>}
+          {!canWrite && message && <div className="notice top-gap">{message}</div>}
         </div>
 
         <div className="card">
@@ -219,7 +226,7 @@ export default function PlayersPage() {
                 <td><span className="rank-medal medal-silver">🥈 {card.silver}</span></td>
                 <td><span className="rank-medal medal-bronze">🥉 {card.bronze}</span></td>
                 <td>{card.avgRank}</td>
-                <td><div className="inline-edit"><input className="input clan-edit" value={clanEdits[card.player.id] ?? ''} onChange={(e) => setClanEdits((current) => ({ ...current, [card.player.id]: e.target.value }))} placeholder="AK / AP" /><button className="btn small secondary" onClick={() => updatePlayerClan(card.player)}>Salva</button></div></td>
+                <td>{canWrite ? <div className="inline-edit"><input className="input clan-edit" value={clanEdits[card.player.id] ?? ''} onChange={(e) => setClanEdits((current) => ({ ...current, [card.player.id]: e.target.value }))} placeholder="AK / AP" /><button className="btn small secondary" onClick={() => updatePlayerClan(card.player)}>Salva</button></div> : <span>{card.player.clan_name || 'Senza clan'}</span>}</td>
               </tr>
             ))}{!playerCards.length && <tr><td colSpan={15} className="muted">Nessun player per i filtri selezionati.</td></tr>}</tbody>
           </table>

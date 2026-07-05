@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { supabase } from '@/lib/supabaseClient';
 import { kdRatio, winRate } from '@/lib/statistics';
+import { useCodmAuth } from '@/lib/authRoles';
 import type { Match, Player } from '@/lib/types';
 
 type ScoreboardRow = {
@@ -52,6 +53,8 @@ const defaultProfile: ClanProfile = {
 };
 
 export default function ClanPage() {
+  const auth = useCodmAuth();
+  const canWrite = auth.canWrite;
   const [players, setPlayers] = useState<Player[]>([]);
   const [matches, setMatches] = useState<Match[]>([]);
   const [rows, setRows] = useState<ScoreboardRow[]>([]);
@@ -210,7 +213,7 @@ export default function ClanPage() {
         </div>
       </section>
 
-      <section className="card top-gap">
+      {canWrite ? <section className="card top-gap">
         <h2>Modifica Clan HQ</h2>
         <p className="muted">Questa sezione serve per descrivere il clan, capi, vice, social, avvisi e identità AK47DX. Salva su Supabase con la migrazione 2.0; in ogni caso viene mantenuto un backup locale nel browser.</p>
         {message && <div className="notice">{message}</div>}
@@ -236,7 +239,7 @@ export default function ClanPage() {
           <div className="field"><label>Testo avviso</label><textarea className="textarea" value={profile.notice_body} onChange={(e) => update('notice_body', e.target.value)} /></div>
         </div>
         <button className="btn top-gap" onClick={saveProfile}>💾 Salva Clan HQ</button>
-      </section>
+      </section> : <section className="card top-gap"><h2>Clan HQ in sola lettura</h2><p className="muted">🔒 Login con ruolo Staff, Coach o Owner richiesto per modificare descrizione, avvisi e social del clan.</p></section>}
     </main>
   );
 }

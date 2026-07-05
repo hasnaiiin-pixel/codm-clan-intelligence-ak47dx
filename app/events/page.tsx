@@ -14,6 +14,7 @@ type CodmEvent = {
   ends_at: string | null;
   location: string | null;
   event_type: string | null;
+  google_calendar_url: string | null;
   telegram_enabled: boolean | null;
   reminder_2h_sent_at: string | null;
   reminder_10m_sent_at: string | null;

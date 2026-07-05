@@ -11,12 +11,15 @@ function makeCode() {
   return `AK47DX-${part}`;
 }
 
+
 export default function InvitePage() {
-  // CODM_AUTH_ROLE_GUARD_INSERTED
   const codmAuth = useCodmAuth();
   if (codmAuth.loading) return <WriteAccessBlock loading />;
-  if (!codmAuth.canWrite) return <WriteAccessBlock role={codmAuth.role} />;
+  if (!codmAuth.canWrite) return <WriteAccessBlock role={codmAuth.role} title="Solo Staff, Coach o Owner può gestire inviti" description="I visitatori e i player possono usare la pagina Join/Login, ma la creazione degli inviti resta riservata allo staff." />;
+  return <InviteEditor />;
+}
 
+function InviteEditor() {
   const [origin, setOrigin] = useState('');
   const [code, setCode] = useState('');
   const [role, setRole] = useState('player');

@@ -36,11 +36,23 @@
     ".next/types/**/*.ts"
   ],
   "exclude": [
+    "**/*.bak_*",
+    "*.bak_*",
+    ".next",
+    "__codm_v4_source",
+    "_codm_backup_before_auth_role_guard",
+    "_codm_backup_before_auth_role_guard/**/*",
+    "backup_visible_routes_*",
+    "backup_visible_routes_*/*",
+    "components",
+    "components/**/*",
+    "components/*.bak_*",
     "node_modules",
     "patch_files",
     "patch_files/**/*",
-    "**/*.bak_*",
-    "__codm_v4_source",
-    "components/*.bak_*"
+    "patch_files_old",
+    "patch_files_old/**/*",
+    "patch_source",
+    "patch_source/**/*"
   ]
 }
