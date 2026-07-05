@@ -5,6 +5,7 @@ import { supabase } from '@/lib/supabaseClient';
 import { parseCodmProfileText, type ParsedProfileStats } from '@/lib/ocrParsers';
 import { recognizeCodmImage, type CodmOcrProgress } from '@/lib/codmOcrEngine';
 import { getActivePhoneProfile, listCalibrationPhoneProfiles, loadCalibration, loadCalibrationBundle, setActivePhoneProfile } from '@/lib/calibration';
+import { ACCEPTED_OCR_BACKEND_VERSIONS, EXPECTED_OCR_BACKEND_VERSION, getOcrBackendCandidates } from '@/lib/ocrBackend';
 import type { Player, ProfileImportType } from '@/lib/types';
 
 const importTypes: Array<{ value: ProfileImportType; label: string; hint: string }> = [
@@ -15,15 +16,21 @@ const importTypes: Array<{ value: ProfileImportType; label: string; hint: string
   { value: 'dmz', label: 'Statistiche DMZ: Recon', hint: 'Partite, estrazioni, patrimonio, uccisioni, contratti.' }
  ];
 
-const EXPECTED_BACKEND_VERSION = '2.0.0-definitive-ak47dx';
-const ENV_BACKEND_URL = process.env.NEXT_PUBLIC_OCR_BACKEND_URL || '';
-const DEFAULT_BACKEND_URL = 'http://127.0.0.1:8780';
+const EXPECTED_BACKEND_VERSION = EXPECTED_OCR_BACKEND_VERSION;
+const ACCEPTED_BACKEND_VERSIONS = ACCEPTED_OCR_BACKEND_VERSIONS;
 
 function backendCandidates() {
-  const urls = [DEFAULT_BACKEND_URL, ENV_BACKEND_URL, 'http://localhost:8780', 'http://127.0.0.1:8770', 'http://localhost:8770', 'http://127.0.0.1:8765', 'http://localhost:8765']
-    .map((url) => url.trim())
-    .filter(Boolean);
-  return Array.from(new Set(urls));
+  return getOcrBackendCandidates();
+}
+
+async function fetchWithTimeout(input: RequestInfo | URL, init: RequestInit = {}, timeoutMs = 180000) {
+  const controller = new AbortController();
+  const timer = window.setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    return await fetch(input, { ...init, signal: controller.signal });
+  } finally {
+    window.clearTimeout(timer);
+  }
 }
 
 type BackendProfileResult = {
@@ -152,15 +159,15 @@ export default function ImportProfilePage() {
       const attempts: string[] = [];
       for (const candidate of backendCandidates()) {
         try {
-          const healthResponse = await fetch(`${candidate}/health`, { cache: 'no-store' });
+          const healthResponse = await fetchWithTimeout(`${candidate}/health`, { cache: 'no-store' }, 25000);
           if (!healthResponse.ok) {
             attempts.push(`${candidate} -> HTTP ${healthResponse.status}`);
             continue;
           }
           const health = await healthResponse.json() as { version?: string };
           backendVersion = health.version || 'unknown';
-          if (backendVersion !== EXPECTED_BACKEND_VERSION) {
-            attempts.push(`${candidate} -> versione ${backendVersion}, attesa ${EXPECTED_BACKEND_VERSION}`);
+          if (!ACCEPTED_BACKEND_VERSIONS.includes(backendVersion)) {
+            attempts.push(`${candidate} -> versione ${backendVersion}, attese ${ACCEPTED_BACKEND_VERSIONS.join(', ')}`);
             continue;
           }
           backendUrl = candidate;
@@ -169,7 +176,7 @@ export default function ImportProfilePage() {
           attempts.push(`${candidate} -> ${healthError instanceof Error ? healthError.message : 'Failed to fetch'}`);
         }
       }
-      if (!backendUrl) throw new Error(`Backend OCR 2.0 non raggiungibile/allineato. Verifica http://127.0.0.1:8780/health = ${EXPECTED_BACKEND_VERSION}. Tentativi: ${attempts.join(' | ')}`);
+      if (!backendUrl) throw new Error(`Backend OCR 2.0 non raggiungibile/allineato. Su Vercel imposta NEXT_PUBLIC_OCR_BACKEND_URL con URL Render HTTPS. Versioni accettate ${ACCEPTED_BACKEND_VERSIONS.join(', ')}. Tentativi: ${attempts.join(' | ') || 'nessun URL configurato'}`);
 
       const formData = new FormData();
       formData.append('file', file);
@@ -178,7 +185,7 @@ export default function ImportProfilePage() {
         const calibrationBundle = loadCalibrationBundle('profile_base', selectedCalibrationPhone);
         formData.append('calibration_template', JSON.stringify(calibrationBundle));
       }
-      const response = await fetch(`${backendUrl}/ocr/profile`, { method: 'POST', body: formData });
+      const response = await fetchWithTimeout(`${backendUrl}/ocr/profile`, { method: 'POST', body: formData }, 180000);
       if (!response.ok) throw new Error(`Backend profilo non risponde (${response.status}): ${await response.text()}`);
       const parsed = await response.json() as BackendProfileResult;
       setBackendRawJson(JSON.stringify(parsed, null, 2));

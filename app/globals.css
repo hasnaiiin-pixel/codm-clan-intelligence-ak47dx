@@ -1,3 +1,7 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
 :root {
   --bg: #090d14;
   --panel: #101827;
@@ -688,4 +692,155 @@ select, .select, select option, .select option { background-color: #0d1422 !impo
 }
 body {
   overflow-x: hidden;
+}
+
+
+/* =========================================================
+   CODM V4.2 - UI HARD FIX
+   Obiettivo: anche se una pagina usa Tailwind, il layout base resta moderno.
+   Sistema menu laterale, login, registrazione, card e contenuto.
+   ========================================================= */
+html {
+  background: #050914;
+}
+body {
+  min-height: 100vh;
+  background:
+    radial-gradient(circle at 8% 0%, rgba(255, 42, 90, 0.20), transparent 32%),
+    radial-gradient(circle at 88% 5%, rgba(31, 210, 255, 0.16), transparent 28%),
+    linear-gradient(135deg, #030712 0%, #07111f 42%, #030712 100%);
+  color: #eef6ff;
+  font-size: 16px;
+  line-height: 1.45;
+}
+input, textarea, select {
+  color: #eef6ff;
+  background: rgba(15, 23, 42, 0.88);
+  border: 1px solid rgba(148, 163, 184, 0.26);
+}
+input::placeholder, textarea::placeholder { color: rgba(203, 213, 225, 0.55); }
+button { cursor: pointer; }
+
+.codm-app-content {
+  min-height: 100vh;
+  width: 100%;
+  padding-left: 0 !important;
+}
+
+.ak-menu-button {
+  position: fixed;
+  left: 16px;
+  top: 16px;
+  z-index: 70;
+  width: 52px;
+  height: 52px;
+  display: grid;
+  place-items: center;
+  border-radius: 18px;
+  border: 1px solid rgba(34, 211, 238, 0.35);
+  background: linear-gradient(135deg, rgba(15, 23, 42, 0.96), rgba(8, 47, 73, 0.92));
+  color: #c8fbff;
+  font-size: 27px;
+  font-weight: 900;
+  box-shadow: 0 18px 44px rgba(0,0,0,0.42), 0 0 28px rgba(34, 211, 238, 0.12);
+  backdrop-filter: blur(14px);
+}
+.ak-menu-button:hover { transform: translateY(-1px); border-color: rgba(34, 211, 238, 0.75); }
+.ak-sidebar-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  border: 0;
+  background: rgba(2, 6, 23, 0.72);
+  backdrop-filter: blur(7px);
+}
+.ak-sidebar {
+  position: fixed;
+  inset: 0 auto 0 0;
+  z-index: 80;
+  width: min(360px, 88vw);
+  transform: translateX(-108%);
+  transition: transform .22s ease;
+  overflow-y: auto;
+  padding: 82px 18px 24px;
+  border-right: 1px solid rgba(34, 211, 238, 0.22);
+  background:
+    radial-gradient(circle at 0 0, rgba(255, 42, 90, .16), transparent 36%),
+    linear-gradient(180deg, rgba(2, 6, 23, .98), rgba(8, 13, 24, .98));
+  box-shadow: 28px 0 70px rgba(0,0,0,.58);
+}
+.ak-sidebar.open { transform: translateX(0); }
+.ak-sidebar-brand { margin-bottom: 24px; }
+.ak-sidebar-title { color: #cffafe; font-size: 30px; line-height: 1; font-weight: 950; letter-spacing: .03em; }
+.ak-sidebar-subtitle { margin-top: 6px; color: #94a3b8; font-size: 12px; text-transform: uppercase; letter-spacing: .24em; }
+.ak-sidebar-group { margin-bottom: 22px; }
+.ak-sidebar-group-title { margin-bottom: 9px; color: #64748b; font-size: 11px; font-weight: 900; text-transform: uppercase; letter-spacing: .22em; }
+.ak-sidebar-links { display: grid; gap: 8px; }
+.ak-sidebar-link {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  border-radius: 16px;
+  border: 1px solid rgba(255,255,255,.06);
+  background: rgba(255,255,255,.045);
+  color: #e2e8f0;
+  padding: 12px 13px;
+  font-size: 14px;
+  font-weight: 800;
+  text-decoration: none;
+}
+.ak-sidebar-link:hover { background: rgba(34, 211, 238, .10); border-color: rgba(34, 211, 238, .28); color: #fff; }
+.ak-sidebar-link.active { background: linear-gradient(135deg, #22d3ee, #a78bfa); color: #020617; border-color: transparent; box-shadow: 0 0 24px rgba(34, 211, 238, .18); }
+.ak-login-link { margin-top: 10px; display: flex; justify-content: center; border-radius: 18px; background: rgba(34, 211, 238, .11); border: 1px solid rgba(34, 211, 238, .34); padding: 13px; color: #cffafe; font-weight: 900; }
+
+.ak-login-page {
+  min-height: 100vh;
+  padding: 88px 18px 48px;
+  color: #fff;
+  background:
+    radial-gradient(circle at 15% 10%, rgba(255, 42, 90, .24), transparent 34%),
+    radial-gradient(circle at 80% 12%, rgba(34, 211, 238, .18), transparent 32%),
+    linear-gradient(135deg, #020617, #07111f 48%, #020617);
+}
+.ak-login-wrap { width: min(1140px, 100%); margin: 0 auto; display: grid; gap: 24px; grid-template-columns: 1.08fr .92fr; align-items: stretch; }
+.ak-login-card, .ak-info-card {
+  border-radius: 32px;
+  border: 1px solid rgba(148, 163, 184, .18);
+  background: linear-gradient(180deg, rgba(15, 23, 42, .90), rgba(2, 6, 23, .88));
+  box-shadow: 0 28px 80px rgba(0,0,0,.42);
+  padding: 30px;
+  backdrop-filter: blur(18px);
+}
+.ak-pill { display: inline-flex; border-radius: 999px; border: 1px solid rgba(34,211,238,.34); background: rgba(34,211,238,.10); padding: 9px 14px; color: #a5f3fc; font-size: 12px; font-weight: 950; text-transform: uppercase; letter-spacing: .22em; }
+.ak-title { margin: 20px 0 0; font-size: clamp(34px, 5vw, 58px); line-height: .98; font-weight: 950; letter-spacing: -.04em; }
+.ak-lead { margin-top: 16px; max-width: 720px; color: #cbd5e1; font-size: 16px; }
+.ak-mode-switch { margin-top: 28px; display: grid; grid-template-columns: 1fr 1fr; gap: 8px; border-radius: 20px; border: 1px solid rgba(255,255,255,.08); background: rgba(2,6,23,.55); padding: 6px; }
+.ak-mode-switch button { border: 0; border-radius: 15px; padding: 13px 16px; color: #cbd5e1; background: transparent; font-weight: 950; }
+.ak-mode-switch button.active { background: linear-gradient(135deg, #22d3ee, #a78bfa); color: #020617; box-shadow: 0 0 24px rgba(34,211,238,.20); }
+.ak-form { margin-top: 22px; display: grid; gap: 15px; }
+.ak-field { display: grid; gap: 8px; color: #e2e8f0; font-size: 14px; font-weight: 800; }
+.ak-input { width: 100%; min-height: 50px; border-radius: 18px; border: 1px solid rgba(148,163,184,.22); background: rgba(15,23,42,.92); color: #fff; padding: 13px 16px; outline: none; }
+.ak-input:focus { border-color: rgba(34,211,238,.75); box-shadow: 0 0 0 4px rgba(34,211,238,.10); }
+.ak-submit { min-height: 54px; border: 0; border-radius: 18px; background: linear-gradient(135deg, #22d3ee, #a78bfa); color: #020617; font-weight: 950; box-shadow: 0 18px 40px rgba(34,211,238,.16); }
+.ak-submit:disabled { opacity: .48; cursor: not-allowed; box-shadow: none; }
+.ak-message { margin-top: 18px; border-radius: 18px; border: 1px solid rgba(251,191,36,.28); background: rgba(251,191,36,.10); padding: 14px; color: #fde68a; font-size: 14px; }
+.ak-quick-links { margin-top: 20px; display: flex; flex-wrap: wrap; gap: 10px; }
+.ak-quick-links a { border-radius: 999px; border: 1px solid rgba(255,255,255,.10); padding: 9px 13px; color: #cbd5e1; font-size: 14px; }
+.ak-quick-links a:hover { border-color: rgba(34,211,238,.45); color: #fff; }
+.ak-info-card h2 { margin: 0; color: #a5f3fc; font-size: 24px; font-weight: 950; }
+.ak-flow { margin: 20px 0 0; padding: 0; list-style: none; display: grid; gap: 14px; }
+.ak-flow li { border-radius: 18px; border: 1px solid rgba(255,255,255,.08); background: rgba(255,255,255,.045); padding: 15px; color: #cbd5e1; }
+.ak-flow b { color: #fff; }
+.ak-warning { margin-top: 18px; border-radius: 18px; border: 1px solid rgba(244,63,94,.26); background: rgba(244,63,94,.08); padding: 14px; color: #fecdd3; }
+
+@media (max-width: 960px) {
+  .ak-login-wrap { grid-template-columns: 1fr; }
+  .ak-login-page { padding-top: 84px; }
+}
+@media (max-width: 640px) {
+  .ak-menu-button { left: 10px; top: 10px; width: 48px; height: 48px; }
+  .ak-sidebar { width: min(330px, 92vw); padding-top: 74px; }
+  .ak-login-page { padding: 76px 12px 30px; }
+  .ak-login-card, .ak-info-card { border-radius: 24px; padding: 20px; }
+  .ak-title { font-size: 34px; }
 }

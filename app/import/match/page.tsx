@@ -8,13 +8,14 @@ import { supabase } from '@/lib/supabaseClient';
 import { findBestNicknameMatch, type ParsedScoreRow } from '@/lib/ocrParsers';
 import { calculatePlayerRating } from '@/lib/statistics';
 import { getActivePhoneProfile, listCalibrationPhoneProfiles, loadCalibrationBundle, setActivePhoneProfile } from '@/lib/calibration';
-import { EXPECTED_OCR_BACKEND_VERSION, getOcrBackendCandidates } from '@/lib/ocrBackend';
+import { ACCEPTED_OCR_BACKEND_VERSIONS, EXPECTED_OCR_BACKEND_VERSION, getOcrBackendCandidates } from '@/lib/ocrBackend';
 import type { GameMode, MatchResult, MatchType, Player, TeamSide } from '@/lib/types';
 
 const modes: GameMode[] = ['CED', 'TDM', 'PRIMA_LINEA', 'DOMINIO', 'POSTAZIONE', 'KILL_CONFIRMED', 'BR_SOLO', 'BR_DUO', 'BR_SQUAD'];
 const types: MatchType[] = ['scrim', 'ranked', 'private', 'training', 'tournament', 'br'];
 
 const EXPECTED_BACKEND_VERSION = EXPECTED_OCR_BACKEND_VERSION;
+const ACCEPTED_BACKEND_VERSIONS = ACCEPTED_OCR_BACKEND_VERSIONS;
 
 type UiScoreRow = ParsedScoreRow & {
   playerClanName?: string | null;
@@ -298,15 +299,15 @@ function ImportMatchEditor() {
       const attempts: string[] = [];
       for (const candidate of backendCandidates()) {
         try {
-          const healthResponse = await fetchWithTimeout(`${candidate}/health`, { cache: 'no-store' }, 8000);
+          const healthResponse = await fetchWithTimeout(`${candidate}/health`, { cache: 'no-store' }, 25000);
           if (!healthResponse.ok) {
             attempts.push(`${candidate} -> HTTP ${healthResponse.status}`);
             continue;
           }
           const health = await healthResponse.json() as { version?: string };
           backendVersion = health.version || 'unknown';
-          if (backendVersion !== EXPECTED_BACKEND_VERSION) {
-            attempts.push(`${candidate} -> versione ${backendVersion}, attesa ${EXPECTED_BACKEND_VERSION}`);
+          if (!ACCEPTED_BACKEND_VERSIONS.includes(backendVersion)) {
+            attempts.push(`${candidate} -> versione ${backendVersion}, attese ${ACCEPTED_BACKEND_VERSIONS.join(', ')}`);
             continue;
           }
           backendUrl = candidate;
@@ -319,7 +320,7 @@ function ImportMatchEditor() {
         const hint = typeof window !== 'undefined' && !['localhost', '127.0.0.1'].includes(window.location.hostname)
           ? 'Su Vercel devi impostare NEXT_PUBLIC_OCR_BACKEND_URL con un backend OCR pubblico HTTPS. Non viene usato localhost/127.0.0.1 online.'
           : 'In locale avvia il backend OCR e verifica http://127.0.0.1:8780/health.';
-        throw new Error(`Backend OCR Hybrid 2.0 non raggiungibile o non allineato. ${hint} Versione attesa ${EXPECTED_BACKEND_VERSION}. Tentativi: ${attempts.join(' | ') || 'nessun URL configurato'}`);
+        throw new Error(`Backend OCR Hybrid 2.0 non raggiungibile o non allineato. ${hint} Versioni accettate ${ACCEPTED_BACKEND_VERSIONS.join(', ')}. Tentativi: ${attempts.join(' | ') || 'nessun URL configurato'}`);
       }
 
       const formData = new FormData();
@@ -332,7 +333,7 @@ function ImportMatchEditor() {
       }
       formData.append('our_team', ourTeam);
 
-      const response = await fetchWithTimeout(`${backendUrl}/ocr/scoreboard/ced`, { method: 'POST', body: formData }, 90000);
+      const response = await fetchWithTimeout(`${backendUrl}/ocr/scoreboard/ced`, { method: 'POST', body: formData }, 180000);
       if (!response.ok) throw new Error(`Backend OCR non risponde correttamente (${response.status}): ${await response.text()}`);
 
       const parsed = await response.json() as BackendOcrResult;
@@ -357,7 +358,7 @@ function ImportMatchEditor() {
       const warnings = parsed.warnings?.length ? ` Warning: ${parsed.warnings.join(' | ')}` : '';
       setMessage(`Import risultati completato. Layout=${Math.round((parsed.layout_confidence || 0) * 100)}%, OCR=${Math.round((parsed.ocr_confidence || 0) * 100)}%. Team blu ${blueCount}, team rosso ${redCount}. Vincente=${parsed.winning_team || 'da verificare'}. Ora controlla campi gialli e salva partita.${warnings}`);
     } catch (error) {
-      setMessage(error instanceof Error ? (error.name === 'AbortError' ? 'OCR fermato per timeout: backend troppo lento o bloccato. Il pulsante è stato sbloccato.' : error.message) : 'Errore Backend OCR Pro.');
+      setMessage(error instanceof Error ? (error.name === 'AbortError' ? 'OCR fermato per timeout dopo 180 secondi: Render potrebbe essere in cold start o il motore OCR è troppo lento. Apri /ocr-status, aspetta che /health risponda, poi riprova.' : error.message) : 'Errore Backend OCR Pro.');
     } finally {
       setWorking(false);
       setOcrProgress('');

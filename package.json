@@ -1,6 +1,6 @@
 {
   "name": "codm-clan-intelligence-ak47dx",
-  "version": "4.1.0-ui-telegram-ocr-aligned",
+  "version": "4.2.0-grafica-ocr-render-fix",
   "private": true,
   "scripts": {
     "dev": "next dev",

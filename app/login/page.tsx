@@ -1,9 +1,8 @@
 'use client';
 
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import Link from 'next/link';
 import { supabase } from '@/lib/supabaseClient';
-import type { User } from '@supabase/supabase-js';
 
 type Mode = 'login' | 'register';
 type ClanRow = { id: string; name?: string | null; tag?: string | null };
@@ -14,48 +13,16 @@ async function getFirstClan(): Promise<ClanRow | null> {
     .select('id,name,tag')
     .order('created_at', { ascending: true })
     .limit(1);
+
   if (error) throw error;
   return (data?.[0] as ClanRow | undefined) || null;
 }
 
-async function ensureProfileAndPendingRequest(user: User, input: { displayName: string; nickname: string; uid: string }) {
-  const displayName = input.displayName.trim() || input.nickname.trim() || user.user_metadata?.display_name || user.email?.split('@')[0] || 'Nuovo player';
-  const nickname = input.nickname.trim() || user.user_metadata?.player_nickname || displayName;
-  const uid = input.uid.trim() || user.user_metadata?.codm_uid || null;
-
-  await supabase.from('profiles').upsert({
-    id: user.id,
-    display_name: displayName,
-    player_nickname: nickname,
-    codm_uid: uid,
-    updated_at: new Date().toISOString(),
-  });
-
-  const clan = await getFirstClan();
-  if (!clan?.id) return;
-
-  const { data: existing } = await supabase
-    .from('clan_invite_requests')
-    .select('id,status')
-    .eq('clan_id', clan.id)
-    .eq('user_id', user.id)
-    .maybeSingle();
-
-  const payload = {
-    clan_id: clan.id,
-    user_id: user.id,
-    nickname,
-    uid_codm: uid,
-    social_contact: user.email || null,
-    status: existing?.status === 'approved' ? 'approved' : 'pending',
-    updated_at: new Date().toISOString(),
-  };
-
-  if (existing?.id) {
-    await supabase.from('clan_invite_requests').update(payload).eq('id', existing.id);
-  } else {
-    await supabase.from('clan_invite_requests').insert(payload);
-  }
+function getAppUrl() {
+  const envUrl = process.env.NEXT_PUBLIC_APP_URL;
+  if (envUrl && envUrl.startsWith('http')) return envUrl.replace(/\/$/, '');
+  if (typeof window !== 'undefined') return window.location.origin;
+  return '';
 }
 
 export default function LoginPage() {
@@ -65,121 +32,142 @@ export default function LoginPage() {
   const [displayName, setDisplayName] = useState('');
   const [nickname, setNickname] = useState('');
   const [uid, setUid] = useState('');
-  const [message, setMessage] = useState('');
   const [loading, setLoading] = useState(false);
+  const [message, setMessage] = useState('');
+
+  const canSubmit = useMemo(() => {
+    if (loading) return false;
+    if (!email.trim() || password.length < 6) return false;
+    if (mode === 'register' && (!displayName.trim() || !nickname.trim())) return false;
+    return true;
+  }, [loading, email, password, mode, displayName, nickname]);
 
   async function signIn() {
+    if (!canSubmit) return;
     setLoading(true);
     setMessage('');
     try {
-      const { data, error } = await supabase.auth.signInWithPassword({ email: email.trim(), password });
+      const { error } = await supabase.auth.signInWithPassword({
+        email: email.trim(),
+        password
+      });
       if (error) throw error;
-      if (data.user) await ensureProfileAndPendingRequest(data.user, { displayName, nickname, uid });
-      window.location.href = '/profile-import';
+      setMessage('Login riuscito. Apertura dashboard...');
+      window.location.href = '/dashboard';
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : 'Errore login.');
+      setMessage(error instanceof Error ? error.message : 'Errore login. Controlla email e password.');
     } finally {
       setLoading(false);
     }
   }
 
   async function signUp() {
+    if (!canSubmit) return;
     setLoading(true);
     setMessage('');
     try {
-      const cleanEmail = email.trim();
-      const cleanNickname = nickname.trim() || displayName.trim() || cleanEmail.split('@')[0];
+      const appUrl = getAppUrl();
+      const emailRedirectTo = `${appUrl}/auth/callback?next=/profile-import`;
+      const clan = await getFirstClan().catch(() => null);
+
       const { data, error } = await supabase.auth.signUp({
-        email: cleanEmail,
+        email: email.trim(),
         password,
         options: {
+          emailRedirectTo,
           data: {
-            display_name: displayName.trim() || cleanNickname,
-            player_nickname: cleanNickname,
+            display_name: displayName.trim(),
+            player_nickname: nickname.trim(),
             codm_uid: uid.trim() || null,
-          },
-          emailRedirectTo: `${window.location.origin}/auth/callback?next=/profile-import`,
-        },
+            preferred_clan_id: clan?.id || null,
+            preferred_clan_tag: clan?.tag || clan?.name || 'AK47DX'
+          }
+        }
       });
+
       if (error) throw error;
-      if (data.session && data.user) {
-        await ensureProfileAndPendingRequest(data.user, { displayName, nickname: cleanNickname, uid });
+
+      if (data.session) {
+        setMessage('Registrazione completata. Ti porto al profilo CODM.');
         window.location.href = '/profile-import';
         return;
       }
-      setMessage('Account creato. Controlla la mail di conferma. Dopo la conferma verrai rimandato alla app e il tuo profilo comparirà nella lista admin.');
+
+      setMessage('Registrazione inviata. Controlla la tua email, conferma account e poi torna nella app. Il tuo profilo sarà visibile in Gestione utenti.');
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : 'Errore registrazione.');
+      setMessage(error instanceof Error ? error.message : 'Errore registrazione. Riprova.');
     } finally {
       setLoading(false);
     }
   }
 
-  const canSubmit = email.trim().length > 3 && password.length >= 6 && !loading;
-
   return (
-    <main className="min-h-screen bg-[radial-gradient(circle_at_top,#152244,#050914_55%,#020617)] px-4 py-8 text-white">
-      <section className="mx-auto grid max-w-6xl gap-6 lg:grid-cols-[1.1fr_0.9fr]">
-        <div className="rounded-[2rem] border border-cyan-400/20 bg-slate-950/80 p-6 shadow-2xl shadow-cyan-950/40 md:p-8">
-          <div className="mb-6 inline-flex rounded-full border border-cyan-400/30 bg-cyan-400/10 px-4 py-2 text-sm font-black uppercase tracking-[0.25em] text-cyan-200">
-            AK47DX Clan Intelligence
-          </div>
-          <h1 className="text-3xl font-black md:text-5xl">Accesso player e staff</h1>
-          <p className="mt-4 max-w-2xl text-slate-300">
+    <main className="ak-login-page">
+      <section className="ak-login-wrap">
+        <div className="ak-login-card">
+          <div className="ak-pill">AK47DX Clan Intelligence</div>
+          <h1 className="ak-title">Accesso player e staff</h1>
+          <p className="ak-lead">
             La dashboard resta pubblica in sola lettura. Registrazione, profilo CODM, eventi, upload risultati e modifiche sono gestiti con ruoli approvati da admin.
           </p>
 
-          <div className="mt-8 flex rounded-2xl border border-white/10 bg-slate-900/80 p-1">
-            <button onClick={() => setMode('login')} className={`flex-1 rounded-xl px-4 py-3 font-black ${mode === 'login' ? 'bg-cyan-400 text-slate-950' : 'text-slate-300'}`}>Login</button>
-            <button onClick={() => setMode('register')} className={`flex-1 rounded-xl px-4 py-3 font-black ${mode === 'register' ? 'bg-cyan-400 text-slate-950' : 'text-slate-300'}`}>Registrati</button>
+          <div className="ak-mode-switch" role="tablist" aria-label="Selezione modalità accesso">
+            <button type="button" onClick={() => setMode('login')} className={mode === 'login' ? 'active' : ''}>Login</button>
+            <button type="button" onClick={() => setMode('register')} className={mode === 'register' ? 'active' : ''}>Registrati</button>
           </div>
 
-          <div className="mt-6 grid gap-4">
+          <div className="ak-form">
             {mode === 'register' && (
               <>
-                <label className="grid gap-2 text-sm font-bold text-slate-200">
+                <label className="ak-field">
                   Nome
-                  <input value={displayName} onChange={(e) => setDisplayName(e.target.value)} className="rounded-2xl border border-white/10 bg-slate-900 px-4 py-3 text-white outline-none focus:border-cyan-300" placeholder="Es. Hasnain Mirza" />
+                  <input value={displayName} onChange={(e) => setDisplayName(e.target.value)} className="ak-input" placeholder="Es. Hasnain Mirza" />
                 </label>
-                <label className="grid gap-2 text-sm font-bold text-slate-200">
+                <label className="ak-field">
                   Nome giocatore CODM
-                  <input value={nickname} onChange={(e) => setNickname(e.target.value)} className="rounded-2xl border border-white/10 bg-slate-900 px-4 py-3 text-white outline-none focus:border-cyan-300" placeholder="Es. AKঐMIRZA" />
+                  <input value={nickname} onChange={(e) => setNickname(e.target.value)} className="ak-input" placeholder="Es. AKঐMIRZA" />
                 </label>
-                <label className="grid gap-2 text-sm font-bold text-slate-200">
+                <label className="ak-field">
                   UID CODM opzionale
-                  <input value={uid} onChange={(e) => setUid(e.target.value)} className="rounded-2xl border border-white/10 bg-slate-900 px-4 py-3 text-white outline-none focus:border-cyan-300" placeholder="UID se disponibile" />
+                  <input value={uid} onChange={(e) => setUid(e.target.value)} className="ak-input" placeholder="UID se disponibile" />
                 </label>
               </>
             )}
-            <label className="grid gap-2 text-sm font-bold text-slate-200">
+
+            <label className="ak-field">
               Email
-              <input value={email} onChange={(e) => setEmail(e.target.value)} type="email" autoComplete="email" className="rounded-2xl border border-white/10 bg-slate-900 px-4 py-3 text-white outline-none focus:border-cyan-300" placeholder="player@email.com" />
+              <input value={email} onChange={(e) => setEmail(e.target.value)} type="email" autoComplete="email" className="ak-input" placeholder="player@email.com" />
             </label>
-            <label className="grid gap-2 text-sm font-bold text-slate-200">
+            <label className="ak-field">
               Password
-              <input value={password} onChange={(e) => setPassword(e.target.value)} type="password" autoComplete={mode === 'login' ? 'current-password' : 'new-password'} className="rounded-2xl border border-white/10 bg-slate-900 px-4 py-3 text-white outline-none focus:border-cyan-300" placeholder="Minimo 6 caratteri" />
+              <input value={password} onChange={(e) => setPassword(e.target.value)} type="password" autoComplete={mode === 'login' ? 'current-password' : 'new-password'} className="ak-input" placeholder="Minimo 6 caratteri" />
             </label>
-            <button disabled={!canSubmit} onClick={mode === 'login' ? signIn : signUp} className="rounded-2xl bg-cyan-400 px-5 py-4 font-black text-slate-950 shadow-lg shadow-cyan-500/20 disabled:cursor-not-allowed disabled:opacity-50">
+
+            <button type="button" disabled={!canSubmit} onClick={mode === 'login' ? signIn : signUp} className="ak-submit">
               {loading ? 'Attendere...' : mode === 'login' ? 'Entra nella app' : 'Crea account player'}
             </button>
           </div>
 
-          {message && <div className="mt-5 rounded-2xl border border-amber-300/30 bg-amber-300/10 p-4 text-sm text-amber-100">{message}</div>}
-          <div className="mt-6 flex flex-wrap gap-3 text-sm text-slate-300">
-            <Link href="/dashboard" className="rounded-full border border-white/10 px-4 py-2 hover:border-cyan-300">Dashboard pubblica</Link>
-            <Link href="/events" className="rounded-full border border-white/10 px-4 py-2 hover:border-cyan-300">Calendario eventi</Link>
-            <Link href="/ocr-status" className="rounded-full border border-white/10 px-4 py-2 hover:border-cyan-300">Stato OCR</Link>
+          {message && <div className="ak-message">{message}</div>}
+
+          <div className="ak-quick-links">
+            <Link href="/dashboard">Dashboard pubblica</Link>
+            <Link href="/events">Calendario eventi</Link>
+            <Link href="/ocr-status">Stato OCR</Link>
           </div>
         </div>
 
-        <aside className="rounded-[2rem] border border-white/10 bg-white/[0.04] p-6">
-          <h2 className="text-xl font-black text-cyan-200">Flusso corretto</h2>
-          <ol className="mt-4 space-y-4 text-sm text-slate-300">
-            <li><b className="text-white">1.</b> Il player si registra con email, nome e nickname CODM.</li>
-            <li><b className="text-white">2.</b> Dopo conferma email, viene aperta la app su `/profile-import`.</li>
-            <li><b className="text-white">3.</b> Il player è subito visibile in `/admin/users` come pending.</li>
-            <li><b className="text-white">4.</b> Tu assegni ruolo: viewer, player, staff, coach oppure owner.</li>
+        <aside className="ak-info-card">
+          <h2>Flusso corretto</h2>
+          <ol className="ak-flow">
+            <li><b>1.</b> Il player si registra con email, nome e nickname CODM.</li>
+            <li><b>2.</b> Dopo conferma email, viene aperta la app su <b>/profile-import</b>.</li>
+            <li><b>3.</b> Il player è subito visibile in <b>/admin/users</b> come pending.</li>
+            <li><b>4.</b> Tu assegni ruolo: viewer, player, staff, coach oppure owner.</li>
           </ol>
+          <div className="ak-warning">
+            Se la grafica sembra ancora vecchia, apri <b>/cache-reset</b>, premi reset cache e ricarica la pagina.
+          </div>
         </aside>
       </section>
     </main>

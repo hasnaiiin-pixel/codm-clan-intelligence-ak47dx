@@ -40,21 +40,21 @@ export function MobileSidebar() {
 
   return (
     <>
-      <button aria-label="Apri menu" onClick={() => setOpen((value) => !value)} className="fixed left-3 top-3 z-50 rounded-2xl border border-cyan-300/30 bg-slate-950/90 px-4 py-3 text-2xl font-black text-cyan-200 shadow-xl shadow-cyan-950/40 backdrop-blur md:left-5 md:top-5">
+      <button aria-label="Apri menu AK47DX" onClick={() => setOpen((value) => !value)} className="ak-menu-button">
         {open ? '×' : '☰'}
       </button>
-      {open && <button aria-label="Chiudi menu" onClick={() => setOpen(false)} className="fixed inset-0 z-40 bg-black/60 backdrop-blur-sm" />}
-      <aside className={`fixed left-0 top-0 z-50 h-screen w-[86vw] max-w-sm transform border-r border-cyan-400/20 bg-slate-950 p-5 pt-20 text-white shadow-2xl shadow-cyan-950/60 transition-transform duration-200 ${open ? 'translate-x-0' : '-translate-x-full'}`}>
-        <div className="mb-5">
-          <div className="text-2xl font-black text-cyan-200">AK47DX</div>
-          <div className="text-xs uppercase tracking-[0.25em] text-slate-400">CODM Intelligence</div>
+      {open && <button aria-label="Chiudi menu" onClick={() => setOpen(false)} className="ak-sidebar-backdrop" />}
+      <aside className={`ak-sidebar ${open ? 'open' : ''}`} aria-hidden={!open}>
+        <div className="ak-sidebar-brand">
+          <div className="ak-sidebar-title">AK47DX</div>
+          <div className="ak-sidebar-subtitle">CODM Intelligence</div>
         </div>
-        <nav className="h-[calc(100vh-9rem)] overflow-y-auto pr-1">
+        <nav>
           <NavGroup title="Pubblico" items={navItems.filter((x) => x.group === 'public')} pathname={pathname} />
           <NavGroup title="Player" items={navItems.filter((x) => x.group === 'player')} pathname={pathname} />
           <NavGroup title="Admin" items={navItems.filter((x) => x.group === 'admin')} pathname={pathname} />
           <NavGroup title="Sistema" items={navItems.filter((x) => x.group === 'system')} pathname={pathname} />
-          <Link href="/login" className="mt-4 flex rounded-2xl border border-cyan-300/30 bg-cyan-300/10 px-4 py-3 font-black text-cyan-100">🔑 Login / Registrati</Link>
+          <Link href="/login" className="ak-login-link">🔑 Login / Registrati</Link>
         </nav>
       </aside>
     </>
@@ -63,14 +63,14 @@ export function MobileSidebar() {
 
 function NavGroup({ title, items, pathname }: { title: string; items: NavItem[]; pathname: string }) {
   return (
-    <div className="mb-5">
-      <div className="mb-2 text-xs font-black uppercase tracking-[0.22em] text-slate-500">{title}</div>
-      <div className="grid gap-2">
+    <div className="ak-sidebar-group">
+      <div className="ak-sidebar-group-title">{title}</div>
+      <div className="ak-sidebar-links">
         {items.map((item) => {
           const active = pathname === item.href || (item.href !== '/' && pathname.startsWith(item.href));
           return (
-            <Link key={item.href} href={item.href} className={`rounded-2xl px-4 py-3 text-sm font-bold transition ${active ? 'bg-cyan-400 text-slate-950' : 'bg-white/[0.04] text-slate-200 hover:bg-white/[0.08]'}`}>
-              <span className="mr-2">{item.emoji}</span>{item.label}
+            <Link key={item.href} href={item.href} className={`ak-sidebar-link ${active ? 'active' : ''}`}>
+              <span>{item.emoji}</span><span>{item.label}</span>
             </Link>
           );
         })}

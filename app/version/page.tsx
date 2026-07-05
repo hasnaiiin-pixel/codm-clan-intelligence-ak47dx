@@ -2,9 +2,9 @@ export const dynamic = 'force-static';
 
 const release = {
   name: 'AK47DX CODM Clan Intelligence',
-  version: 'CODM_AK47DX_V4_1_UI_TELEGRAM_OCR_ALLINEATO',
-  marker: 'V4_1_UI_TAILWIND_TELEGRAM_OCR_OK',
-  note: 'Se vedi questa pagina, Vercel sta servendo la versione V4.1 con grafica Tailwind, Telegram API e OCR Render allineato.',
+  version: 'CODM_AK47DX_V4_2_GRAFICA_OCR_RENDER_FIX',
+  marker: 'V4_2_GRAFICA_MENU_LOGIN_OCR_RENDER_OK',
+  note: 'Se vedi questa pagina, Vercel sta servendo la versione V4.2 con grafica generale corretta, menu laterale reale, login moderno e timeout OCR Render aumentati.',
 };
 
 export default function VersionPage() {

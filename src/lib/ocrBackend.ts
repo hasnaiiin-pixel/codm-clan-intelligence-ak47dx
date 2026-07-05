@@ -19,28 +19,53 @@ export function getOcrBackendCandidates() {
   return Array.from(new Set(candidates.filter(Boolean)));
 }
 
+async function fetchWithTimeout(input: RequestInfo | URL, init: RequestInit = {}, timeoutMs = 25000) {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    return await fetch(input, { ...init, signal: controller.signal });
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 export async function checkOcrBackendHealth() {
   const attempts: string[] = [];
-  for (const candidate of getOcrBackendCandidates()) {
+  const candidates = getOcrBackendCandidates();
+  if (!candidates.length) {
+    return {
+      ok: false,
+      url: '',
+      version: '',
+      attempts: [],
+      hint: 'NEXT_PUBLIC_OCR_BACKEND_URL non è configurato. Su Vercel devi usare un URL Render/Cloud Run HTTPS, non localhost.',
+    };
+  }
+
+  for (const candidate of candidates) {
     try {
-      const response = await fetch(`${candidate}/health`, { cache: 'no-store' });
+      const response = await fetchWithTimeout(`${candidate}/health`, { cache: 'no-store' }, 25000);
       if (!response.ok) {
         attempts.push(`${candidate} -> HTTP ${response.status}`);
         continue;
       }
       const health = await response.json();
       const version = health?.version || 'unknown';
+      const readyForOcr = health?.ready_for_ocr;
       if (!ACCEPTED_OCR_BACKEND_VERSIONS.includes(version)) {
         attempts.push(`${candidate} -> versione ${version}, attese ${ACCEPTED_OCR_BACKEND_VERSIONS.join(', ')}`);
         continue;
       }
-      return { ok: true, url: candidate, version, attempts };
+      return { ok: true, url: candidate, version, readyForOcr, attempts };
     } catch (error) {
-      attempts.push(`${candidate} -> ${error instanceof Error ? error.message : 'Failed to fetch'}`);
+      const message = error instanceof Error && error.name === 'AbortError'
+        ? 'timeout 25s, probabile cold start Render o backend bloccato'
+        : error instanceof Error ? error.message : 'Failed to fetch';
+      attempts.push(`${candidate} -> ${message}`);
     }
   }
   const productionHint = typeof window !== 'undefined' && !['localhost', '127.0.0.1'].includes(window.location.hostname)
-    ? 'Su Vercel non usare 127.0.0.1: devi pubblicare il backend OCR e impostare NEXT_PUBLIC_OCR_BACKEND_URL.'
+    ? 'Su Vercel non usare 127.0.0.1: configura NEXT_PUBLIC_OCR_BACKEND_URL con il link pubblico Render e verifica che /health risponda.'
     : 'Avvia backend OCR locale e verifica /health.';
   return { ok: false, url: '', version: '', attempts, hint: productionHint };
 }
