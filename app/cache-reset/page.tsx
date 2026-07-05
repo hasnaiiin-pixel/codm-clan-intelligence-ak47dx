@@ -53,7 +53,7 @@ export default function CacheResetPage() {
         <p style={{ color: '#22d3ee', fontWeight: 800, letterSpacing: 1, marginBottom: 8 }}>AK47DX CACHE RESET SICURO</p>
         <h1 style={{ fontSize: 32, lineHeight: 1.1, margin: '0 0 16px' }}>Pulisci versione vecchia senza perdere calibrazione</h1>
         <p style={{ color: '#cbd5e1' }}>
-          Usa questo pulsante se telefono o PWA continua a mostrare una versione vecchia. Da V5.1 i template OCR salvati, il telefono attivo e l'ultimo template restano conservati.
+          Usa questo pulsante se telefono o PWA continua a mostrare una versione vecchia. Da V5.2 i template OCR salvati restano conservati e viene usato anche il template canonico più recente.
         </p>
         <button
           type="button"

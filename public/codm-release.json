@@ -1,6 +1,5 @@
 {
-  "name": "AK47DX CODM Clan Intelligence",
-  "version": "CODM_AK47DX_V5_1_TEMPLATE_SYNC_TABLE_MOBILE",
-  "marker": "V5_1_TEMPLATE_SYNC_TABLE_MOBILE_OK",
-  "note": "Import definitivo: frontend usa e mostra lo stesso template salvato, preserva calibrazione in cache-reset, tabella mobile trasformata in card senza scroll laterale. Backend OCR resta 2.0.8 V5.0."
+  "version": "CODM_AK47DX_V5_2_TEMPLATE_KDA_TABLE_DEFINITIVO",
+  "marker": "V5_2_TEMPLATE_KDA_TABLE_DEFINITIVO_OK",
+  "backend_ocr": "2.0.9-v5-2-template-kda-table-definitivo-ak47dx"
 }

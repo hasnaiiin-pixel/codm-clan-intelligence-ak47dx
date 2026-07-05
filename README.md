@@ -1,11 +1,18 @@
-# CODM AK47DX V5.1 — Template Sync + Mobile Table
+# CODM AK47DX — V5.2 Template K/D/A Table Definitivo
 
-Versione unica per stabilizzare import partite:
+Usa questa versione come base stabile per import partite.
 
-- Frontend import usa lo stesso template salvato in calibrazione.
-- Overlay locale completo sempre visibile in import.
-- Cache reset non cancella più i template OCR.
-- Tabella mobile trasformata in card complete senza scroll laterale.
-- Backend OCR stabile resta 2.0.8 V5.0 per Score + K/D/A.
+- Frontend marker: `V5_2_TEMPLATE_KDA_TABLE_DEFINITIVO_OK`
+- OCR backend: `2.0.9-v5-2-template-kda-table-definitivo-ak47dx`
 
-Marker: `V5_1_TEMPLATE_SYNC_TABLE_MOBILE_OK`
+Passi rapidi:
+
+```bat
+npm ci --legacy-peer-deps
+npm run build
+git add -A
+git commit -m "fix: CODM v5.2 template kda table definitivo"
+git push origin main
+```
+
+Aggiorna anche Render con la cartella `ocr-backend` e verifica `/health`.

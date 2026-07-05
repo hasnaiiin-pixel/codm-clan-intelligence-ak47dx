@@ -7,7 +7,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { supabase } from '@/lib/supabaseClient';
 import { findBestNicknameMatch, type ParsedScoreRow } from '@/lib/ocrParsers';
 import { calculatePlayerRating } from '@/lib/statistics';
-import { getBestCalibrationPhoneProfile, hasSavedCalibration, listCalibrationPhoneProfiles, loadCalibrationBundle, setActivePhoneProfile, type CalibratedRegion } from '@/lib/calibration';
+import { getBestCalibrationPhoneProfile, hasSavedCalibration, listCalibrationPhoneProfiles, loadCalibrationBundle, setActivePhoneProfile, setActiveUserContext, type CalibratedRegion } from '@/lib/calibration';
 import { ACCEPTED_OCR_BACKEND_VERSIONS, EXPECTED_OCR_BACKEND_VERSION, getOcrBackendCandidates } from '@/lib/ocrBackend';
 import { FULL_IMAGE_FRAME, detectImageContentFrameFromUrl, regionToImageStyle, type ImageContentFrame } from '@/lib/imageFrame';
 import type { GameMode, MatchResult, MatchType, Player, TeamSide } from '@/lib/types';
@@ -42,6 +42,16 @@ type BackendOcrRow = {
   kills?: number;
   deaths?: number;
   assists?: number;
+  kill?: number;
+  death?: number;
+  assist?: number;
+  k?: number;
+  d?: number;
+  a?: number;
+  kda?: string;
+  raw_kda_text?: string;
+  score_raw?: string;
+  kda_raw?: string;
   mvp_label?: 'MVP_WIN' | 'MVP_LOSE' | null;
   confidence?: number;
 };
@@ -219,16 +229,23 @@ function ImportMatchEditor() {
     setActivePhoneProfile('scoreboard_ced', nextPhone);
     setCalibrationProfiles(Array.from(new Set([...profiles, nextPhone])).sort());
     const bundle = loadCalibrationBundle('scoreboard_ced', nextPhone);
-    const saved = hasSavedCalibration('scoreboard_ced', nextPhone);
+    const actualPhone = bundle.meta?.phoneProfile || nextPhone;
+    const saved = hasSavedCalibration('scoreboard_ced', actualPhone) || hasSavedCalibration('scoreboard_ced', nextPhone);
+    setSelectedCalibrationPhone(actualPhone);
+    setActivePhoneProfile('scoreboard_ced', actualPhone);
     setLocalTemplateRegions(bundle.regions || []);
     setTemplateSaved(saved);
-    setTemplateSummary(`${bundle.meta?.templateName || 'Scoreboard CED'} / ${nextPhone} · ${bundle.regions?.length || 0} riquadri · ${saved ? 'SALVATO' : 'DEFAULT NON SALVATO'}`);
-    return { phone: nextPhone, bundle, saved };
+    setTemplateSummary(`${bundle.meta?.templateName || 'Scoreboard CED'} / ${actualPhone} · ${bundle.regions?.length || 0} riquadri · ${saved ? 'SALVATO/CANONICO' : 'DEFAULT NON SALVATO'}`);
+    return { phone: actualPhone, bundle, saved };
   }
 
   useEffect(() => {
     loadRoster();
-    refreshCalibrationTemplate();
+    supabase.auth.getUser().then(({ data }) => {
+      const user = data.user;
+      setActiveUserContext(user?.id || 'anonymous', String(user?.user_metadata?.display_name || user?.email || ''));
+      refreshCalibrationTemplate();
+    }).catch(() => refreshCalibrationTemplate());
   }, []);
 
   useEffect(() => {
@@ -264,6 +281,42 @@ function ImportMatchEditor() {
     detectImageContentFrameFromUrl(objectUrl).then(setImageContentFrame).catch(() => setImageContentFrame(FULL_IMAGE_FRAME));
   }
 
+
+  function firstNumeric(...values: unknown[]) {
+    const nums: number[] = [];
+    for (const value of values) {
+      if (value === null || value === undefined || value === '') continue;
+      const n = typeof value === 'number' ? value : Number(String(value).replace(/[^0-9.-]/g, ''));
+      if (Number.isFinite(n)) nums.push(n);
+    }
+    const nonZero = nums.find((n) => n !== 0);
+    return nonZero ?? nums[0] ?? 0;
+  }
+
+  function parseKdaFallback(row: BackendOcrRow) {
+    const joined = [row.kda, row.raw_kda_text, row.kda_raw].filter(Boolean).join(' ');
+    const cleaned = joined.replace(/\\/g, '/').replace(/\|/g, '/').replace(/[Il]/g, '1').replace(/[Oo]/g, '0');
+    const slash = cleaned.match(/(\d{1,3})\s*\/\s*(\d{1,3})\s*\/\s*(\d{1,3})/);
+    if (slash) return { kills: Number(slash[1]), deaths: Number(slash[2]), assists: Number(slash[3]) };
+    const nums = cleaned.match(/\d{1,3}/g)?.map(Number) || [];
+    if (nums.length >= 3) return { kills: nums[0], deaths: nums[1], assists: nums[2] };
+    return null;
+  }
+
+  function normalizeBackendRow(row: BackendOcrRow) {
+    const parsedKda = parseKdaFallback(row);
+    const kills = firstNumeric(row.kills, row.kill, row.k, parsedKda?.kills);
+    const deaths = firstNumeric(row.deaths, row.death, row.d, parsedKda?.deaths);
+    const assists = firstNumeric(row.assists, row.assist, row.a, parsedKda?.assists);
+    return {
+      score: firstNumeric(row.score, row.score_raw),
+      kills,
+      deaths,
+      assists,
+      hasKda: kills > 0 || deaths > 0 || assists > 0
+    };
+  }
+
   function applyBackendRows(parsed: BackendOcrResult) {
     const activeOurTeam = parsed.our_team || ourTeam;
     const ourRows = (activeOurTeam === 'red' ? parsed.teams?.red : parsed.teams?.blue) || [];
@@ -273,17 +326,18 @@ function ImportMatchEditor() {
       const rawNick = row.nickname_ocr?.trim() || `Nostro ${row.rank}`;
       const best = rawNick && !isPlaceholderNickname(rawNick) ? findBestNicknameMatch(rawNick, roster) : undefined;
       const rowConfidence = row.confidence || 0;
+      const numeric = normalizeBackendRow(row);
       return {
         rankPosition: row.rank,
         nickname: best?.nickname || rawNick,
         playerId: best?.id || null,
         ocrNickname: rawNick,
-        needsReview: !rawNick || isPlaceholderNickname(rawNick) || rowConfidence < 0.62 || !best,
+        needsReview: !rawNick || isPlaceholderNickname(rawNick) || rowConfidence < 0.62 || !best || !numeric.hasKda,
         readStatus: rowConfidence >= 0.80 ? 'ok' : rowConfidence >= 0.48 ? 'partial' : 'manual',
-        kills: row.kills || 0,
-        deaths: row.deaths || 0,
-        assists: row.assists || 0,
-        score: row.score || 0,
+        kills: numeric.kills,
+        deaths: numeric.deaths,
+        assists: numeric.assists,
+        score: numeric.score,
         impact: null,
         captures: 0,
         objectiveTimeText: '',
@@ -368,7 +422,7 @@ function ImportMatchEditor() {
     setBackendRawJson('');
     setOcrProgressPct(3);
     setOcrProgress('Preparazione screenshot e verifica backend OCR...');
-    setMessage('Import definitivo V5.1: legge SOLO il nostro team ma importa anche SCORE player + Kill/Death/Assist usando il template salvato. Se scegli BLU/ROSSO sbagliato, cambia selezione e premi di nuovo Importa risultati.');
+    setMessage('Import definitivo V5.2: legge SOLO il nostro team ma importa anche SCORE player + Kill/Death/Assist usando il template salvato. Se scegli BLU/ROSSO sbagliato, cambia selezione e premi di nuovo Importa risultati.');
     try {
       let backendUrl = '';
       let backendVersion = 'unknown';
@@ -413,7 +467,7 @@ function ImportMatchEditor() {
         formData.append('calibration_template', JSON.stringify(activeTemplate.bundle));
         formData.append('calibration_frame', JSON.stringify(imageContentFrame));
         formData.append('calibration_mode', 'content_frame');
-        formData.append('template_source', activeTemplate.saved ? 'saved_local_template' : 'default_template');
+        formData.append('template_source', activeTemplate.saved ? `saved_local_template:${activeTemplate.bundle.meta?.phoneProfile || activeTemplate.phone}` : 'default_template_not_saved');
       }
       formData.append('our_team', ourTeam);
       formData.append('extract_scope', 'fast_our_only');
@@ -451,7 +505,7 @@ function ImportMatchEditor() {
     } catch (error) {
       setOcrProgressPct(100);
       setOcrProgress('Import OCR fermato. Controlla messaggio e stato backend.');
-      setMessage(error instanceof Error ? (error.name === 'AbortError' ? 'OCR fermato per timeout: il backend non ha risposto entro 90 secondi. V5.1 usa template salvato + SCORE/KDA leggero. Se succede ancora apri /ocr-status e /health Render; se localhost funziona e online no, Render free è troppo lento/cold start.' : error.message) : 'Errore Backend OCR Pro.');
+      setMessage(error instanceof Error ? (error.name === 'AbortError' ? 'OCR fermato per timeout: il backend non ha risposto entro 90 secondi. V5.2 usa template salvato sincronizzato + SCORE/KDA leggero. Se succede ancora apri /ocr-status e /health Render; se localhost funziona e online no, Render free è troppo lento/cold start.' : error.message) : 'Errore Backend OCR Pro.');
     } finally {
       setWorking(false);
     }
@@ -745,7 +799,7 @@ function ImportMatchEditor() {
             </div>
           )}
           <div className={`ak-template-status ${templateSaved ? 'ok' : 'warn'}`}>
-            <strong>Template import usato:</strong> {templateSummary}
+            <strong>Template import usato:</strong> {templateSummary} <br /><strong>V5.2:</strong> se hai salvato un template in Calibrazione, viene recuperato anche se era salvato con altro login/telefono e viene copiato nel template canonico.
             <span> · Overlay locale visibile: {localTemplateRegions.length} riquadri. I riquadri sottili sono quelli salvati/calibrati; i riquadri spessi sono quelli realmente letti dal backend.</span>
           </div>
           {message && <div className="notice top-gap">{message}</div>}
@@ -779,7 +833,7 @@ function ImportMatchEditor() {
       <section className="card top-gap">
         <h2>Statistiche nostro team — Score + Kill / Death / Assist</h2>
         <p className="muted">Vengono salvati solo i player del tuo clan. Ora importiamo anche il punteggio player oltre a K/D/A. Dell'avversario restano solo nome clan, score team ed esito partita.</p>
-        <div className="team-grid ak-ally-only-table">
+        <div className="team-grid ak-ally-only-table ak-full-width-import-table">
           {renderRowsTable('ALLY', ourTeam === 'blue' ? '🔵 Nostro team: blu / sinistra' : '🔴 Nostro team: rosso / destra', allyRows, ourTeam === 'blue' ? 'team-blue' : 'team-red')}
           <div className="ak-opponent-summary"><strong>Avversario:</strong> {opponent || 'da compilare'}<br /><span>Score avversario: {enemyScore || '-'} • Esito nostro: {result}</span><br /><small>Le statistiche dei player avversari non vengono importate né salvate.</small></div>
         </div>

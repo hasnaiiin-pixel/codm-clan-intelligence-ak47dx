@@ -592,7 +592,7 @@ def _rebuild_fast_score_kda_from_team_tables(layout, mode_hint: str = "CED"):
     if added:
         layout.boxes = kept + added
         layout.layout_confidence = max(layout.layout_confidence, 0.91)
-        layout.warnings.append(f"V5.0 fallback table-lock leggero ({mode_hint}): ricostruiti SCORE + K/D/A da TEAM_TABLE perché mancavano box individuali.")
+        layout.warnings.append(f"V5.2 fallback table-lock leggero ({mode_hint}): ricostruiti SCORE + K/D/A da TEAM_TABLE perché mancavano box individuali.")
     return layout
 
 
@@ -767,7 +767,7 @@ def parse_scoreboard_ced_fast(image_bytes: bytes, calibration_template: str | No
     # Ora usiamo direttamente SCORE + KDA se presenti; fallback table-lock leggero solo se mancano.
     if _layout_has_individual_score_kda(layout, our_team):
         layout.layout_confidence = max(layout.layout_confidence, 0.92)
-        layout.warnings.append(f"V5.0 template-priority import: uso riquadri individuali SCORE + K/D/A del team {our_team}; nessuna ricostruzione pesante.")
+        layout.warnings.append(f"V5.2 template-priority import: uso riquadri individuali SCORE + K/D/A del team {our_team}; nessuna ricostruzione pesante.")
     else:
         layout = _rebuild_fast_score_kda_from_team_tables(layout, mode)
     boxes = layout.boxes
@@ -791,6 +791,7 @@ def parse_scoreboard_ced_fast(image_bytes: bytes, calibration_template: str | No
         nick = ""
         nick_box = find_box(boxes, "nickname", our_team, row)
         kda_box = find_box(boxes, "kda", our_team, row)
+        row_box = find_box(boxes, "player_row", our_team, row)
         row_boxes = []
 
         if nick_box:
@@ -816,8 +817,34 @@ def parse_scoreboard_ced_fast(image_bytes: bytes, calibration_template: str | No
             kda_crop = crop_box(img, _box_tuple(kda_box), pad=3)
             kda_raw = _fast_tesseract_text(kda_crop, "kda", timeout=1.0)
             k, d, a, kda_conf = _fast_parse_kda_text(kda_raw)
+            if kda_conf < 0.62:
+                try:
+                    k2, d2, a2, c2, raw2, cand2 = _read_kda_cell_robust(kda_crop, mode)
+                    if c2 > kda_conf or (k, d, a) == (0, 0, 0):
+                        k, d, a, kda_conf = int(k2), int(d2), int(a2), float(c2)
+                        kda_raw = raw2 or kda_raw
+                except Exception:
+                    pass
             row_boxes.append(kda_box)
             parsed_boxes.append(kda_box)
+
+        # V5.2 definitivo: se la cella K/D/A singola non produce valori, leggi la riga intera
+        # con parser score+kda. Questo recupera i casi in cui Tesseract unisce score e K/D/A
+        # oppure il crop personalizzato è leggermente stretto. Esegue il fallback solo sulla riga
+        # fallita, quindi resta più leggero del motore V4.8.
+        if (k, d, a) == (0, 0, 0) and row_box:
+            try:
+                row_crop = crop_box(img, _box_tuple(row_box), pad=3)
+                rb_score, rb_k, rb_d, rb_a, rb_impact, rb_conf, rb_raw, rb_details = _read_row_bundle_robust(row_crop)
+                if rb_conf > kda_conf and (rb_k or rb_d or rb_a):
+                    if not score_val and rb_score:
+                        score_val, score_conf, score_raw = int(rb_score), max(score_conf, float(rb_conf)), rb_raw
+                    k, d, a, kda_conf = int(rb_k), int(rb_d), int(rb_a), float(rb_conf)
+                    kda_raw = rb_raw or kda_raw
+                    row_boxes.append(row_box)
+                    parsed_boxes.append(row_box)
+            except Exception:
+                pass
         row_conf_parts = [c for c in (score_conf, kda_conf) if c > 0]
         conf = sum(row_conf_parts) / len(row_conf_parts) if row_conf_parts else 0.0
         confs.append(conf)
@@ -845,7 +872,7 @@ def parse_scoreboard_ced_fast(image_bytes: bytes, calibration_template: str | No
 
     ocr_conf = sum(confs) / len(confs) if confs else 0.0
     warnings = list(layout.warnings)
-    warnings.append("V5.0 import definitivo: lettura solo nostro team con template-priority leggero. Importa SCORE player + Kill/Death/Assist. Niente lettura statistiche avversari; avversario resta solo clan/score/esito.")
+    warnings.append("V5.2 import definitivo: template salvato/canonico + fallback riga intera per K/D/A. Se la cella KDA non viene letta, recupero da riga completa senza motore pesante.")
     if ocr_conf < 0.45:
         warnings.append("OCR SCORE/K/D/A a bassa confidenza: controlla manualmente i campi gialli prima di salvare.")
 
@@ -863,7 +890,7 @@ def parse_scoreboard_ced_fast(image_bytes: bytes, calibration_template: str | No
         needs_manual_review=ocr_conf < 0.55 or result is None,
         ignored={"player_score": False, "impact": True, "kd_total": True, "accuracy": True, "headshot": True},
         teams=teams,
-        boxes=parsed_boxes,
+        boxes=layout.boxes,
         warnings=warnings,
         score_diagnostics={"policy": "V4.6 fast-own-team-template-frame", "our_team": our_team, "blue_score": blue_score, "red_score": red_score, "result_hint": result_hint},
         raw_text="\n".join(raw_parts),

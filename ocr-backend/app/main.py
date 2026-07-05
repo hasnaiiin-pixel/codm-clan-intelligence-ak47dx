@@ -8,7 +8,7 @@ from app.services.scoreboard_ced import parse_scoreboard_ced
 from app.services.profile_ocr import parse_profile
 from app.services.ocr_engines import engine_status
 
-ENGINE_VERSION = "2.0.8-v5-0-import-score-kda-definitivo-ak47dx"
+ENGINE_VERSION = "2.0.9-v5-2-template-kda-table-definitivo-ak47dx"
 
 app = FastAPI(title="CODM OCR Hybrid Engine", version=ENGINE_VERSION)
 
@@ -38,7 +38,7 @@ def health():
             "tesseract_numeric",
             "paddleocr_fallback",
             "yolo_ready_structure",
-            "v5_0_template_priority_score_kda",
+            "v5_2_template_canonical_score_kda",
             "v5_0_score_player_enabled",
             "v4_6_client_frame_template_alignment",
             "v4_6_notification_preferences_ready",

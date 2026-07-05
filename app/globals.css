@@ -1320,3 +1320,41 @@ textarea,
   .team-title { align-items: flex-start; }
   .team-title h3 { font-size: 16px; }
 }
+
+/* CODM V5.2 - import definitivo: tabella a tutta larghezza e niente mezza pagina */
+.ak-full-width-import-table,
+.team-grid.ak-full-width-import-table,
+.ak-ally-only-table {
+  display: grid !important;
+  grid-template-columns: minmax(0, 1fr) !important;
+  width: 100% !important;
+  max-width: 100% !important;
+}
+.ak-full-width-import-table .team-box,
+.ak-ally-only-table .team-box {
+  width: 100% !important;
+  max-width: 100% !important;
+  grid-column: 1 / -1 !important;
+}
+.ak-full-width-import-table .table-scroll,
+.ak-ally-only-table .table-scroll {
+  width: 100% !important;
+  max-width: 100% !important;
+}
+.ak-full-width-import-table .import-table-clean,
+.ak-ally-only-table .import-table-clean {
+  width: 100% !important;
+  min-width: 980px !important;
+}
+.ak-full-width-import-table .ak-opponent-summary,
+.ak-ally-only-table .ak-opponent-summary {
+  width: 100% !important;
+  max-width: 100% !important;
+  grid-column: 1 / -1 !important;
+}
+@media (max-width: 900px) {
+  .ak-full-width-import-table .table-scroll,
+  .ak-ally-only-table .table-scroll { display: none !important; }
+  .ak-full-width-import-table .ak-mobile-score-cards,
+  .ak-ally-only-table .ak-mobile-score-cards { display: grid !important; width: 100% !important; }
+}

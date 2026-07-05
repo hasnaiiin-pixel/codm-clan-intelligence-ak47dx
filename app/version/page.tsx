@@ -5,9 +5,9 @@ export default function VersionPage() {
         <div className="ak-login-card">
           <div className="ak-pill">AK47DX DEPLOY CHECK</div>
           <h1 className="ak-title">CODM Clan Intelligence</h1>
-          <p className="ak-lead">Versione V5.1: import partite sincronizzato con il template salvato, overlay locale completo e tabella mobile senza scroll laterale.</p>
-          <div className="notice top-gap"><strong>Marker:</strong> V5_1_TEMPLATE_SYNC_TABLE_MOBILE_OK</div>
-          <div className="notice top-gap"><strong>Backend OCR:</strong> usa ancora 2.0.8 V5.0 stabile per Score + K/D/A.</div>
+          <p className="ak-lead">Versione V5.2: fix definitivo template salvato, K/D/A, score player e tabella import a larghezza piena.</p>
+          <div className="notice top-gap"><strong>Marker:</strong> V5_2_TEMPLATE_KDA_TABLE_DEFINITIVO_OK</div>
+          <div className="notice top-gap"><strong>Backend OCR:</strong> 2.0.9-v5-2-template-kda-table-definitivo-ak47dx.</div>
           <div className="ak-quick-links">
             <a href="/cache-reset">Reset cache sicuro</a>
             <a href="/calibration">Calibrazione</a>
