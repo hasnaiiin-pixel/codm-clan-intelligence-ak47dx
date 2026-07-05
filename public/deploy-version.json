@@ -1,7 +1,6 @@
 {
   "app": "CODM Clan Intelligence AK47DX",
-  "version": "CODM_AUTH_ROLE_MOBILE_UPDATE_20260704193756",
-  "generatedAt": "2026-07-04T19:37:56.484Z",
-  "gitCommitAtPatchTime": "1dd5952",
-  "note": "Se vedi questo file su Vercel, stai aprendo la versione nuova del deploy."
+  "version": "CODM_AK47DX_V4_1_UI_TELEGRAM_OCR_ALLINEATO",
+  "marker": "V4_1_UI_TAILWIND_TELEGRAM_OCR_OK",
+  "note": "Grafica Tailwind attiva, API Telegram presenti, OCR Render allineato a 2.0.1/2.0.0."
 }

@@ -2,9 +2,9 @@ export const dynamic = 'force-static';
 
 const release = {
   name: 'AK47DX CODM Clan Intelligence',
-  version: 'CODM_AK47DX_VISIBLE_ROUTE_CHECK_2026_07_04',
-  marker: 'VERSION_ROUTE_OK_B2_FIX',
-  note: 'Se vedi questa pagina, Vercel sta servendo il nuovo deploy e non la versione vecchia.',
+  version: 'CODM_AK47DX_V4_1_UI_TELEGRAM_OCR_ALLINEATO',
+  marker: 'V4_1_UI_TAILWIND_TELEGRAM_OCR_OK',
+  note: 'Se vedi questa pagina, Vercel sta servendo la versione V4.1 con grafica Tailwind, Telegram API e OCR Render allineato.',
 };
 
 export default function VersionPage() {

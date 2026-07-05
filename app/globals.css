@@ -675,3 +675,17 @@ select, .select, select option, .select option { background-color: #0d1422 !impo
   .inline-form { grid-template-columns: 1fr; }
   .login-card, .codm-auth-block, .card { padding: 18px; border-radius: 20px; }
 }
+
+/* CODM V4.1 safety layout fix: evita menu/testi senza stile dopo deploy */
+.codm-app-content {
+  min-height: 100vh;
+  width: 100%;
+}
+@media (min-width: 1024px) {
+  .codm-app-content {
+    padding-left: 0;
+  }
+}
+body {
+  overflow-x: hidden;
+}

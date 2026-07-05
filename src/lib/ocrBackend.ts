@@ -1,4 +1,8 @@
-export const EXPECTED_OCR_BACKEND_VERSION = '2.0.0-definitive-ak47dx';
+export const EXPECTED_OCR_BACKEND_VERSION = '2.0.1-deployable-pwa-yolo-ak47dx';
+export const ACCEPTED_OCR_BACKEND_VERSIONS = [
+  '2.0.1-deployable-pwa-yolo-ak47dx',
+  '2.0.0-definitive-ak47dx',
+];
 
 export function getOcrBackendCandidates() {
   const envUrl = (process.env.NEXT_PUBLIC_OCR_BACKEND_URL || '').trim();
@@ -26,8 +30,8 @@ export async function checkOcrBackendHealth() {
       }
       const health = await response.json();
       const version = health?.version || 'unknown';
-      if (version !== EXPECTED_OCR_BACKEND_VERSION) {
-        attempts.push(`${candidate} -> versione ${version}, attesa ${EXPECTED_OCR_BACKEND_VERSION}`);
+      if (!ACCEPTED_OCR_BACKEND_VERSIONS.includes(version)) {
+        attempts.push(`${candidate} -> versione ${version}, attese ${ACCEPTED_OCR_BACKEND_VERSIONS.join(', ')}`);
         continue;
       }
       return { ok: true, url: candidate, version, attempts };
