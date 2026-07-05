@@ -56,7 +56,7 @@ class ScoreboardCedResult(BaseModel):
 
 
 class ProfileOcrResult(BaseModel):
-    engine_version: str = "2.0.11-v5-6-profile-fastlane-stabile-ak47dx"
+    engine_version: str = "2.0.12-v5-7-profile-template-frame-ocr-ak47dx"
     screen_type: str = "profile_base"
     nickname: str = ""
     uid: str = ""

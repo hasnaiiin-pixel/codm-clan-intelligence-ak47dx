@@ -6,6 +6,7 @@ import { parseCodmProfileText, type ParsedProfileStats } from '@/lib/ocrParsers'
 import { recognizeCodmImage, type CodmOcrProgress } from '@/lib/codmOcrEngine';
 import { getActivePhoneProfile, listCalibrationPhoneProfiles, loadCalibration, loadCalibrationBundle, setActivePhoneProfile } from '@/lib/calibration';
 import { ACCEPTED_OCR_BACKEND_VERSIONS, EXPECTED_OCR_BACKEND_VERSION, getOcrBackendCandidates } from '@/lib/ocrBackend';
+import { detectImageContentFrameFromUrl } from '@/lib/imageFrame';
 import type { Player, ProfileImportType } from '@/lib/types';
 
 const importTypes: Array<{ value: ProfileImportType; label: string; hint: string }> = [
@@ -215,8 +216,8 @@ export default function ImportProfilePage() {
     setDebugImages([]);
     setBackendRawJson('');
     setOcrProgressPct(4);
-    setOcrProgress('Preparazione profilo FastLane V5.6...');
-    setMessage('OCR profilo V5.6 FastLane: salta il blocco /health, usa template profilo salvato e legge numeri Leggendario con motore rapido.');
+    setOcrProgress('Preparazione profilo FastLane V5.7 con frame calibrazione frontend...');
+    setMessage('OCR profilo V5.7: usa lo stesso frame della calibrazione frontend, poi fallback backend/full-frame se non legge i numeri.');
     try {
       const candidates = backendCandidates();
       if (!candidates.length) {
@@ -225,7 +226,7 @@ export default function ImportProfilePage() {
       const backendUrl = candidates[0];
       let backendVersion = 'direct-profile-fastlane';
       setOcrProgressPct(12);
-      setOcrProgress(`V5.6 Profile FastLane: provo import diretto su ${backendUrl}. /health è solo informativo.`);
+      setOcrProgress(`V5.7 Profile OCR: provo import diretto su ${backendUrl}. /health è solo informativo.`);
 
       try {
         const healthResponse = await fetchWithTimeout(`${backendUrl}/health`, { cache: 'no-store' }, 7000);
@@ -233,7 +234,7 @@ export default function ImportProfilePage() {
           const health = await healthResponse.json() as { version?: string };
           backendVersion = health.version || backendVersion;
           setOcrProgressPct(18);
-          setOcrProgress(`Backend OCR risponde (${backendVersion}). Avvio OCR profilo FastLane...`);
+          setOcrProgress(`Backend OCR risponde (${backendVersion}). Avvio OCR profilo V5.7 con frame frontend...`);
         } else {
           setOcrProgressPct(18);
           setOcrProgress(`Health HTTP ${healthResponse.status}. Avvio comunque OCR profilo diretto...`);
@@ -245,16 +246,26 @@ export default function ImportProfilePage() {
 
       const formData = new FormData();
       formData.append('file', file);
-      formData.append('profile_mode', 'v5_6_fastlane_no_block');
+      formData.append('profile_mode', 'v5_7_template_frame_ocr');
       formData.append('import_type', importType);
       if (useCalibrationTemplate) {
         setActivePhoneProfile('profile_base', selectedCalibrationPhone);
         const calibrationBundle = loadCalibrationBundle('profile_base', selectedCalibrationPhone);
         formData.append('calibration_template', JSON.stringify(calibrationBundle));
-        formData.append('template_source', `profile_fastlane_v5_6:${calibrationBundle.meta?.phoneProfile || selectedCalibrationPhone}`);
+        formData.append('template_source', `profile_v5_7_frame:${calibrationBundle.meta?.phoneProfile || selectedCalibrationPhone}`);
+      }
+      try {
+        const frameUrl = imageUrl || URL.createObjectURL(file);
+        const frame = await detectImageContentFrameFromUrl(frameUrl);
+        formData.append('calibration_frame', JSON.stringify(frame));
+        setOcrProgressPct(24);
+        setOcrProgress(`Frame frontend profilo inviato: ${Math.round(frame.x * 1000) / 10}%,${Math.round(frame.y * 1000) / 10}% ${Math.round(frame.w * 1000) / 10}%x${Math.round(frame.h * 1000) / 10}%.`);
+      } catch {
+        setOcrProgressPct(24);
+        setOcrProgress('Frame frontend non calcolato: backend userà fallback automatico.');
       }
 
-      const parsed = await postProfileFormDataWithProgress(`${backendUrl}/ocr/profile`, formData, 120000, (percent, label) => {
+      const parsed = await postProfileFormDataWithProgress(`${backendUrl}/ocr/profile`, formData, 150000, (percent, label) => {
         setOcrProgressPct(percent);
         setOcrProgress(label);
       });
@@ -276,7 +287,7 @@ export default function ImportProfilePage() {
       const warnings = parsed.warnings?.length ? ` Warning: ${parsed.warnings.join(' | ')}` : '';
       setOcrProgressPct(100);
       setOcrProgress('OCR profilo completato. Controlla i campi gialli e salva.');
-      setMessage(`OCR profilo V5.6 FastLane completato. Layout=${Math.round((parsed.layout_confidence || 0) * 100)}%, OCR=${Math.round((parsed.ocr_confidence || 0) * 100)}%. Leggendario MG/BR/DMZ/Zombie allineato al template. Controlla prima di salvare.${warnings}`);
+      setMessage(`OCR profilo V5.7 completato. Layout=${Math.round((parsed.layout_confidence || 0) * 100)}%, OCR=${Math.round((parsed.ocr_confidence || 0) * 100)}%. Usa frame frontend + fallback backend/full-frame. Controlla i campi gialli prima di salvare.${warnings}`);
     } catch (error) {
       setOcrProgressPct(100);
       setOcrProgress('OCR profilo fermato. Controlla messaggio e backend.');
@@ -457,7 +468,7 @@ export default function ImportProfilePage() {
           <h1>Import profilo / statistiche CODM</h1>
           <p className="muted">
             Usa questa pagina per screenshot profilo base, Multigiocatore, Battle Royale, Zombi e DMZ.
-            L'OCR V5.6 usa FastLane: niente blocco /health, template profilo salvato e lettura rapida dei numeri Leggendario MG/BR/DMZ/Zombie.
+            L'OCR V5.7 usa lo stesso frame della calibrazione frontend e prova fallback backend/full-frame se i numeri non vengono letti.
           </p>
           <div className="form">
             <div className="field">
@@ -476,7 +487,7 @@ export default function ImportProfilePage() {
             <input className="input" type="file" accept="image/*" onChange={(e) => onFileSelected(e.target.files?.[0] || null)} />
             {imageUrl && <img className="preview" src={imageUrl} alt="Screenshot profilo" />}
             <div className="grid grid-2">
-              <button className="btn" onClick={runBackendProfileOcr} disabled={working}>{working ? '⏳ Lettura...' : '🪪 OCR Profilo FastLane V5.6'}</button>
+              <button className="btn" onClick={runBackendProfileOcr} disabled={working}>{working ? '⏳ Lettura...' : '🪪 OCR Profilo V5.7 frame-lock'}</button>
               <button className="btn secondary" onClick={runOcr} disabled={working}>{working ? 'Lettura...' : 'OCR browser fallback 0.7'}</button>
             </div>
             {ocrProgress && <div className="notice"><strong>Avanzamento OCR profilo: {ocrProgressPct}%</strong><div className="ak-progress-track"><div className="ak-progress-bar" style={{ width: `${ocrProgressPct}%` }} /></div><span>{ocrProgress}</span></div>}
