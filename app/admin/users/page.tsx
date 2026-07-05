@@ -14,6 +14,7 @@ type Member = {
   email?: string | null;
   codm_uid?: string | null;
   player_nickname?: string | null;
+  linked_player_id?: string | null;
 };
 
 type RequestRow = {
@@ -27,6 +28,8 @@ type RequestRow = {
   linked_player_id: string | null;
   created_at: string;
 };
+
+type PlayerOption = { id: string; nickname: string; clan_name?: string | null; user_id?: string | null };
 
 type ProfileRow = {
   id: string;
@@ -44,6 +47,7 @@ export default function AdminUsersPage() {
   const [members, setMembers] = useState<Member[]>([]);
   const [requests, setRequests] = useState<RequestRow[]>([]);
   const [profiles, setProfiles] = useState<ProfileRow[]>([]);
+  const [players, setPlayers] = useState<PlayerOption[]>([]);
   const [message, setMessage] = useState('');
   const [loading, setLoading] = useState(false);
 
@@ -77,7 +81,15 @@ export default function AdminUsersPage() {
           .in('id', userIds);
         profileMap = new Map((profileData || []).map((p: any) => [p.id, p as ProfileRow]));
       }
-      setMembers(rawMembers.map((m) => ({ ...m, ...(profileMap.get(m.user_id) || {}) })) as Member[]);
+      const { data: playerRows } = await supabase
+        .from('players')
+        .select('id,nickname,clan_name,user_id')
+        .eq('clan_id', auth.clanId)
+        .order('nickname');
+      const playerOptions = (playerRows || []) as PlayerOption[];
+      setPlayers(playerOptions);
+      const playerByUser = new Map(playerOptions.filter((p) => p.user_id).map((p) => [p.user_id as string, p]));
+      setMembers(rawMembers.map((m) => ({ ...m, ...(profileMap.get(m.user_id) || {}), linked_player_id: playerByUser.get(m.user_id)?.id || null })) as Member[]);
 
       const { data: requestData, error: requestError } = await supabase
         .from('clan_invite_requests')
@@ -124,11 +136,15 @@ export default function AdminUsersPage() {
         .maybeSingle();
 
       let playerId = existingPlayer?.id as string | undefined;
+      if (playerId && row.user_id) {
+        await supabase.from('players').update({ user_id: row.user_id }).eq('id', playerId);
+      }
       if (!playerId) {
         const { data: createdPlayer, error: playerError } = await supabase
           .from('players')
           .insert({
             clan_id: auth.clanId,
+            user_id: row.user_id || null,
             nickname: finalNickname,
             uid_codm: row.uid_codm,
             clan_name: auth.clanName,
@@ -195,6 +211,25 @@ export default function AdminUsersPage() {
     if (created.data) await approveRequest(created.data as RequestRow, role);
   }
 
+  async function linkMemberToPlayer(member: Member, playerId: string) {
+    setMessage('');
+    try {
+      if (!playerId) {
+        const current = players.find((p) => p.user_id === member.user_id);
+        if (current) await supabase.from('players').update({ user_id: null }).eq('id', current.id);
+        setMessage('Player scollegato dall’utente.');
+        await load();
+        return;
+      }
+      const { error } = await supabase.from('players').update({ user_id: member.user_id }).eq('id', playerId);
+      if (error) throw error;
+      setMessage('Giocatore collegato all’utente. Le convocazioni e le notifiche useranno questo collegamento.');
+      await load();
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : 'Errore collegamento giocatore.');
+    }
+  }
+
   if (auth.loading) return <WriteAccessBlock loading />;
   if (!auth.canManageUsers) {
     return <WriteAccessBlock role={auth.role} title="Solo Owner può gestire utenti" description="Staff e Coach possono caricare risultati, ma solo Owner assegna ruoli e permessi." />;
@@ -252,7 +287,7 @@ export default function AdminUsersPage() {
           <h2 className="text-2xl font-black">Membri clan</h2>
           <div className="mt-4 overflow-x-auto">
             <table className="w-full min-w-[780px] border-separate border-spacing-y-2 text-left text-sm">
-              <thead className="text-slate-400"><tr><th>Email</th><th>Nome registrato</th><th>Nome giocatore</th><th>UID</th><th>Ruolo</th><th>Permesso</th></tr></thead>
+              <thead className="text-slate-400"><tr><th>Email</th><th>Nome registrato</th><th>Nome giocatore</th><th>UID</th><th>Player collegato</th><th>Ruolo</th><th>Permesso</th></tr></thead>
               <tbody>
                 {members.map((member) => (
                   <tr key={member.id} className="bg-slate-900">
@@ -260,6 +295,12 @@ export default function AdminUsersPage() {
                     <td className="p-3 font-bold">{member.display_name || 'Utente registrato'}</td>
                     <td className="p-3">{member.player_nickname || '-'}</td>
                     <td className="p-3">{member.codm_uid || '-'}</td>
+                    <td className="p-3">
+                      <select value={member.linked_player_id || ''} onChange={(event) => void linkMemberToPlayer(member, event.target.value)} className="rounded-xl border border-white/10 bg-slate-950 px-3 py-2 text-white">
+                        <option value="">Non collegato</option>
+                        {players.map((player) => <option key={player.id} value={player.id}>{player.nickname}{player.clan_name ? ` · ${player.clan_name}` : ''}</option>)}
+                      </select>
+                    </td>
                     <td className="p-3">
                       <select value={member.role} onChange={(event) => void changeRole(member.id, event.target.value as CodmRole)} className="rounded-xl border border-white/10 bg-slate-950 px-3 py-2 text-white">
                         {roleOptions.map((role) => <option key={role} value={role}>{roleLabel(role)}</option>)}

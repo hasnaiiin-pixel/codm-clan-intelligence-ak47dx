@@ -251,3 +251,71 @@ alter table public.profiles add column if not exists codm_uid text;
 update public.codm_events
 set reminder_minutes = array[120,10]
 where reminder_minutes is null or array_length(reminder_minutes, 1) is null;
+
+-- CODM V4.6 - Template OCR allineato, notifiche in app e preferenze utente
+alter table public.players add column if not exists user_id uuid references auth.users(id) on delete set null;
+create index if not exists idx_players_user_id on public.players(user_id);
+
+create table if not exists public.codm_notification_preferences (
+  user_id uuid primary key references auth.users(id) on delete cascade,
+  inapp_enabled boolean default true,
+  telegram_enabled boolean default true,
+  email_enabled boolean default false,
+  notification_events boolean default true,
+  notification_reminders boolean default true,
+  notification_stats boolean default true,
+  notification_imports boolean default true,
+  notification_admin boolean default false,
+  created_at timestamptz default now(),
+  updated_at timestamptz default now()
+);
+
+create table if not exists public.codm_notifications (
+  id uuid primary key default gen_random_uuid(),
+  clan_id uuid references public.clans(id) on delete cascade,
+  user_id uuid references auth.users(id) on delete cascade,
+  type text not null default 'general',
+  title text not null,
+  body text,
+  metadata jsonb default '{}'::jsonb,
+  dedupe_key text,
+  read_at timestamptz,
+  created_at timestamptz default now(),
+  unique(user_id, dedupe_key)
+);
+
+create index if not exists idx_codm_notifications_user_created on public.codm_notifications(user_id, created_at desc);
+create index if not exists idx_codm_notifications_clan on public.codm_notifications(clan_id);
+
+alter table public.codm_notification_preferences enable row level security;
+alter table public.codm_notifications enable row level security;
+
+drop policy if exists codm_notification_preferences_self_select on public.codm_notification_preferences;
+create policy codm_notification_preferences_self_select on public.codm_notification_preferences for select using (auth.uid() = user_id);
+
+drop policy if exists codm_notification_preferences_self_insert on public.codm_notification_preferences;
+create policy codm_notification_preferences_self_insert on public.codm_notification_preferences for insert with check (auth.uid() = user_id);
+
+drop policy if exists codm_notification_preferences_self_update on public.codm_notification_preferences;
+create policy codm_notification_preferences_self_update on public.codm_notification_preferences for update using (auth.uid() = user_id);
+
+drop policy if exists codm_notifications_self_select on public.codm_notifications;
+create policy codm_notifications_self_select on public.codm_notifications for select using (auth.uid() = user_id);
+
+drop policy if exists codm_notifications_self_update on public.codm_notifications;
+create policy codm_notifications_self_update on public.codm_notifications for update using (auth.uid() = user_id);
+
+-- Backfill automatico: collega players a utenti se nickname/UID combaciano con il profilo registrato.
+update public.players p
+set user_id = pr.id
+from public.profiles pr
+where p.user_id is null
+  and (
+    lower(coalesce(p.nickname,'')) = lower(coalesce(pr.player_nickname, pr.codm_nickname, ''))
+    or (coalesce(p.uid_codm,'') <> '' and coalesce(p.uid_codm,'') = coalesce(pr.codm_uid,''))
+  );
+
+-- Preferenze default per utenti già presenti
+insert into public.codm_notification_preferences (user_id)
+select id from public.profiles
+on conflict (user_id) do nothing;

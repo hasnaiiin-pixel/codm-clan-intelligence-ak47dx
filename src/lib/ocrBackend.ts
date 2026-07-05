@@ -1,5 +1,6 @@
-export const EXPECTED_OCR_BACKEND_VERSION = '2.0.4-v4-5-fast-ownteam-ak47dx';
+export const EXPECTED_OCR_BACKEND_VERSION = '2.0.5-v4-6-template-notifications-ak47dx';
 export const ACCEPTED_OCR_BACKEND_VERSIONS = [
+  '2.0.5-v4-6-template-notifications-ak47dx',
   '2.0.4-v4-5-fast-ownteam-ak47dx',
   '2.0.3-v4-4-own-team-fast-ak47dx',
   '2.0.2-v4-3-mobile-ocr-progress-ak47dx',

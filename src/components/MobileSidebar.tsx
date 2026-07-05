@@ -18,6 +18,7 @@ const navItems: NavItem[] = [
   { href: '/events', label: 'Eventi', emoji: '📅', group: 'Pubblico', audience: 'public' },
   { href: '/loadouts', label: 'Loadout', emoji: '🔫', group: 'Pubblico', audience: 'public' },
   { href: '/join', label: 'Entra nel clan', emoji: '➕', group: 'Player', audience: 'public' },
+  { href: '/notifications', label: 'Notifiche', emoji: '🔔', group: 'Player', audience: 'player' },
   { href: '/profile-import', label: 'Profilo player', emoji: '🪪', group: 'Player', audience: 'player' },
   { href: '/import/profile', label: 'Importa profilo', emoji: '🖼️', group: 'Player', audience: 'player' },
   { href: '/import/match', label: 'Carica risultato', emoji: '🏆', group: 'Staff / Coach', audience: 'write' },

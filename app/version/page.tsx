@@ -5,11 +5,12 @@ export default function VersionPage() {
         <div className="ak-login-card">
           <div className="ak-pill">AK47DX DEPLOY CHECK</div>
           <h1 className="ak-title">CODM Clan Intelligence</h1>
-          <p className="ak-lead">Versione V4.5: layout mobile stabilizzato, menu permessi, eventi con convocati, Telegram test, OCR solo nostro team.</p>
-          <div className="notice top-gap"><strong>Marker:</strong> V4_5_IMPORT_FAST_EVENTS_REMINDERS_OK</div>
+          <p className="ak-lead">Versione V4.6: import usa davvero il template salvato, frame frontend allineato, notifiche in-app/Telegram personalizzabili e utenti collegabili a player.</p>
+          <div className="notice top-gap"><strong>Marker:</strong> V4_6_TEMPLATE_NOTIFICHE_PERMESSI_OK</div>
           <div className="ak-quick-links">
             <a href="/cache-reset">Reset cache</a>
             <a href="/login">Login</a>
+            <a href="/notifications">Notifiche</a>
             <a href="/events">Eventi</a>
             <a href="/ocr-status">OCR Status</a>
             <a href="/api/telegram/status">Telegram status</a>

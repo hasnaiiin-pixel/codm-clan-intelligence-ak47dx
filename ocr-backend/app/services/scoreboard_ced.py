@@ -448,6 +448,26 @@ def _role_from_calibration_name(name: str) -> tuple[str | None, str | None, int 
     return None, None, None
 
 
+
+def _client_frame_to_pixels(calibration_frame: str | None, image_w: int, image_h: int) -> tuple[int, int, int, int] | None:
+    """Frame normalizzato calcolato dal frontend con lo stesso algoritmo della pagina calibrazione.
+
+    Serve per evitare che Render ricalcoli un content frame leggermente diverso rispetto a quello
+    visto dall'utente quando salva il template. I riquadri salvati sono normalizzati sul content frame,
+    quindi import e calibrazione devono usare lo stesso frame.
+    """
+    if not calibration_frame:
+        return None
+    try:
+        parsed = json.loads(calibration_frame)
+        x = max(0.0, min(0.995, float(parsed.get("x", 0))))
+        y = max(0.0, min(0.995, float(parsed.get("y", 0))))
+        w = max(0.01, min(1.0 - x, float(parsed.get("w", 1))))
+        h = max(0.01, min(1.0 - y, float(parsed.get("h", 1))))
+        return int(x * image_w), int(y * image_h), int(w * image_w), int(h * image_h)
+    except Exception:
+        return None
+
 def _apply_calibration_template(layout, calibration_template: str | None, content_frame: tuple[int, int, int, int] | None = None):
     if not calibration_template:
         return layout, None
@@ -477,7 +497,7 @@ def _apply_calibration_template(layout, calibration_template: str | None, conten
         if applied:
             layout.boxes = list(by_key.values())
             layout.layout_confidence = max(layout.layout_confidence, 0.92)
-            layout.warnings.append(f"Template calibrazione attivo: {applied} riquadri applicati ({meta.get('phoneProfile', 'telefono non indicato')}). Coordinate 1.0 applicate sul content frame rilevato, così il template non scivola se cambia bordo nero/crop telefono.")
+            layout.warnings.append(f"Template calibrazione attivo: {applied} riquadri applicati ({meta.get('phoneProfile', 'telefono non indicato')}). Coordinate 1.0 applicate sullo stesso content frame usato dal frontend/calibrazione, così il template non scivola se Render rileva un frame diverso.")
         return layout, meta
     except Exception as exc:
         layout.warnings.append(f"Template calibrazione non applicato: {exc}")
@@ -566,7 +586,7 @@ def _parse_match_datetime(text: str) -> str | None:
 
 
 # -----------------------------
-# V4.5 FAST OCR PATH
+# V4.6 FAST OCR PATH
 # -----------------------------
 # Render free può essere troppo lento se ogni riga usa 15+ chiamate Tesseract.
 # Questa modalità legge SOLO il nostro team e usa massimo 1-2 OCR per riga.
@@ -618,7 +638,7 @@ def _fast_clean_nickname(text: str) -> str:
     return text[:40]
 
 
-def parse_scoreboard_ced_fast(image_bytes: bytes, calibration_template: str | None = None, calibration_mode: str = "table_lock", our_team: str = "blue", extract_scope: str = "our_only") -> ScoreboardCedResult:
+def parse_scoreboard_ced_fast(image_bytes: bytes, calibration_template: str | None = None, calibration_frame: str | None = None, calibration_mode: str = "table_lock", our_team: str = "blue", extract_scope: str = "our_only") -> ScoreboardCedResult:
     original = read_image_bytes(image_bytes)
     our_team = "red" if str(our_team).lower() == "red" else "blue"
     calibration_mode = (calibration_mode or "table_lock").strip().lower()
@@ -631,14 +651,20 @@ def parse_scoreboard_ced_fast(image_bytes: bytes, calibration_template: str | No
     template_meta = None
     if calibration_template and calibration_template.strip():
         try:
-            if calibration_mode == "strict_image":
+            client_frame = _client_frame_to_pixels(calibration_frame, img.shape[1], img.shape[0])
+            if client_frame is not None:
+                content_frame = client_frame
+                layout.warnings.append(f"V4.6 template frame frontend applicato: x={client_frame[0]}, y={client_frame[1]}, w={client_frame[2]}, h={client_frame[3]}.")
+            elif calibration_mode == "strict_image":
                 content_frame = (0, 0, img.shape[1], img.shape[0])
+                layout.warnings.append("V4.6 template in strict_image: coordinate applicate sull'immagine intera.")
             else:
                 fx, fy, fw, fh, _, _ = detect_content_frame(img)
                 content_frame = (fx, fy, fw, fh)
+                layout.warnings.append("V4.6 fallback: content frame calcolato dal backend perché il frontend non ha inviato calibration_frame.")
             layout, template_meta = _apply_calibration_template(layout, calibration_template, content_frame=content_frame)
         except Exception as exc:
-            layout.warnings.append(f"V4.5 fast: template non applicato: {exc}")
+            layout.warnings.append(f"V4.6 fast: template non applicato: {exc}")
 
     # Header rapido: massimo 1 OCR largo, non blocca Render.
     raw_parts: list[str] = []
@@ -649,7 +675,7 @@ def parse_scoreboard_ced_fast(image_bytes: bytes, calibration_template: str | No
         hh, ww = img.shape[:2]
         header_crop = img[int(hh * 0.000): int(hh * 0.245), int(ww * 0.000): int(ww * 0.475)]
         header_text = _fast_tesseract_text(header_crop, "text", timeout=1.2)
-        raw_parts.append(f"[V4.5 fast header] {header_text}")
+        raw_parts.append(f"[V4.6 fast header] {header_text}")
         mode, map_name = _mode_map(header_text)
     except Exception:
         mode, map_name = "CED", None
@@ -662,9 +688,9 @@ def parse_scoreboard_ced_fast(image_bytes: bytes, calibration_template: str | No
     blue_score, red_score = _extract_match_score_from_text(header_text, mode)
     if blue_score is None or red_score is None:
         b2, r2, debug = _read_ced_score_color(img)
-        raw_parts.extend(f"[V4.5 score_color] {x}" for x in debug)
+        raw_parts.extend(f"[V4.6 score_color] {x}" for x in debug)
         blue_score, red_score = b2, r2
-    final_b, final_r = _validate_score_pair(mode, result_hint, blue_score, red_score, "v4_5_fast_header", {"accepted_candidates": [], "rejected_candidates": []})
+    final_b, final_r = _validate_score_pair(mode, result_hint, blue_score, red_score, "v4_6_fast_header", {"accepted_candidates": [], "rejected_candidates": []})
     blue_score, red_score = final_b, final_r
     winning_team = _winner_from_scores(blue_score, red_score, result_hint)
     result = _result_for_our_team(winning_team, our_team) or result_hint
@@ -697,7 +723,7 @@ def parse_scoreboard_ced_fast(image_bytes: bytes, calibration_template: str | No
             row_boxes.append(kda_box)
             parsed_boxes.append(kda_box)
         confs.append(conf)
-        raw_parts.append(f"[V4.5 fast {our_team} r{row}] nick={nick!r} kda_raw={kda_raw!r} -> {k}/{d}/{a} conf={conf:.2f}")
+        raw_parts.append(f"[V4.6 fast {our_team} r{row}] nick={nick!r} kda_raw={kda_raw!r} -> {k}/{d}/{a} conf={conf:.2f}")
 
         mvp_label = None
         if row == 1:
@@ -721,7 +747,7 @@ def parse_scoreboard_ced_fast(image_bytes: bytes, calibration_template: str | No
 
     ocr_conf = sum(confs) / len(confs) if confs else 0.0
     warnings = list(layout.warnings)
-    warnings.append("V4.5 fast import: lettura solo nostro team, massimo ~10 chiamate OCR. Niente lettura avversari, niente score player/impatto.")
+    warnings.append("V4.6 fast import: lettura solo nostro team, massimo ~10 chiamate OCR. Usa template salvato con frame frontend. Niente lettura avversari, niente score player/impatto.")
     if ocr_conf < 0.45:
         warnings.append("OCR K/D/A a bassa confidenza: controlla manualmente i campi gialli prima di salvare.")
 
@@ -740,13 +766,13 @@ def parse_scoreboard_ced_fast(image_bytes: bytes, calibration_template: str | No
         teams=teams,
         boxes=parsed_boxes,
         warnings=warnings,
-        score_diagnostics={"policy": "V4.5 fast-own-team", "our_team": our_team, "blue_score": blue_score, "red_score": red_score, "result_hint": result_hint},
+        score_diagnostics={"policy": "V4.6 fast-own-team-template-frame", "our_team": our_team, "blue_score": blue_score, "red_score": red_score, "result_hint": result_hint},
         raw_text="\n".join(raw_parts),
     )
 
-def parse_scoreboard_ced(image_bytes: bytes, calibration_template: str | None = None, calibration_mode: str = "table_lock", our_team: str = "blue", extract_scope: str = "our_only") -> ScoreboardCedResult:
+def parse_scoreboard_ced(image_bytes: bytes, calibration_template: str | None = None, calibration_frame: str | None = None, calibration_mode: str = "table_lock", our_team: str = "blue", extract_scope: str = "our_only") -> ScoreboardCedResult:
     if (extract_scope or "").strip().lower() in {"our_only", "own_team", "ally_only", "fast_our_only"}:
-        return parse_scoreboard_ced_fast(image_bytes, calibration_template=calibration_template, calibration_mode=calibration_mode, our_team=our_team, extract_scope=extract_scope)
+        return parse_scoreboard_ced_fast(image_bytes, calibration_template=calibration_template, calibration_frame=calibration_frame, calibration_mode=calibration_mode, our_team=our_team, extract_scope=extract_scope)
     original = read_image_bytes(image_bytes)
     has_calibration = bool(calibration_template and calibration_template.strip())
     calibration_mode = (calibration_mode or "table_lock").strip().lower()
@@ -760,7 +786,11 @@ def parse_scoreboard_ced(image_bytes: bytes, calibration_template: str | None = 
         # strict_image = coordinate sul file intero; content_frame = coordinate su content frame;
         # table_lock = usa il template per i riquadri tabella e ricostruisce le celle.
         img, _ = resize_long_edge(original, target=1920)
-        if calibration_mode == "strict_image":
+        client_frame = _client_frame_to_pixels(calibration_frame, img.shape[1], img.shape[0])
+        if client_frame is not None:
+            fx, fy, fw, fh = client_frame
+            frame_conf, frame_reason = (1.0, "client_frontend_frame")
+        elif calibration_mode == "strict_image":
             fx, fy, fw, fh, frame_conf, frame_reason = (0, 0, img.shape[1], img.shape[0], 1.0, "strict_full_image")
         else:
             fx, fy, fw, fh, frame_conf, frame_reason = detect_content_frame(img)

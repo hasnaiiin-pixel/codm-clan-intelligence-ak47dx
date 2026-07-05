@@ -9,6 +9,7 @@ import { findBestNicknameMatch, type ParsedScoreRow } from '@/lib/ocrParsers';
 import { calculatePlayerRating } from '@/lib/statistics';
 import { getActivePhoneProfile, listCalibrationPhoneProfiles, loadCalibrationBundle, setActivePhoneProfile } from '@/lib/calibration';
 import { ACCEPTED_OCR_BACKEND_VERSIONS, EXPECTED_OCR_BACKEND_VERSION, getOcrBackendCandidates } from '@/lib/ocrBackend';
+import { FULL_IMAGE_FRAME, detectImageContentFrameFromUrl, type ImageContentFrame } from '@/lib/imageFrame';
 import type { GameMode, MatchResult, MatchType, Player, TeamSide } from '@/lib/types';
 
 const modes: GameMode[] = ['CED', 'TDM', 'PRIMA_LINEA', 'DOMINIO', 'POSTAZIONE', 'KILL_CONFIRMED', 'BR_SOLO', 'BR_DUO', 'BR_SQUAD'];
@@ -197,6 +198,7 @@ function ImportMatchEditor() {
   const [ocrProgress, setOcrProgress] = useState('');
   const [backendBoxes, setBackendBoxes] = useState<BackendOcrBox[]>([]);
   const [backendRawJson, setBackendRawJson] = useState('');
+  const [imageContentFrame, setImageContentFrame] = useState<ImageContentFrame>(FULL_IMAGE_FRAME);
   const [calibrationProfiles, setCalibrationProfiles] = useState<string[]>(['default']);
   const [selectedCalibrationPhone, setSelectedCalibrationPhone] = useState('default');
   const [useCalibrationTemplate, setUseCalibrationTemplate] = useState(true);
@@ -239,8 +241,13 @@ function ImportMatchEditor() {
     const activePhone = getActivePhoneProfile('scoreboard_ced');
     setSelectedCalibrationPhone(activePhone);
     setCalibrationProfiles(listCalibrationPhoneProfiles('scoreboard_ced'));
-    if (!selected) return setImageUrl('');
-    setImageUrl(URL.createObjectURL(selected));
+    if (!selected) {
+      setImageContentFrame(FULL_IMAGE_FRAME);
+      return setImageUrl('');
+    }
+    const objectUrl = URL.createObjectURL(selected);
+    setImageUrl(objectUrl);
+    detectImageContentFrameFromUrl(objectUrl).then(setImageContentFrame).catch(() => setImageContentFrame(FULL_IMAGE_FRAME));
   }
 
   function applyBackendRows(parsed: BackendOcrResult) {
@@ -347,7 +354,7 @@ function ImportMatchEditor() {
     setBackendRawJson('');
     setOcrProgressPct(3);
     setOcrProgress('Preparazione screenshot e verifica backend OCR...');
-    setMessage('Import veloce V4.5: viene letta SOLO la squadra selezionata come nostro team. Se dopo analisi vuoi cambiare BLU/ROSSO, cambia selezione e premi di nuovo Importa risultati.');
+    setMessage('Import veloce V4.6: viene letta SOLO la squadra selezionata come nostro team. Se dopo analisi vuoi cambiare BLU/ROSSO, cambia selezione e premi di nuovo Importa risultati.');
     try {
       let backendUrl = '';
       let backendVersion = 'unknown';
@@ -388,6 +395,7 @@ function ImportMatchEditor() {
         setActivePhoneProfile('scoreboard_ced', selectedCalibrationPhone);
         const calibrationBundle = loadCalibrationBundle('scoreboard_ced', selectedCalibrationPhone);
         formData.append('calibration_template', JSON.stringify(calibrationBundle));
+        formData.append('calibration_frame', JSON.stringify(imageContentFrame));
         formData.append('calibration_mode', calibrationMode);
       }
       formData.append('our_team', ourTeam);
@@ -425,7 +433,7 @@ function ImportMatchEditor() {
     } catch (error) {
       setOcrProgressPct(100);
       setOcrProgress('Import OCR fermato. Controlla messaggio e stato backend.');
-      setMessage(error instanceof Error ? (error.name === 'AbortError' ? 'OCR fermato per timeout: il backend non ha risposto entro 90 secondi. V4.5 usa modalità veloce; se succede ancora apri /ocr-status e /health Render, poi riprova. Se localhost funziona e online no, Render è in cold start o piano free troppo lento.' : error.message) : 'Errore Backend OCR Pro.');
+      setMessage(error instanceof Error ? (error.name === 'AbortError' ? 'OCR fermato per timeout: il backend non ha risposto entro 90 secondi. V4.6 usa template salvato + modalità veloce; se succede ancora apri /ocr-status e /health Render, poi riprova. Se localhost funziona e online no, Render è in cold start o piano free troppo lento.' : error.message) : 'Errore Backend OCR Pro.');
     } finally {
       setWorking(false);
     }
@@ -507,7 +515,7 @@ function ImportMatchEditor() {
       our_team: ourTeam,
       match_notes: matchNotes || null,
       match_date: parseBackendMatchDate(matchDateText) || new Date().toISOString(),
-      notes: `${matchNotes ? `${matchNotes}\n\n` : ''}Import risultati 2.0. Screenshot prova=${screenshotPath || screenshotUrl || 'non caricato'}. Template=${useCalibrationTemplate ? `${selectedCalibrationPhone}/${calibrationMode}` : 'OFF'}. OurTeam=${ourTeam}. WinningTeam=${winningTeam || '-'}. MatchDateText=${matchDateText || '-'}.`
+      notes: `${matchNotes ? `${matchNotes}\n\n` : ''}Import risultati 2.0. Screenshot prova=${screenshotPath || screenshotUrl || 'non caricato'}. Template=${useCalibrationTemplate ? `${selectedCalibrationPhone}/${calibrationMode}/frame=${imageContentFrame.reason}` : 'OFF'}. OurTeam=${ourTeam}. WinningTeam=${winningTeam || '-'}. MatchDateText=${matchDateText || '-'}.`
     }).select('id').single();
 
     if (matchError || !match) return setMessage(matchError?.message || 'Partita non creata.');
@@ -690,7 +698,7 @@ function ImportMatchEditor() {
             <div className="grid grid-2 top-gap">
               <div className="field"><label>Usa calibrazione</label><select className="select" value={useCalibrationTemplate ? 'yes' : 'no'} onChange={(e) => setUseCalibrationTemplate(e.target.value === 'yes')}><option value="yes">Sì, usa template salvato</option><option value="no">No, layout automatico</option></select></div>
               <div className="field"><label>Template telefono</label><select className="select" value={selectedCalibrationPhone} onChange={(e) => { setSelectedCalibrationPhone(e.target.value); setActivePhoneProfile('scoreboard_ced', e.target.value); }} disabled={!useCalibrationTemplate}>{calibrationProfiles.map((p) => <option key={p} value={p}>{p}</option>)}</select></div>
-              <div className="field"><label>Modo template</label><select className="select" value={calibrationMode} onChange={(e) => setCalibrationMode(e.target.value as 'table_lock' | 'content_frame' | 'strict_image')} disabled={!useCalibrationTemplate}><option value="table_lock">Table-lock consigliato</option><option value="content_frame">Content frame</option><option value="strict_image">Coordinate immagine esatta</option></select></div>
+              <div className="field"><label>Modo template</label><select className="select" value={calibrationMode} onChange={(e) => setCalibrationMode(e.target.value as 'table_lock' | 'content_frame' | 'strict_image')} disabled={!useCalibrationTemplate}><option value="table_lock">Table-lock consigliato</option><option value="content_frame">Content frame</option><option value="strict_image">Coordinate immagine esatta</option></select><small className="muted">V4.6 invia anche il frame calcolato dal frontend: {imageContentFrame.reason} ({Math.round(imageContentFrame.x * 100)}%, {Math.round(imageContentFrame.y * 100)}%, {Math.round(imageContentFrame.w * 100)}% x {Math.round(imageContentFrame.h * 100)}%).</small></div>
               <div className="field"><label>Conferma nostro team</label><select className="select" value={ourTeam} onChange={(e) => setOurTeam(e.target.value as 'blue' | 'red')}><option value="blue">Blu / sinistra</option><option value="red">Rosso / destra</option></select></div>
             </div>
             <div className="top-gap"><a className="btn small secondary" href="/calibration">🎯 Apri calibrazione</a></div>

@@ -3,6 +3,7 @@ import { createClient } from '@supabase/supabase-js';
 
 type EventRow = {
   id: string;
+  clan_id: string;
   title: string;
   description: string | null;
   starts_at: string;
@@ -56,6 +57,67 @@ function renderReminderText(event: EventRow, minutes: number) {
     .replaceAll('{convocati}', safeHtml(convocati));
 }
 
+
+async function createInAppReminderNotifications(supabase: ReturnType<typeof serverSupabase>, event: EventRow, minutes: number, text: string) {
+  try {
+    const { data: eventPlayers } = await supabase
+      .from('codm_event_players')
+      .select('player_id,nickname')
+      .eq('event_id', event.id);
+
+    const playerIds = (eventPlayers || []).map((row: any) => row.player_id).filter(Boolean);
+    let userIds: string[] = [];
+
+    if (playerIds.length) {
+      const { data: linkedPlayers } = await supabase
+        .from('players')
+        .select('id,user_id')
+        .in('id', playerIds);
+      userIds = (linkedPlayers || []).map((row: any) => row.user_id).filter(Boolean);
+    }
+
+    // Se non ci sono convocati collegati a utenti, notifica staff/coach/owner del clan.
+    if (!userIds.length) {
+      const { data: members } = await supabase
+        .from('clan_members')
+        .select('user_id,role')
+        .eq('clan_id', event.clan_id)
+        .in('role', ['owner', 'coach', 'staff']);
+      userIds = (members || []).map((row: any) => row.user_id).filter(Boolean);
+    }
+
+    userIds = Array.from(new Set(userIds));
+    if (!userIds.length) return;
+
+    const { data: prefsRows } = await supabase
+      .from('codm_notification_preferences')
+      .select('user_id,inapp_enabled,notification_reminders')
+      .in('user_id', userIds);
+    const prefs = new Map((prefsRows || []).map((row: any) => [row.user_id, row]));
+
+    const rows = userIds
+      .filter((userId) => {
+        const pref = prefs.get(userId);
+        return !pref || (pref.inapp_enabled !== false && pref.notification_reminders !== false);
+      })
+      .map((userId) => ({
+        clan_id: event.clan_id,
+        user_id: userId,
+        type: 'event_reminder',
+        title: `Reminder ${minutes}m: ${event.title}`,
+        body: text.replace(/<[^>]*>/g, '').slice(0, 1200),
+        metadata: { event_id: event.id, minutes },
+        dedupe_key: `event:${event.id}:reminder:${minutes}`,
+      }));
+
+    if (rows.length) {
+      await supabase.from('codm_notifications').upsert(rows, { onConflict: 'user_id,dedupe_key' });
+    }
+  } catch {
+    // Le notifiche in-app non devono bloccare Telegram.
+  }
+}
+
 function normalizeReminderMinutes(event: EventRow) {
   const raw = Array.isArray(event.reminder_minutes) && event.reminder_minutes.length ? event.reminder_minutes : [120, 10];
   return Array.from(new Set(raw.map(Number).filter((n) => Number.isFinite(n) && n > 0 && n <= 10080))).sort((a, b) => b - a);
@@ -69,7 +131,7 @@ async function processReminders() {
 
   const { data, error } = await supabase
     .from('codm_events')
-    .select('id,title,description,starts_at,location,telegram_enabled,convocations_text,reminder_minutes,sent_reminders,telegram_message_template,event_notes,reminder_2h_sent_at,reminder_10m_sent_at')
+    .select('id,clan_id,title,description,starts_at,location,telegram_enabled,convocations_text,reminder_minutes,sent_reminders,telegram_message_template,event_notes,reminder_2h_sent_at,reminder_10m_sent_at')
     .eq('telegram_enabled', true)
     .gte('starts_at', now.toISOString())
     .lte('starts_at', until)
@@ -88,7 +150,9 @@ async function processReminders() {
       // Finestra generosa: il cron gira ogni 10 minuti, quindi manda se siamo tra N e N-10 minuti.
       const inWindow = diffMinutes <= minutes && diffMinutes >= Math.max(0, minutes - 10);
       if (!sentMap[key] && inWindow) {
-        await sendTelegram(renderReminderText(event, minutes));
+        const reminderText = renderReminderText(event, minutes);
+        await sendTelegram(reminderText);
+        await createInAppReminderNotifications(supabase, event, minutes, reminderText);
         sentMap[key] = new Date().toISOString();
         const updatePayload: Record<string, any> = { sent_reminders: sentMap };
         if (minutes === 120 && !event.reminder_2h_sent_at) updatePayload.reminder_2h_sent_at = sentMap[key];

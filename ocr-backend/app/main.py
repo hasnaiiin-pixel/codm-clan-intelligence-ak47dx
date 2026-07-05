@@ -8,7 +8,7 @@ from app.services.scoreboard_ced import parse_scoreboard_ced
 from app.services.profile_ocr import parse_profile
 from app.services.ocr_engines import engine_status
 
-ENGINE_VERSION = "2.0.4-v4-5-fast-ownteam-ak47dx"
+ENGINE_VERSION = "2.0.5-v4-6-template-notifications-ak47dx"
 
 app = FastAPI(title="CODM OCR Hybrid Engine", version=ENGINE_VERSION)
 
@@ -38,6 +38,8 @@ def health():
             "tesseract_numeric",
             "paddleocr_fallback",
             "yolo_ready_structure",
+            "v4_6_client_frame_template_alignment",
+            "v4_6_notification_preferences_ready",
             "v4_5_fast_ocr_no_timeout_import",
             "v4_4_own_team_fast_import",
             "opponent_stats_skipped",
@@ -85,6 +87,7 @@ def health():
 async def ocr_scoreboard_ced(
     file: UploadFile = File(...),
     calibration_template: str | None = Form(default=None),
+    calibration_frame: str | None = Form(default=None),
     calibration_mode: str = Form(default="table_lock"),
     our_team: str = Form(default="blue"),
     extract_scope: str = Form(default="our_only"),
@@ -93,6 +96,7 @@ async def ocr_scoreboard_ced(
     result = parse_scoreboard_ced(
         data,
         calibration_template=calibration_template,
+        calibration_frame=calibration_frame,
         calibration_mode=calibration_mode,
         our_team=our_team,
         extract_scope=extract_scope,

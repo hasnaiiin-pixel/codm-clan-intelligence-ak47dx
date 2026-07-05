@@ -1,6 +1,6 @@
 {
   "name": "codm-clan-intelligence-ak47dx",
-  "version": "4.5.0-import-events-reminders-fix",
+  "version": "4.6.0-template-notifications-fix",
   "private": true,
   "scripts": {
     "dev": "next dev",
