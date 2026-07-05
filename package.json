@@ -1,6 +1,6 @@
 {
   "name": "codm-clan-intelligence-ak47dx",
-  "version": "4.3.0-mobile-permessi-ocr-progress",
+  "version": "4.4.0-clan-events-ocr-ownteam",
   "private": true,
   "scripts": {
     "dev": "next dev",

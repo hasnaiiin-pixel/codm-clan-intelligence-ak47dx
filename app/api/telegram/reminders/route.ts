@@ -10,6 +10,7 @@ type EventRow = {
   reminder_2h_sent_at: string | null;
   reminder_10m_sent_at: string | null;
   telegram_enabled: boolean | null;
+  convocations_text?: string | null;
 };
 
 function serverSupabase() {
@@ -43,7 +44,7 @@ async function processReminders() {
 
   const { data, error } = await supabase
     .from('codm_events')
-    .select('id,title,description,starts_at,location,reminder_2h_sent_at,reminder_10m_sent_at,telegram_enabled')
+    .select('id,title,description,starts_at,location,reminder_2h_sent_at,reminder_10m_sent_at,telegram_enabled,convocations_text')
     .eq('telegram_enabled', true)
     .gte('starts_at', now.toISOString())
     .lte('starts_at', until)

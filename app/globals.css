@@ -1146,3 +1146,103 @@ textarea,
     padding: 12px !important;
   }
 }
+
+/* =========================================================
+   CODM V4.4 - MOBILE FINAL + EVENTS + IMPORT OWN TEAM
+   ========================================================= */
+@media (max-width: 900px) {
+  body { background-attachment: fixed; }
+  .codm-app-content { overflow-x: hidden !important; }
+  main.container,
+  main.container.wide,
+  .container,
+  .container.wide {
+    width: 100% !important;
+    max-width: 100dvw !important;
+    margin: 0 !important;
+    padding: calc(env(safe-area-inset-top) + 72px) 10px 92px !important;
+    overflow-x: hidden !important;
+  }
+  .card,
+  .gaming-panel,
+  .team-box,
+  .import-hero,
+  .clan-hero,
+  .notice-card {
+    width: 100% !important;
+    max-width: calc(100dvw - 20px) !important;
+    margin-left: 0 !important;
+    margin-right: 0 !important;
+    overflow: hidden !important;
+  }
+  .table-scroll,
+  .responsive-table {
+    width: 100% !important;
+    max-width: 100% !important;
+    overflow-x: auto !important;
+    overflow-y: hidden !important;
+    -webkit-overflow-scrolling: touch;
+    border-radius: 16px;
+  }
+  .table-scroll table,
+  .responsive-table table,
+  .import-table-clean {
+    width: max-content !important;
+    min-width: 720px !important;
+    max-width: none !important;
+  }
+  .ak-ally-only-table .import-table-clean {
+    min-width: 760px !important;
+  }
+  .grid,
+  .grid-2,
+  .grid-3,
+  .grid-4,
+  .grid-6,
+  .hero,
+  .team-grid,
+  .player-grid,
+  .ak-event-layout {
+    display: grid !important;
+    grid-template-columns: minmax(0, 1fr) !important;
+    width: 100% !important;
+    max-width: 100% !important;
+  }
+  .ak-menu-button {
+    left: max(10px, env(safe-area-inset-left)) !important;
+    top: calc(env(safe-area-inset-top) + 8px) !important;
+  }
+}
+
+.ak-page-compact h1 { margin-bottom: 8px; }
+.ak-section-head { overflow: hidden; }
+.ak-calendar-grid { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 8px; }
+.ak-calendar-weekdays { margin: 12px 0 8px; color: #94a3b8; font-size: 12px; font-weight: 900; text-transform: uppercase; letter-spacing: .08em; }
+.ak-calendar-day { min-height: 92px; border: 1px solid rgba(255,255,255,.09); border-radius: 16px; padding: 9px; background: rgba(15,23,42,.62); overflow: hidden; }
+.ak-calendar-day strong { display: block; color: #e2e8f0; margin-bottom: 6px; }
+.ak-calendar-day span { display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-top: 4px; border-radius: 999px; padding: 4px 7px; background: rgba(34,211,238,.14); color: #cffafe; font-size: 11px; font-weight: 800; }
+.ak-calendar-day em { display: inline-block; margin-top: 4px; color: #fbbf24; font-size: 11px; }
+.ak-calendar-day.has-event { border-color: rgba(34,211,238,.38); box-shadow: inset 0 0 0 1px rgba(34,211,238,.08), 0 0 24px rgba(34,211,238,.08); }
+.ak-calendar-day.muted-month { opacity: .42; }
+.month-input { max-width: 180px; }
+.ak-check-card { border: 1px solid rgba(255,255,255,.10); border-radius: 16px; padding: 12px; background: rgba(15,23,42,.72); }
+.ak-player-pick-list { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; max-height: 270px; overflow: auto; padding-right: 4px; }
+.ak-player-pick { display: flex; gap: 9px; align-items: center; border: 1px solid rgba(255,255,255,.08); border-radius: 15px; padding: 10px; background: rgba(255,255,255,.045); }
+.ak-player-pick span { font-weight: 900; }
+.ak-player-pick small { margin-left: auto; color: #94a3b8; font-size: 11px; }
+.ak-events-list { display: grid; gap: 12px; }
+.ak-event-card { display: grid; grid-template-columns: 1fr auto; gap: 14px; align-items: start; border: 1px solid rgba(255,255,255,.09); border-radius: 20px; background: rgba(15,23,42,.68); padding: 16px; }
+.ak-event-card h3 { margin: 4px 0 6px; }
+.ak-convocati { margin-top: 10px; color: #dbeafe; }
+.small-text { font-size: 12px; }
+.ak-import-mode-card { border: 1px solid rgba(34,211,238,.24); border-radius: 18px; padding: 14px; background: rgba(8,47,73,.20); }
+.ak-opponent-summary { border: 1px solid rgba(244,63,94,.22); border-radius: 18px; padding: 14px; background: rgba(244,63,94,.08); color: #fecdd3; }
+.ak-ally-only-table .team-box { max-width: 100%; }
+@media (max-width: 700px) {
+  .ak-calendar-grid { gap: 5px; }
+  .ak-calendar-day { min-height: 68px; padding: 6px; border-radius: 12px; }
+  .ak-calendar-day span { font-size: 9px; padding: 3px 5px; }
+  .ak-player-pick-list { grid-template-columns: 1fr; max-height: 240px; }
+  .ak-event-card { grid-template-columns: 1fr; }
+  .month-input { max-width: 100%; }
+}

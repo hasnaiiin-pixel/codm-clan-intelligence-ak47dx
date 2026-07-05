@@ -11,6 +11,7 @@ type Member = {
   role: CodmRole;
   created_at: string;
   display_name?: string | null;
+  email?: string | null;
   codm_uid?: string | null;
   player_nickname?: string | null;
 };
@@ -72,7 +73,7 @@ export default function AdminUsersPage() {
       if (userIds.length) {
         const { data: profileData } = await supabase
           .from('profiles')
-          .select('id,display_name,player_nickname,codm_uid,created_at')
+          .select('id,email,display_name,player_nickname,codm_uid,created_at')
           .in('id', userIds);
         profileMap = new Map((profileData || []).map((p: any) => [p.id, p as ProfileRow]));
       }
@@ -89,7 +90,7 @@ export default function AdminUsersPage() {
 
       const { data: profileRows } = await supabase
         .from('profiles')
-        .select('id,display_name,player_nickname,codm_uid,created_at')
+        .select('id,email,display_name,player_nickname,codm_uid,created_at')
         .order('created_at', { ascending: false })
         .limit(300);
       setProfiles((profileRows || []) as ProfileRow[]);
@@ -238,8 +239,8 @@ export default function AdminUsersPage() {
             <div className="mt-4 grid gap-3">
               {registeredWithoutRequest.map((profile) => (
                 <div key={profile.id} className="grid gap-3 rounded-2xl border border-white/10 bg-slate-900 p-4 md:grid-cols-[1fr_1fr_auto] md:items-center">
-                  <div><div className="text-xs text-slate-500">Nome</div><div className="font-black">{profile.display_name || profile.player_nickname || profile.id}</div></div>
-                  <div><div className="text-xs text-slate-500">UID/Nickname CODM</div><div>{profile.codm_uid || '-'} / {profile.player_nickname || '-'}</div></div>
+                  <div><div className="text-xs text-slate-500">Nome registrazione</div><div className="font-black">{profile.display_name || profile.id}</div><div className="text-xs text-slate-400">{profile.email || '-'}</div></div>
+                  <div><div className="text-xs text-slate-500">Nome giocatore / UID</div><div>{profile.player_nickname || '-'} / {profile.codm_uid || '-'}</div></div>
                   <button onClick={() => void approveProfile(profile, 'player')} className="rounded-xl bg-emerald-400 px-3 py-2 font-black text-slate-950">Approva come player</button>
                 </div>
               ))}
@@ -251,13 +252,14 @@ export default function AdminUsersPage() {
           <h2 className="text-2xl font-black">Membri clan</h2>
           <div className="mt-4 overflow-x-auto">
             <table className="w-full min-w-[780px] border-separate border-spacing-y-2 text-left text-sm">
-              <thead className="text-slate-400"><tr><th>Utente</th><th>UID</th><th>User ID</th><th>Ruolo</th><th>Permesso</th></tr></thead>
+              <thead className="text-slate-400"><tr><th>Email</th><th>Nome registrato</th><th>Nome giocatore</th><th>UID</th><th>Ruolo</th><th>Permesso</th></tr></thead>
               <tbody>
                 {members.map((member) => (
                   <tr key={member.id} className="bg-slate-900">
-                    <td className="rounded-l-2xl p-3 font-bold">{member.player_nickname || member.display_name || 'Utente registrato'}</td>
+                    <td className="rounded-l-2xl p-3 text-sm">{member.email || '-'}</td>
+                    <td className="p-3 font-bold">{member.display_name || 'Utente registrato'}</td>
+                    <td className="p-3">{member.player_nickname || '-'}</td>
                     <td className="p-3">{member.codm_uid || '-'}</td>
-                    <td className="p-3 text-xs text-slate-400">{member.user_id}</td>
                     <td className="p-3">
                       <select value={member.role} onChange={(event) => void changeRole(member.id, event.target.value as CodmRole)} className="rounded-xl border border-white/10 bg-slate-950 px-3 py-2 text-white">
                         {roleOptions.map((role) => <option key={role} value={role}>{roleLabel(role)}</option>)}

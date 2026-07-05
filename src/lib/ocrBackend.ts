@@ -1,5 +1,6 @@
-export const EXPECTED_OCR_BACKEND_VERSION = '2.0.2-v4-3-mobile-ocr-progress-ak47dx';
+export const EXPECTED_OCR_BACKEND_VERSION = '2.0.3-v4-4-own-team-fast-ak47dx';
 export const ACCEPTED_OCR_BACKEND_VERSIONS = [
+  '2.0.3-v4-4-own-team-fast-ak47dx',
   '2.0.2-v4-3-mobile-ocr-progress-ak47dx',
   '2.0.1-deployable-pwa-yolo-ak47dx',
   '2.0.0-definitive-ak47dx',

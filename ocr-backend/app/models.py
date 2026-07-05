@@ -34,7 +34,7 @@ class OcrPlayerRow(BaseModel):
 
 
 class ScoreboardCedResult(BaseModel):
-    engine_version: str = "2.0.0-definitive-ak47dx"
+    engine_version: str = "2.0.3-v4-4-own-team-fast-ak47dx"
     screen_type: str = "scoreboard_ced"
     result: Optional[Literal["WIN", "LOSE", "DRAW"]] = None
     winning_team: Optional[Literal["blue", "red", "draw"]] = None
@@ -56,7 +56,7 @@ class ScoreboardCedResult(BaseModel):
 
 
 class ProfileOcrResult(BaseModel):
-    engine_version: str = "2.0.0-definitive-ak47dx"
+    engine_version: str = "2.0.3-v4-4-own-team-fast-ak47dx"
     screen_type: str = "profile_base"
     nickname: str = ""
     uid: str = ""

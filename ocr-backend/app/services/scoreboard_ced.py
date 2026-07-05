@@ -562,13 +562,14 @@ def _parse_match_datetime(text: str) -> str | None:
         return f"{time.group(0)} {date.group(0)}"
     return None
 
-def parse_scoreboard_ced(image_bytes: bytes, calibration_template: str | None = None, calibration_mode: str = "table_lock", our_team: str = "blue") -> ScoreboardCedResult:
+def parse_scoreboard_ced(image_bytes: bytes, calibration_template: str | None = None, calibration_mode: str = "table_lock", our_team: str = "blue", extract_scope: str = "our_only") -> ScoreboardCedResult:
     original = read_image_bytes(image_bytes)
     has_calibration = bool(calibration_template and calibration_template.strip())
     calibration_mode = (calibration_mode or "table_lock").strip().lower()
     if calibration_mode not in {"table_lock", "content_frame", "strict_image", "auto"}:
         calibration_mode = "table_lock"
     our_team = "red" if str(our_team).lower() == "red" else "blue"
+    extract_scope = (extract_scope or "our_only").strip().lower()
 
     if has_calibration:
         # 0.9E: tre modalità chiare.
@@ -626,6 +627,7 @@ def parse_scoreboard_ced(image_bytes: bytes, calibration_template: str | None = 
         "policy": "Score match accepted from header/color or high-confidence boxes. CED uses 0..7; Postazione/Hardpoint uses objective score up to 300. Final winner team is explicit.",
         "calibration_mode": calibration_mode,
         "our_team": our_team,
+        "extract_scope": extract_scope,
         "header_text": f"{result_text}\n{result_full_text}",
         "accepted_candidates": [],
         "rejected_candidates": [],
@@ -736,8 +738,11 @@ def parse_scoreboard_ced(image_bytes: bytes, calibration_template: str | None = 
     teams: dict[str, list[OcrPlayerRow]] = {"blue": [], "red": []}
     numeric_confs: list[float] = score_confs[:]
     text_confs: list[float] = [result_conf, mode_conf, datetime_conf, header_block_conf]
+    teams_to_parse = (our_team,) if extract_scope in {"our_only", "own_team", "ally_only"} else ("blue", "red")
+    if extract_scope in {"our_only", "own_team", "ally_only"}:
+        layout.warnings.append(f"V4.4 fast import: lette solo le statistiche del nostro team ({our_team}); avversari salvati solo come clan/score/esito.")
 
-    for team in ("blue", "red"):
+    for team in teams_to_parse:
         for row in range(1, 6):
             nick = ""
             score = kills = deaths = assists = impact = 0

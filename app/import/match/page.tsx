@@ -103,11 +103,8 @@ function emptyRow(side: TeamSide, rank: number, clanName = ''): UiScoreRow {
   };
 }
 
-function defaultScoreRows(opponent = ''): UiScoreRow[] {
-  return [
-    ...[1, 2, 3, 4, 5].map((rank) => emptyRow('ALLY', rank, 'Nostro clan')),
-    ...[1, 2, 3, 4, 5].map((rank) => emptyRow('ENEMY', rank, opponent || 'Avversari')),
-  ];
+function defaultScoreRows(_opponent = ''): UiScoreRow[] {
+  return [1, 2, 3, 4, 5].map((rank) => emptyRow('ALLY', rank, 'Nostro clan'));
 }
 
 function modeFromBackend(value?: string | null): GameMode | null {
@@ -247,23 +244,20 @@ function ImportMatchEditor() {
   }
 
   function applyBackendRows(parsed: BackendOcrResult) {
-    const blueRows = parsed.teams?.blue || [];
-    const redRows = parsed.teams?.red || [];
     const activeOurTeam = parsed.our_team || ourTeam;
-    const blueSide: TeamSide = activeOurTeam === 'blue' ? 'ALLY' : 'ENEMY';
-    const redSide: TeamSide = activeOurTeam === 'red' ? 'ALLY' : 'ENEMY';
+    const ourRows = (activeOurTeam === 'red' ? parsed.teams?.red : parsed.teams?.blue) || [];
 
-    const mapBackendRow = (row: BackendOcrRow, color: 'blue' | 'red', side: TeamSide): UiScoreRow => {
-      const rawNick = row.nickname_ocr?.trim() || `${color === 'blue' ? 'Blu' : 'Rosso'} ${row.rank}`;
+    const mappedRows = ourRows.map((row) => {
+      const color = activeOurTeam;
+      const rawNick = row.nickname_ocr?.trim() || `Nostro ${row.rank}`;
       const best = rawNick && !isPlaceholderNickname(rawNick) ? findBestNicknameMatch(rawNick, roster) : undefined;
       const rowConfidence = row.confidence || 0;
-      const isAlly = side === 'ALLY';
       return {
         rankPosition: row.rank,
         nickname: best?.nickname || rawNick,
         playerId: best?.id || null,
         ocrNickname: rawNick,
-        needsReview: !rawNick || isPlaceholderNickname(rawNick) || rowConfidence < 0.62 || (isAlly && !best),
+        needsReview: !rawNick || isPlaceholderNickname(rawNick) || rowConfidence < 0.62 || !best,
         readStatus: rowConfidence >= 0.80 ? 'ok' : rowConfidence >= 0.48 ? 'partial' : 'manual',
         kills: row.kills || 0,
         deaths: row.deaths || 0,
@@ -273,20 +267,17 @@ function ImportMatchEditor() {
         captures: 0,
         objectiveTimeText: '',
         objectiveTimeSeconds: 0,
-        teamSide: side,
+        teamSide: 'ALLY' as TeamSide,
         sourceColor: color,
-        mvp: !!row.mvp_label,
-        mvpLabel: row.mvp_label || null,
-        playerClanName: isAlly ? clanName : (opponent || 'Avversari')
-      };
-    };
+        mvp: !!row.mvp_label || row.rank === 1,
+        mvpLabel: row.mvp_label || (row.rank === 1 ? 'MVP_WIN' : null),
+        playerClanName: clanName
+      } satisfies UiScoreRow;
+    });
 
-    setRows([
-      ...blueRows.map((row) => mapBackendRow(row, 'blue', blueSide)),
-      ...redRows.map((row) => mapBackendRow(row, 'red', redSide))
-    ]);
+    const filled = mappedRows.length ? mappedRows : [1, 2, 3, 4, 5].map((rank) => emptyRow('ALLY', rank, clanName));
+    setRows(filled.sort((a, b) => (a.rankPosition || 0) - (b.rankPosition || 0)));
   }
-
 
   function postFormDataWithProgress(
     url: string,
@@ -300,6 +291,20 @@ function ImportMatchEditor() {
       xhr.timeout = timeoutMs;
       xhr.responseType = 'text';
 
+      let fakeProgress = 55;
+      let serverTimer: number | null = null;
+      const startServerTimer = () => {
+        if (serverTimer !== null) return;
+        serverTimer = window.setInterval(() => {
+          fakeProgress = Math.min(86, fakeProgress + 3);
+          onProgress(fakeProgress, 'OCR Render sta leggendo solo il nostro team. Attendi, non chiudere la pagina...');
+        }, 2500);
+      };
+      const clearServerTimer = () => {
+        if (serverTimer !== null) window.clearInterval(serverTimer);
+        serverTimer = null;
+      };
+
       xhr.upload.onprogress = (event) => {
         if (event.lengthComputable && event.total > 0) {
           const uploadPct = 30 + Math.round((event.loaded / event.total) * 25);
@@ -308,8 +313,13 @@ function ImportMatchEditor() {
           onProgress(38, 'Caricamento screenshot verso OCR Render...');
         }
       };
+      xhr.upload.onload = () => {
+        onProgress(55, 'Upload completato. OCR in lavorazione sul backend Render...');
+        startServerTimer();
+      };
 
       xhr.onload = () => {
+        clearServerTimer();
         if (xhr.status >= 200 && xhr.status < 300) {
           try {
             onProgress(88, 'Risposta OCR ricevuta. Creo tabella di revisione...');
@@ -322,8 +332,8 @@ function ImportMatchEditor() {
         reject(new Error(`Backend OCR non risponde correttamente (${xhr.status}): ${xhr.responseText || xhr.statusText}`));
       };
 
-      xhr.onerror = () => reject(new Error('Errore rete verso Backend OCR Render. Controlla NEXT_PUBLIC_OCR_BACKEND_URL e CORS.'));
-      xhr.ontimeout = () => reject(new DOMException('OCR timeout', 'AbortError'));
+      xhr.onerror = () => { clearServerTimer(); reject(new Error('Errore rete verso Backend OCR Render. Controlla NEXT_PUBLIC_OCR_BACKEND_URL e CORS.')); };
+      xhr.ontimeout = () => { clearServerTimer(); reject(new DOMException('OCR timeout', 'AbortError')); };
 
       onProgress(30, 'Invio screenshot al backend OCR...');
       xhr.send(formData);
@@ -337,7 +347,7 @@ function ImportMatchEditor() {
     setBackendRawJson('');
     setOcrProgressPct(3);
     setOcrProgress('Preparazione screenshot e verifica backend OCR...');
-    setMessage('Import risultati in corso. Supporto CED e Postazione/Hardpoint. Vengono importati Nickname + Kill / Death / Assist + classifica 1-5 con Gold/Silver/Bronze. Punteggio player e impatto sono esclusi.');
+    setMessage('Import in corso: viene letta SOLO la squadra selezionata come nostro team. La squadra avversaria viene salvata solo come clan/score/esito, senza statistiche player.');
     try {
       let backendUrl = '';
       let backendVersion = 'unknown';
@@ -381,6 +391,7 @@ function ImportMatchEditor() {
         formData.append('calibration_mode', calibrationMode);
       }
       formData.append('our_team', ourTeam);
+      formData.append('extract_scope', 'our_only');
 
       const parsed = await postFormDataWithProgress(`${backendUrl}/ocr/scoreboard/ced`, formData, 180000, (percent, label) => {
         setOcrProgressPct(percent);
@@ -398,22 +409,23 @@ function ImportMatchEditor() {
       if (backendMode) setMode(backendMode);
       if (parsed.map) setMapName(parsed.map);
       if (parsed.match_datetime) setMatchDateText(parsed.match_datetime);
-      setTeamScore(parsed.blue_score === null || parsed.blue_score === undefined ? '' : String(parsed.blue_score));
-      setEnemyScore(parsed.red_score === null || parsed.red_score === undefined ? '' : String(parsed.red_score));
+      const ourScore = (parsed.our_team || ourTeam) === 'blue' ? parsed.blue_score : parsed.red_score;
+      const opponentScore = (parsed.our_team || ourTeam) === 'blue' ? parsed.red_score : parsed.blue_score;
+      setTeamScore(ourScore === null || ourScore === undefined ? '' : String(ourScore));
+      setEnemyScore(opponentScore === null || opponentScore === undefined ? '' : String(opponentScore));
       setOcrProgressPct(94);
       setOcrProgress('OCR completato. Applico dati letti alla tabella...');
       applyBackendRows(parsed);
 
-      const blueCount = parsed.teams?.blue?.length || 0;
-      const redCount = parsed.teams?.red?.length || 0;
+      const ourCount = ((parsed.our_team || ourTeam) === 'blue' ? parsed.teams?.blue?.length : parsed.teams?.red?.length) || 0;
       const warnings = parsed.warnings?.length ? ` Warning: ${parsed.warnings.join(' | ')}` : '';
       setOcrProgressPct(100);
       setOcrProgress('Import completato. Controlla righe gialle prima di salvare.');
-      setMessage(`Import risultati completato. Layout=${Math.round((parsed.layout_confidence || 0) * 100)}%, OCR=${Math.round((parsed.ocr_confidence || 0) * 100)}%. Team blu ${blueCount}, team rosso ${redCount}. Vincente=${parsed.winning_team || 'da verificare'}. Ora controlla campi gialli e salva partita.${warnings}`);
+      setMessage(`Import nostro team completato. Layout=${Math.round((parsed.layout_confidence || 0) * 100)}%, OCR=${Math.round((parsed.ocr_confidence || 0) * 100)}%. Righe lette nostro team=${ourCount}. Avversari salvati solo come clan/score/esito. Vincente=${parsed.winning_team || 'da verificare'}. Controlla campi gialli e salva partita.${warnings}`);
     } catch (error) {
       setOcrProgressPct(100);
       setOcrProgress('Import OCR fermato. Controlla messaggio e stato backend.');
-      setMessage(error instanceof Error ? (error.name === 'AbortError' ? 'OCR fermato per timeout dopo 180 secondi: Render potrebbe essere in cold start o il motore OCR è troppo lento. Apri /ocr-status, aspetta che /health risponda, poi riprova.' : error.message) : 'Errore Backend OCR Pro.');
+      setMessage(error instanceof Error ? (error.name === 'AbortError' ? 'OCR fermato per timeout: Render è troppo lento. La V4.4 legge solo il nostro team, ma se continua apri /ocr-status, scalda /health e riprova con screenshot originale non compresso.' : error.message) : 'Errore Backend OCR Pro.');
     } finally {
       setWorking(false);
     }
@@ -502,7 +514,8 @@ function ImportMatchEditor() {
 
     const savedStats: string[] = [];
     const archiveRows = [];
-    for (const row of rows) {
+    const rowsToSave = rows.filter((row) => (row.teamSide || 'ALLY') !== 'ENEMY');
+    for (const row of rowsToSave) {
       try {
         const playerId = await ensurePlayerForRow(activeClanId, row);
         const sourceColor = row.sourceColor || ((ourTeam === 'blue') === (row.teamSide === 'ALLY') ? 'blue' : 'red');
@@ -588,7 +601,7 @@ function ImportMatchEditor() {
         file_url: screenshotUrl,
         storage_path: screenshotPath,
         match_id: match.id,
-        ocr_raw_text: `${rawText || ''}\n\n=== SCREENSHOT_PROOF ===\nurl=${screenshotUrl || ''}\npath=${screenshotPath || ''}\n\n=== MATCH_NOTES ===\n${matchNotes || ''}\n\n=== ROWS ===\n${JSON.stringify(rows, null, 2)}`,
+        ocr_raw_text: `${rawText || ''}\n\n=== SCREENSHOT_PROOF ===\nurl=${screenshotUrl || ''}\npath=${screenshotPath || ''}\n\n=== MATCH_NOTES ===\n${matchNotes || ''}\n\n=== ROWS ===\n${JSON.stringify(rowsToSave, null, 2)}`,
         parser_status: 'confirmed'
       });
     }
@@ -598,7 +611,6 @@ function ImportMatchEditor() {
   }
 
   const allyRows = useMemo(() => rows.map((row, index) => ({ row, index })).filter((item) => item.row.teamSide !== 'ENEMY'), [rows]);
-  const enemyRows = useMemo(() => rows.map((row, index) => ({ row, index })).filter((item) => item.row.teamSide === 'ENEMY'), [rows]);
 
   function renderRowsTable(side: TeamSide, title: string, indexedRows: Array<{ row: UiScoreRow; index: number }>, teamClass: string) {
     return (
@@ -648,7 +660,7 @@ function ImportMatchEditor() {
         <div>
           <p className="eyebrow">⚡ Import risultati semplificato</p>
           <h1>Import partita CODM</h1>
-          <p className="muted">Un solo tasto: carica screenshot CED o Postazione, importa risultati, controlla Kill / Death / Assist, ranking Gold/Silver/Bronze e salva. Punteggio player e impatto restano esclusi perché confondevano troppi numeri.</p>
+          <p className="muted">Carica screenshot CED o Postazione, scegli se il tuo team è blu o rosso e importa solo i 5 player del tuo clan. Dell'avversario vengono salvati solo nome clan, score ed esito.</p>
         </div>
         <div className="import-actions">
           <input className="input" type="file" accept="image/*" onChange={(e) => onFileSelected(e.target.files?.[0] || null)} />
@@ -679,7 +691,7 @@ function ImportMatchEditor() {
               <div className="field"><label>Usa calibrazione</label><select className="select" value={useCalibrationTemplate ? 'yes' : 'no'} onChange={(e) => setUseCalibrationTemplate(e.target.value === 'yes')}><option value="yes">Sì, usa template salvato</option><option value="no">No, layout automatico</option></select></div>
               <div className="field"><label>Template telefono</label><select className="select" value={selectedCalibrationPhone} onChange={(e) => { setSelectedCalibrationPhone(e.target.value); setActivePhoneProfile('scoreboard_ced', e.target.value); }} disabled={!useCalibrationTemplate}>{calibrationProfiles.map((p) => <option key={p} value={p}>{p}</option>)}</select></div>
               <div className="field"><label>Modo template</label><select className="select" value={calibrationMode} onChange={(e) => setCalibrationMode(e.target.value as 'table_lock' | 'content_frame' | 'strict_image')} disabled={!useCalibrationTemplate}><option value="table_lock">Table-lock consigliato</option><option value="content_frame">Content frame</option><option value="strict_image">Coordinate immagine esatta</option></select></div>
-              <div className="field"><label>Nostro team nello screenshot</label><select className="select" value={ourTeam} onChange={(e) => setOurTeam(e.target.value as 'blue' | 'red')}><option value="blue">Blu / sinistra</option><option value="red">Rosso / destra</option></select></div>
+              <div className="field"><label>Conferma nostro team</label><select className="select" value={ourTeam} onChange={(e) => setOurTeam(e.target.value as 'blue' | 'red')}><option value="blue">Blu / sinistra</option><option value="red">Rosso / destra</option></select></div>
             </div>
             <div className="top-gap"><a className="btn small secondary" href="/calibration">🎯 Apri calibrazione</a></div>
           </details>
@@ -692,7 +704,7 @@ function ImportMatchEditor() {
           <div className="form">
             <div className="grid grid-2"><div className="field"><label>Tipo partita</label><select className="select" value={matchType} onChange={(e) => setMatchType(e.target.value as MatchType)}>{types.map((m) => <option key={m}>{m}</option>)}</select></div><div className="field"><label>Modalità</label><select className="select" value={mode} onChange={(e) => setMode(e.target.value as GameMode)}>{modes.map((m) => <option key={m} value={m}>{modeLabel(m)}</option>)}</select></div></div>
             <div className="grid grid-2"><div className="field"><label>Mappa</label><input className="input" value={mapName} onChange={(e) => setMapName(e.target.value)} /></div><div className="field"><label>Data/ora partita</label><input className="input" value={matchDateText} onChange={(e) => setMatchDateText(e.target.value)} placeholder="23:09:36 26-07-01" /></div></div>
-            <div className="grid grid-2"><div className="field"><label>Clan avversario</label><input className="input" value={opponent} onChange={(e) => { setOpponent(e.target.value); setRows((current) => current.map((r) => r.teamSide === 'ENEMY' && (!r.playerClanName || r.playerClanName === 'Avversari') ? { ...r, playerClanName: e.target.value } : r)); }} placeholder="AP / clan avversario" /></div><div className="field"><label>Squadra vincente</label><select className="select" value={winningTeam} onChange={(e) => setWinningTeam(e.target.value as 'blue' | 'red' | 'draw' | '')}><option value="">Da verificare</option><option value="blue">Blu / sinistra</option><option value="red">Rosso / destra</option><option value="draw">Pareggio</option></select></div></div>
+            <div className="ak-import-mode-card"><div className="field"><label>Nostro team nello screenshot</label><select className="select" value={ourTeam} onChange={(e) => setOurTeam(e.target.value as 'blue' | 'red')}><option value="blue">Noi siamo BLU / sinistra</option><option value="red">Noi siamo ROSSI / destra</option></select></div><p className="muted">L'OCR importerà solo le statistiche della squadra scelta qui.</p></div><div className="grid grid-2"><div className="field"><label>Clan avversario</label><input className="input" value={opponent} onChange={(e) => { setOpponent(e.target.value); setRows((current) => current.map((r) => r.teamSide === 'ENEMY' && (!r.playerClanName || r.playerClanName === 'Avversari') ? { ...r, playerClanName: e.target.value } : r)); }} placeholder="AP / clan avversario" /></div><div className="field"><label>Squadra vincente</label><select className="select" value={winningTeam} onChange={(e) => setWinningTeam(e.target.value as 'blue' | 'red' | 'draw' | '')}><option value="">Da verificare</option><option value="blue">Blu / sinistra</option><option value="red">Rosso / destra</option><option value="draw">Pareggio</option></select></div></div>
             <div className="grid grid-3"><div className="field"><label>Esito nostro team</label><select className="select" value={result} onChange={(e) => setResult(e.target.value as MatchResult)}><option>WIN</option><option>LOSE</option><option>DRAW</option></select></div><div className="field"><label>Score blu</label><input className="input" value={teamScore} onChange={(e) => setTeamScore(e.target.value)} /></div><div className="field"><label>Score rosso</label><input className="input" value={enemyScore} onChange={(e) => setEnemyScore(e.target.value)} /></div></div>
             <div className="field"><label>Note partita</label><textarea className="input" rows={4} value={matchNotes} onChange={(e) => setMatchNotes(e.target.value)} placeholder="Note scrim, correzioni OCR, contestazioni, strategia, ecc." /></div>
             <div className="notice"><strong>Manuale/ospite:</strong> se scrivi un nome che non è nel roster, l'app crea un player provvisorio e salva le sue statistiche. In futuro potrai completarlo/associarlo al profilo registrato.</div>
@@ -701,11 +713,11 @@ function ImportMatchEditor() {
       </section>
 
       <section className="card top-gap">
-        <h2>Statistiche giocatori — solo Kill / Death / Assist</h2>
-        <p className="muted">Ordine squadra 1–5 conservato come top player: 1° Gold/MVP, 2° Silver, 3° Bronze, 4° e 5° ranking normale. Vale sia per vincente che perdente. Punteggio player e impatto non vengono salvati.</p>
-        <div className="team-grid">
-          {renderRowsTable('ALLY', ourTeam === 'blue' ? '🔵 Team blu / nostro team' : '🔴 Team rosso / nostro team', allyRows, ourTeam === 'blue' ? 'team-blue' : 'team-red')}
-          {renderRowsTable('ENEMY', ourTeam === 'blue' ? '🔴 Team rosso / avversari' : '🔵 Team blu / avversari', enemyRows, ourTeam === 'blue' ? 'team-red' : 'team-blue')}
+        <h2>Statistiche nostro team — Kill / Death / Assist</h2>
+        <p className="muted">Vengono salvati solo i player del tuo clan. Dell'avversario restano solo nome clan, score ed esito partita.</p>
+        <div className="team-grid ak-ally-only-table">
+          {renderRowsTable('ALLY', ourTeam === 'blue' ? '🔵 Nostro team: blu / sinistra' : '🔴 Nostro team: rosso / destra', allyRows, ourTeam === 'blue' ? 'team-blue' : 'team-red')}
+          <div className="ak-opponent-summary"><strong>Avversario:</strong> {opponent || 'da compilare'}<br /><span>Score avversario: {enemyScore || '-'} • Esito nostro: {result}</span><br /><small>Le statistiche dei player avversari non vengono importate né salvate.</small></div>
         </div>
         <div className="top-gap save-row">
           <button className="btn" onClick={saveMatch}>💾 Salva partita, ranking e statistiche</button>

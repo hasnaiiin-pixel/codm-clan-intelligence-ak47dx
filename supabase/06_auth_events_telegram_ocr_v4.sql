@@ -164,3 +164,73 @@ drop trigger if exists codm_on_auth_user_created on auth.users;
 create trigger codm_on_auth_user_created
   after insert on auth.users
   for each row execute function public.codm_handle_new_user();
+
+-- CODM V4.4 - allineamento profili, convocazioni eventi e clan automatico
+alter table public.profiles add column if not exists email text;
+alter table public.codm_events add column if not exists convocations jsonb default '[]'::jsonb;
+alter table public.codm_events add column if not exists convocations_text text;
+
+create table if not exists public.codm_event_players (
+  id uuid primary key default gen_random_uuid(),
+  event_id uuid references public.codm_events(id) on delete cascade,
+  clan_id uuid references public.clans(id) on delete cascade,
+  player_id uuid references public.players(id) on delete set null,
+  nickname text not null,
+  status text default 'convocato',
+  created_at timestamptz default now(),
+  unique(event_id, player_id)
+);
+
+alter table public.codm_event_players enable row level security;
+drop policy if exists codm_event_players_public_read on public.codm_event_players;
+create policy codm_event_players_public_read on public.codm_event_players for select using (true);
+drop policy if exists codm_event_players_writer_insert on public.codm_event_players;
+create policy codm_event_players_writer_insert on public.codm_event_players for insert with check (public.codm_is_clan_writer(clan_id));
+drop policy if exists codm_event_players_writer_update on public.codm_event_players;
+create policy codm_event_players_writer_update on public.codm_event_players for update using (public.codm_is_clan_writer(clan_id));
+drop policy if exists codm_event_players_owner_delete on public.codm_event_players;
+create policy codm_event_players_owner_delete on public.codm_event_players for delete using (public.codm_is_clan_writer(clan_id));
+
+-- Aggiorna trigger registrazione: salva email e crea richiesta pending sul primo clan disponibile.
+create or replace function public.codm_handle_new_user()
+returns trigger
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_clan_id uuid;
+  v_name text;
+  v_nickname text;
+  v_uid text;
+begin
+  v_name := coalesce(new.raw_user_meta_data->>'display_name', new.raw_user_meta_data->>'name', split_part(new.email, '@', 1), 'Nuovo player');
+  v_nickname := coalesce(new.raw_user_meta_data->>'player_nickname', new.raw_user_meta_data->>'nickname', v_name);
+  v_uid := nullif(coalesce(new.raw_user_meta_data->>'codm_uid', new.raw_user_meta_data->>'uid_codm'), '');
+
+  insert into public.profiles (id, email, display_name, player_nickname, codm_uid, updated_at)
+  values (new.id, new.email, v_name, v_nickname, v_uid, now())
+  on conflict (id) do update set
+    email = excluded.email,
+    display_name = excluded.display_name,
+    player_nickname = excluded.player_nickname,
+    codm_uid = excluded.codm_uid,
+    updated_at = now();
+
+  select id into v_clan_id from public.clans order by created_at asc limit 1;
+  if v_clan_id is not null then
+    insert into public.clan_invite_requests (clan_id, user_id, nickname, uid_codm, social_contact, status, updated_at)
+    select v_clan_id, new.id, v_nickname, v_uid, new.email, 'pending', now()
+    where not exists (
+      select 1 from public.clan_invite_requests where clan_id = v_clan_id and user_id = new.id
+    );
+  end if;
+  return new;
+end;
+$$;
+
+-- Backfill email dai metadati auth per utenti già registrati.
+update public.profiles p
+set email = u.email
+from auth.users u
+where p.id = u.id and (p.email is null or p.email = '');
