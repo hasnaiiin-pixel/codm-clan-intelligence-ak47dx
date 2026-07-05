@@ -422,7 +422,7 @@ function ImportMatchEditor() {
     setBackendRawJson('');
     setOcrProgressPct(3);
     setOcrProgress('Preparazione screenshot e verifica backend OCR...');
-    setMessage('Import definitivo V5.2: legge SOLO il nostro team ma importa anche SCORE player + Kill/Death/Assist usando il template salvato. Se scegli BLU/ROSSO sbagliato, cambia selezione e premi di nuovo Importa risultati.');
+    setMessage("Import V5.3 no-abort: usa backend OCR 2.0.9, non blocca piu import se Render e lento in /health, mantiene template salvato e tabella larga.");
     try {
       let backendUrl = '';
       let backendVersion = 'unknown';
@@ -431,7 +431,7 @@ function ImportMatchEditor() {
         setOcrProgressPct(10);
         setOcrProgress(`Verifica backend OCR: ${candidate}/health`);
         try {
-          const healthResponse = await fetchWithTimeout(`${candidate}/health`, { cache: 'no-store' }, 25000);
+          const healthResponse = await fetchWithTimeout(`${candidate}/health`, { cache: 'no-store' }, 90000);
           if (!healthResponse.ok) {
             attempts.push(`${candidate} -> HTTP ${healthResponse.status}`);
             continue;
@@ -451,10 +451,20 @@ function ImportMatchEditor() {
         }
       }
       if (!backendUrl) {
-        const hint = typeof window !== 'undefined' && !['localhost', '127.0.0.1'].includes(window.location.hostname)
-          ? 'Su Vercel devi impostare NEXT_PUBLIC_OCR_BACKEND_URL con un backend OCR pubblico HTTPS. Non viene usato localhost/127.0.0.1 online.'
-          : 'In locale avvia il backend OCR e verifica http://127.0.0.1:8780/health.';
-        throw new Error(`Backend OCR Hybrid 2.0 non raggiungibile o non allineato. ${hint} Versioni accettate ${ACCEPTED_BACKEND_VERSIONS.join(', ')}. Tentativi: ${attempts.join(' | ') || 'nessun URL configurato'}`);
+        const candidates = backendCandidates();
+        const firstCandidate = candidates[0] || '';
+        const canTryDirect = firstCandidate && typeof window !== 'undefined' && !['localhost', '127.0.0.1'].includes(window.location.hostname);
+        if (canTryDirect) {
+          backendUrl = firstCandidate;
+          backendVersion = 'health-skip-cold-start';
+          setOcrProgressPct(22);
+          setOcrProgress(`Health Render lento/non concluso. Provo import diretto su ${backendUrl} senza bloccare.`);
+        } else {
+          const hint = typeof window !== 'undefined' && !['localhost', '127.0.0.1'].includes(window.location.hostname)
+            ? 'Su Vercel devi impostare NEXT_PUBLIC_OCR_BACKEND_URL con un backend OCR pubblico HTTPS. Non viene usato localhost/127.0.0.1 online.'
+            : 'In locale avvia il backend OCR e verifica http://127.0.0.1:8780/health.';
+          throw new Error(`Backend OCR Hybrid 2.0 non raggiungibile o non allineato. ${hint} Versioni accettate ${ACCEPTED_BACKEND_VERSIONS.join(', ')}. Tentativi: ${attempts.join(' | ') || 'nessun URL configurato'}`);
+        }
       }
 
       const formData = new FormData();
@@ -467,13 +477,13 @@ function ImportMatchEditor() {
         formData.append('calibration_template', JSON.stringify(activeTemplate.bundle));
         formData.append('calibration_frame', JSON.stringify(imageContentFrame));
         formData.append('calibration_mode', 'content_frame');
-        formData.append('template_source', activeTemplate.saved ? `saved_local_template:${activeTemplate.bundle.meta?.phoneProfile || activeTemplate.phone}` : 'default_template_not_saved');
+        formData.append('template_source', activeTemplate.saved ? `saved_canonical_template_v5_3:${activeTemplate.bundle.meta?.phoneProfile || activeTemplate.phone}` : 'default_template_not_saved');
       }
       formData.append('our_team', ourTeam);
       formData.append('extract_scope', 'fast_our_only');
-      formData.append('import_profile', 'v5_score_kda_template_priority');
+      formData.append('import_profile', 'v5_3_no_abort_score_kda_template_priority');
 
-      const parsed = await postFormDataWithProgress(`${backendUrl}/ocr/scoreboard/ced`, formData, 90000, (percent, label) => {
+      const parsed = await postFormDataWithProgress(`${backendUrl}/ocr/scoreboard/ced`, formData, 240000, (percent, label) => {
         setOcrProgressPct(percent);
         setOcrProgress(label);
       });
@@ -505,7 +515,7 @@ function ImportMatchEditor() {
     } catch (error) {
       setOcrProgressPct(100);
       setOcrProgress('Import OCR fermato. Controlla messaggio e stato backend.');
-      setMessage(error instanceof Error ? (error.name === 'AbortError' ? 'OCR fermato per timeout: il backend non ha risposto entro 90 secondi. V5.2 usa template salvato sincronizzato + SCORE/KDA leggero. Se succede ancora apri /ocr-status e /health Render; se localhost funziona e online no, Render free è troppo lento/cold start.' : error.message) : 'Errore Backend OCR Pro.');
+      setMessage(error instanceof Error ? (error.name === 'AbortError' ? 'OCR fermato per timeout dopo 240 secondi. V5.3 non blocca piu su /health e prova import diretto. Se succede ancora Render e troppo lento/bloccato: apri /health, attendi risposta, poi riprova.' : error.message) : 'Errore Backend OCR Pro.');
     } finally {
       setWorking(false);
     }
@@ -799,7 +809,7 @@ function ImportMatchEditor() {
             </div>
           )}
           <div className={`ak-template-status ${templateSaved ? 'ok' : 'warn'}`}>
-            <strong>Template import usato:</strong> {templateSummary} <br /><strong>V5.2:</strong> se hai salvato un template in Calibrazione, viene recuperato anche se era salvato con altro login/telefono e viene copiato nel template canonico.
+            <strong>Template import usato:</strong> {templateSummary} <br /><strong>V5.3:</strong> se hai salvato un template in Calibrazione, viene recuperato anche se era salvato con altro login/telefono e viene copiato nel template canonico.
             <span> · Overlay locale visibile: {localTemplateRegions.length} riquadri. I riquadri sottili sono quelli salvati/calibrati; i riquadri spessi sono quelli realmente letti dal backend.</span>
           </div>
           {message && <div className="notice top-gap">{message}</div>}

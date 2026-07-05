@@ -50,7 +50,7 @@ export async function checkOcrBackendHealth() {
 
   for (const candidate of candidates) {
     try {
-      const response = await fetchWithTimeout(`${candidate}/health`, { cache: 'no-store' }, 25000);
+      const response = await fetchWithTimeout(`${candidate}/health`, { cache: 'no-store' }, 90000);
       if (!response.ok) {
         attempts.push(`${candidate} -> HTTP ${response.status}`);
         continue;
@@ -65,7 +65,7 @@ export async function checkOcrBackendHealth() {
       return { ok: true, url: candidate, version, readyForOcr, attempts };
     } catch (error) {
       const message = error instanceof Error && error.name === 'AbortError'
-        ? 'timeout 25s, probabile cold start Render o backend bloccato'
+        ? 'timeout 90s, probabile cold start Render o backend bloccato'
         : error instanceof Error ? error.message : 'Failed to fetch';
       attempts.push(`${candidate} -> ${message}`);
     }
