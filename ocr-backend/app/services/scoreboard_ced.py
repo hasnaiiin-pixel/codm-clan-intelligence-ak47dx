@@ -667,6 +667,235 @@ def _parse_match_datetime(text: str) -> str | None:
 
 
 
+
+
+# -----------------------------
+# V5.4 FASTLANE IMPORT
+# -----------------------------
+# Regola nuova: online non facciamo piu molte OCR per cella. Una riga = una lettura numerica
+# principale, con fallback singolo su score/kda. Questo elimina i blocchi Render a 86%.
+
+def _v54_numeric_line_ocr(img: np.ndarray, timeout: float = 2.4) -> str:
+    if img.size == 0:
+        return ""
+    if not engine_status().get("tesseract_available"):
+        return ""
+    texts: list[str] = []
+    try:
+        gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+        gray = cv2.copyMakeBorder(gray, 3, 3, 3, 3, cv2.BORDER_REPLICATE)
+        clahe = cv2.createCLAHE(clipLimit=2.4, tileGridSize=(8, 8)).apply(gray)
+        variants = [("gray", clahe)]
+        _, bw = cv2.threshold(clahe, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
+        variants.append(("bw", bw))
+        config = "--psm 6 -c tessedit_char_whitelist=0123456789/|IlOOSSBGZ:.-"
+        for _name, base in variants[:2]:
+            proc = cv2.resize(base, None, fx=3.2, fy=3.2, interpolation=cv2.INTER_CUBIC)
+            try:
+                text = pytesseract.image_to_string(proc, lang="eng", config=config, timeout=timeout).strip()
+                if text:
+                    texts.append(text)
+                    # una lettura con slash o almeno 3 numeri basta, non insistiamo
+                    cleaned = _v54_clean_numeric_text(text)
+                    if "/" in cleaned or len(re.findall(r"\d+", cleaned)) >= 3:
+                        break
+            except Exception:
+                continue
+    except Exception:
+        return ""
+    return " | ".join(texts).strip()
+
+
+def _v54_clean_numeric_text(text: str) -> str:
+    cleaned = (text or "").upper()
+    cleaned = cleaned.replace("O", "0").replace("D", "0").replace("Q", "0")
+    cleaned = cleaned.replace("I", "1").replace("L", "1").replace("|", "/")
+    cleaned = cleaned.replace("S", "5").replace("B", "8").replace("G", "6")
+    cleaned = cleaned.replace("\\", "/")
+    cleaned = re.sub(r"[^0-9/ :.-]+", " ", cleaned)
+    cleaned = re.sub(r"\s+", " ", cleaned).strip()
+    return cleaned
+
+
+def _v54_parse_score_kda(text: str) -> tuple[int, int, int, int, float]:
+    cleaned = _v54_clean_numeric_text(text).replace(" ", "")
+    # Esempi reali CODM: 8698/1/1, 7326/1/1, 6286/3/0
+    concat = re.search(r"(?<!\d)(\d{3,4})(\d{1,2})\s*/\s*(\d{1,2})\s*/\s*(\d{1,2})(?!\d)", cleaned)
+    if concat:
+        score = int(concat.group(1))
+        k, d, a = int(concat.group(2)), int(concat.group(3)), int(concat.group(4))
+        if 0 <= score <= 2500 and 0 <= k <= 120 and 0 <= d <= 120 and 0 <= a <= 120:
+            return score, k, d, a, 0.86
+    kda = re.search(r"(?<!\d)(\d{1,2})\s*/\s*(\d{1,2})\s*/\s*(\d{1,2})(?!\d)", cleaned)
+    if kda:
+        k, d, a = int(kda.group(1)), int(kda.group(2)), int(kda.group(3))
+        before = cleaned[:kda.start()].replace("/", " ")
+        nums_before = [int(x) for x in re.findall(r"\d{2,4}", before)]
+        score = nums_before[-1] if nums_before else 0
+        if 0 <= score <= 2500 and 0 <= k <= 120 and 0 <= d <= 120 and 0 <= a <= 120:
+            return score, k, d, a, 0.76 if score else 0.68
+    nums = [int(x) for x in re.findall(r"\d{1,4}", cleaned)]
+    # Fallback: score + K/D/A come quattro gruppi separati
+    if len(nums) >= 4:
+        score, k, d, a = nums[0], nums[1], nums[2], nums[3]
+        if 0 <= score <= 2500 and 0 <= k <= 120 and 0 <= d <= 120 and 0 <= a <= 120:
+            return score, k, d, a, 0.58
+    return 0, 0, 0, 0, 0.0
+
+
+def _v54_union_box(boxes: list, img_w: int, img_h: int):
+    valid = [b for b in boxes if b is not None]
+    if not valid:
+        return None
+    x1 = min(b.x for b in valid)
+    y1 = min(b.y for b in valid)
+    x2 = max(b.x + b.w for b in valid)
+    y2 = max(b.y + b.h for b in valid)
+    pad_x = max(4, int((x2 - x1) * 0.035))
+    pad_y = max(2, int((y2 - y1) * 0.10))
+    return make_box("v54_union_numeric", "player_row", valid[0].team, valid[0].row, x1 - pad_x, y1 - pad_y, (x2 - x1) + 2 * pad_x, (y2 - y1) + 2 * pad_y, img_w, img_h, 0.99)
+
+
+def _v54_read_nick(img: np.ndarray) -> str:
+    # Nickname non deve bloccare import. Timeout corto e fallback manuale.
+    txt = _fast_tesseract_text(img, "text", timeout=0.55)
+    return _fast_clean_nickname(txt)
+
+
+def parse_scoreboard_ced_fastlane(image_bytes: bytes, calibration_template: str | None = None, calibration_frame: str | None = None, calibration_mode: str = "content_frame", our_team: str = "blue", extract_scope: str = "v5_4_fastlane") -> ScoreboardCedResult:
+    original = read_image_bytes(image_bytes)
+    our_team = "red" if str(our_team).lower() == "red" else "blue"
+    # 1440 riduce tanto i tempi rispetto a 1920 ma resta leggibile per score/KDA.
+    img, _ = resize_long_edge(original, target=1440)
+    layout = detect_ced_layout(img)
+    raw_parts: list[str] = []
+
+    if calibration_template and calibration_template.strip():
+        try:
+            client_frame = _client_frame_to_pixels(calibration_frame, img.shape[1], img.shape[0])
+            if client_frame is None:
+                client_frame = (0, 0, img.shape[1], img.shape[0])
+                layout.warnings.append("V5.4: calibration_frame assente, uso immagine intera per evitare ricalcolo lento.")
+            else:
+                layout.warnings.append(f"V5.4: template frame frontend applicato x={client_frame[0]}, y={client_frame[1]}, w={client_frame[2]}, h={client_frame[3]}.")
+            layout, _ = _apply_calibration_template(layout, calibration_template, content_frame=client_frame)
+        except Exception as exc:
+            layout.warnings.append(f"V5.4: template non applicato: {exc}")
+
+    if not _layout_has_individual_score_kda(layout, our_team):
+        layout = _rebuild_fast_score_kda_from_team_tables(layout, "CED")
+
+    boxes = layout.boxes
+    # Match score: niente OCR pesante, solo colore + hint risultato.
+    result_hint = _detect_result_color(img)
+    blue_score, red_score, color_debug = _read_ced_score_color(img)
+    raw_parts.extend(f"[V5.4 score_color] {x}" for x in color_debug)
+    winning_team = _winner_from_scores(blue_score, red_score, result_hint)
+    result = _result_for_our_team(winning_team, our_team) or result_hint
+
+    teams: dict[str, list[OcrPlayerRow]] = {"blue": [], "red": []}
+    parsed_boxes = []
+    confs: list[float] = []
+
+    for row in range(1, 6):
+        nick_box = find_box(boxes, "nickname", our_team, row)
+        score_box = find_box(boxes, "score", our_team, row)
+        kda_box = find_box(boxes, "kda", our_team, row)
+        row_box = find_box(boxes, "player_row", our_team, row)
+        read_boxes = []
+
+        nick = ""
+        if nick_box:
+            nick = _v54_read_nick(crop_box(img, _box_tuple(nick_box), pad=1))
+            read_boxes.append(nick_box)
+            parsed_boxes.append(nick_box)
+        if not nick or len(nick) < 2:
+            nick = f"{'Blu' if our_team == 'blue' else 'Rosso'} {row}"
+
+        numeric_box = _v54_union_box([score_box, kda_box], img.shape[1], img.shape[0])
+        if numeric_box is None and row_box:
+            # usa solo parte numerica della riga per ridurre OCR
+            x = int(row_box.x + row_box.w * 0.40)
+            numeric_box = make_box("v54_row_numeric", "player_row", our_team, row, x, row_box.y, int(row_box.w * 0.36), row_box.h, img.shape[1], img.shape[0], 0.96)
+        score_val = k = d = a = 0
+        conf = 0.0
+        raw = ""
+        if numeric_box:
+            raw = _v54_numeric_line_ocr(crop_box(img, _box_tuple(numeric_box), pad=2), timeout=2.4)
+            score_val, k, d, a, conf = _v54_parse_score_kda(raw)
+            read_boxes.append(numeric_box)
+            parsed_boxes.append(numeric_box)
+
+        # fallback singolo: se unione non legge, prova score e KDA separati con UNA OCR ciascuna.
+        if (score_val == 0 or (k, d, a) == (0, 0, 0)):
+            if score_box and score_val == 0:
+                sr = _v54_numeric_line_ocr(crop_box(img, _box_tuple(score_box), pad=2), timeout=1.8)
+                sv, sc = _fast_parse_score_text(sr)
+                if sc > 0:
+                    score_val = sv
+                    raw += f" | score_cell={sr}"
+                    conf = max(conf, min(0.70, sc))
+                    read_boxes.append(score_box)
+                    parsed_boxes.append(score_box)
+            if kda_box and (k, d, a) == (0, 0, 0):
+                kr = _v54_numeric_line_ocr(crop_box(img, _box_tuple(kda_box), pad=2), timeout=1.8)
+                _s2, k2, d2, a2, c2 = _v54_parse_score_kda(kr)
+                if c2 > 0 and (k2 or d2 or a2):
+                    k, d, a = k2, d2, a2
+                    raw += f" | kda_cell={kr}"
+                    conf = max(conf, min(0.74, c2))
+                    read_boxes.append(kda_box)
+                    parsed_boxes.append(kda_box)
+
+        if (score_val or k or d or a) and conf < 0.45:
+            conf = 0.45
+        confs.append(conf)
+        raw_parts.append(f"[V5.4 FASTLANE {our_team} r{row}] raw={raw!r} -> score={score_val} kda={k}/{d}/{a} conf={conf:.2f}")
+
+        mvp_label = None
+        if row == 1:
+            if winning_team == our_team:
+                mvp_label = "MVP_WIN"
+            elif winning_team in ("blue", "red"):
+                mvp_label = "MVP_LOSE"
+        teams[our_team].append(OcrPlayerRow(
+            rank=row,
+            nickname_ocr=nick,
+            score=int(score_val),
+            kills=int(k),
+            deaths=int(d),
+            assists=int(a),
+            impact=0,
+            mvp_label=mvp_label,
+            confidence=round(float(conf), 3),
+            boxes=read_boxes,
+        ))
+
+    ocr_conf = sum(confs) / len(confs) if confs else 0.0
+    warnings = list(layout.warnings)
+    warnings.append("V5.4 FASTLANE attivo: niente health bloccante, niente OCR pesante V4.7/V4.8, una lettura numerica per riga + fallback singolo. Priorità a completare import online senza blocchi 10%/86%.")
+    if ocr_conf < 0.55:
+        warnings.append("Alcuni campi restano gialli: controlla manualmente prima di salvare, ma la pagina non deve restare bloccata.")
+    return ScoreboardCedResult(
+        result=result,
+        winning_team=winning_team,
+        our_team=our_team,
+        blue_score=blue_score,
+        red_score=red_score,
+        mode="CED",
+        map=None,
+        match_datetime=None,
+        layout_confidence=round(max(layout.layout_confidence, 0.90), 3),
+        ocr_confidence=round(float(ocr_conf), 3),
+        needs_manual_review=ocr_conf < 0.60,
+        ignored={"player_score": False, "impact": True, "kd_total": True, "accuracy": True, "headshot": True},
+        teams=teams,
+        boxes=layout.boxes,
+        warnings=warnings,
+        score_diagnostics={"policy": "V5.4 fastlane", "our_team": our_team, "blue_score": blue_score, "red_score": red_score},
+        raw_text="\n".join(raw_parts),
+    )
+
 # -----------------------------
 # V4.6 FAST OCR PATH
 # -----------------------------
@@ -897,7 +1126,10 @@ def parse_scoreboard_ced_fast(image_bytes: bytes, calibration_template: str | No
     )
 
 def parse_scoreboard_ced(image_bytes: bytes, calibration_template: str | None = None, calibration_frame: str | None = None, calibration_mode: str = "table_lock", our_team: str = "blue", extract_scope: str = "our_only") -> ScoreboardCedResult:
-    if (extract_scope or "").strip().lower() in {"our_only", "own_team", "ally_only", "fast_our_only"}:
+    scope = (extract_scope or "").strip().lower()
+    if scope in {"v5_4_fastlane", "fastlane", "v54_fastlane"}:
+        return parse_scoreboard_ced_fastlane(image_bytes, calibration_template=calibration_template, calibration_frame=calibration_frame, calibration_mode=calibration_mode, our_team=our_team, extract_scope=extract_scope)
+    if scope in {"our_only", "own_team", "ally_only", "fast_our_only"}:
         return parse_scoreboard_ced_fast(image_bytes, calibration_template=calibration_template, calibration_frame=calibration_frame, calibration_mode=calibration_mode, our_team=our_team, extract_scope=extract_scope)
     original = read_image_bytes(image_bytes)
     has_calibration = bool(calibration_template and calibration_template.strip())

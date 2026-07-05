@@ -1,5 +1,6 @@
-export const EXPECTED_OCR_BACKEND_VERSION = '2.0.9-v5-2-template-kda-table-definitivo-ak47dx';
+export const EXPECTED_OCR_BACKEND_VERSION = '2.0.10-v5-4-fastlane-import-stabile-ak47dx';
 export const ACCEPTED_OCR_BACKEND_VERSIONS = [
+  '2.0.10-v5-4-fastlane-import-stabile-ak47dx',
   '2.0.9-v5-2-template-kda-table-definitivo-ak47dx',
   '2.0.8-v5-0-import-score-kda-definitivo-ak47dx',
   '2.0.5-v4-6-template-notifications-ak47dx',
@@ -50,7 +51,7 @@ export async function checkOcrBackendHealth() {
 
   for (const candidate of candidates) {
     try {
-      const response = await fetchWithTimeout(`${candidate}/health`, { cache: 'no-store' }, 90000);
+      const response = await fetchWithTimeout(`${candidate}/health`, { cache: 'no-store' }, 60000);
       if (!response.ok) {
         attempts.push(`${candidate} -> HTTP ${response.status}`);
         continue;
@@ -65,7 +66,7 @@ export async function checkOcrBackendHealth() {
       return { ok: true, url: candidate, version, readyForOcr, attempts };
     } catch (error) {
       const message = error instanceof Error && error.name === 'AbortError'
-        ? 'timeout 90s, probabile cold start Render o backend bloccato'
+        ? 'timeout 60s, probabile cold start Render o backend bloccato'
         : error instanceof Error ? error.message : 'Failed to fetch';
       attempts.push(`${candidate} -> ${message}`);
     }

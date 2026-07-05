@@ -1358,3 +1358,64 @@ textarea,
   .ak-full-width-import-table .ak-mobile-score-cards,
   .ak-ally-only-table .ak-mobile-score-cards { display: grid !important; width: 100% !important; }
 }
+
+/* CODM V5.4 - import a pagina intera e niente tabella a metà */
+main.container.wide {
+  width: 100% !important;
+  max-width: none !important;
+  padding-left: clamp(10px, 2vw, 26px) !important;
+  padding-right: clamp(10px, 2vw, 26px) !important;
+}
+main.container.wide > section.card {
+  width: 100% !important;
+  max-width: none !important;
+}
+.ak-full-width-import-table,
+.team-grid.ak-full-width-import-table,
+.ak-ally-only-table {
+  display: block !important;
+  width: 100% !important;
+  max-width: none !important;
+}
+.ak-full-width-import-table .team-box,
+.ak-ally-only-table .team-box,
+.ak-full-width-import-table .ak-opponent-summary,
+.ak-ally-only-table .ak-opponent-summary {
+  width: 100% !important;
+  max-width: none !important;
+  display: block !important;
+}
+.ak-full-width-import-table .table-scroll,
+.ak-ally-only-table .table-scroll {
+  width: 100% !important;
+  max-width: none !important;
+  overflow-x: hidden !important;
+}
+.ak-full-width-import-table .import-table-clean,
+.ak-ally-only-table .import-table-clean {
+  width: 100% !important;
+  min-width: 0 !important;
+  table-layout: fixed !important;
+}
+.ak-full-width-import-table .import-table-clean th,
+.ak-full-width-import-table .import-table-clean td,
+.ak-ally-only-table .import-table-clean th,
+.ak-ally-only-table .import-table-clean td {
+  padding: 7px !important;
+  min-width: 0 !important;
+}
+.ak-full-width-import-table .roster-select,
+.ak-full-width-import-table .nick-input,
+.ak-full-width-import-table .clan-input,
+.ak-ally-only-table .roster-select,
+.ak-ally-only-table .nick-input,
+.ak-ally-only-table .clan-input {
+  min-width: 0 !important;
+  width: 100% !important;
+}
+@media (max-width: 1100px) {
+  .ak-full-width-import-table .table-scroll,
+  .ak-ally-only-table .table-scroll { display: none !important; }
+  .ak-full-width-import-table .ak-mobile-score-cards,
+  .ak-ally-only-table .ak-mobile-score-cards { display: grid !important; width: 100% !important; }
+}
