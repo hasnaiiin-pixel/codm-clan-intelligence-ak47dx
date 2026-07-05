@@ -2,7 +2,6 @@ import './globals.css';
 import type { Metadata, Viewport } from 'next';
 import { MobileSidebar } from '@/components/MobileSidebar';
 import { PwaInstaller } from '@/components/PwaInstaller';
-import { DeveloperTopBadge, DeveloperFooter } from '@/components/DeveloperBrand';
 
 export const metadata: Metadata = {
   title: 'CODM Clan Intelligence',
@@ -23,9 +22,17 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     <html lang="it">
       <body>
         <MobileSidebar />
-        <DeveloperTopBadge />
+        <a className="mirza-dev-badge mirza-dev-top" href="/dashboard" aria-label="Sviluppatore MIRZA">
+          <img src="/assets/mirza-developer-logo.png" alt="MIRZA developer logo" />
+          <span>Developed by <strong>MIRZA</strong></span>
+        </a>
         <main className="codm-app-content">{children}</main>
-        <DeveloperFooter />
+        <footer className="mirza-dev-footer">
+          <div className="mirza-dev-footer-inner">
+            <img src="/assets/mirza-developer-logo.png" alt="MIRZA developer logo" />
+            <span>AK47DX Clan Intelligence · sviluppato da <strong>MIRZA</strong></span>
+          </div>
+        </footer>
         <PwaInstaller />
       </body>
     </html>

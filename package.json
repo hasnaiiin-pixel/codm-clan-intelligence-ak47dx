@@ -1,6 +1,6 @@
 {
   "name": "codm-clan-intelligence-ak47dx",
-  "version": "5.5.1-clean-start-logo-medals-buildfix",
+  "version": "5.5.2-no-developerbrand-import",
   "private": true,
   "scripts": {
     "dev": "next dev",
