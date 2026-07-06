@@ -18,6 +18,48 @@ type EventRow = {
   reminder_10m_sent_at?: string | null;
 };
 
+type MatchRound = {
+  n?: number;
+  mode?: string;
+  map?: string;
+  scoreType?: string;
+  players?: string;
+  reserves?: string;
+  lobbyOpen?: string;
+  meetingTime?: string;
+  startTime?: string;
+  bans?: string;
+  status?: string;
+  result?: string;
+  ourScore?: string;
+  opponentScore?: string;
+  mvp?: string;
+};
+type MatchPlan = {
+  teamAName?: string;
+  teamBName?: string;
+  lobbyTime?: string;
+  roomNumber?: string;
+  discordLink?: string;
+  lobbyLink?: string;
+  rounds?: MatchRound[];
+};
+
+const PLAN_MARKERS = ['AK_EVENT_PLAN_V6_4::', 'AK_EVENT_PLAN_V6_3::', 'AK_EVENT_PLAN_V6_2::'];
+const resultLabels = ['Vinto', 'Perso', 'Pareggiato'];
+const statusLabels = ['Da giocare', 'Giocata', 'Risultato caricato'];
+const modeLabels: Record<string, string> = {
+  CED: '🎯 Cerca e Distruggi',
+  POSTAZIONE: '🔥 Postazione',
+  DOMINIO: '🏳️ Dominio',
+  CONTROL: '🛡️ Control',
+  'DM DEATH MATCH': '⚔️ Death Match',
+  'PRIMA LINEA': '🚩 Prima linea',
+  TDM: '💀 TDM',
+  BR: '🪂 Battle Royale',
+  SCRIM: '🎮 Scrim libero',
+};
+
 function serverSupabase() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -44,17 +86,76 @@ function safeHtml(value: string | null | undefined) {
     .replace(/>/g, '&gt;');
 }
 
+function scoreNumber(value: string | null | undefined) {
+  if (value === null || value === undefined || value === '') return null;
+  const parsed = Number(String(value).replace(',', '.'));
+  return Number.isFinite(parsed) ? parsed : null;
+}
+function matchOutcome(round: MatchRound) {
+  const our = scoreNumber(round.ourScore);
+  const opponent = scoreNumber(round.opponentScore);
+  if (our !== null && opponent !== null) {
+    if (our > opponent) return 'Vinto';
+    if (our < opponent) return 'Perso';
+    return 'Pareggiato';
+  }
+  if (round.result && resultLabels.includes(round.result)) return round.result;
+  return '';
+}
+function matchStatus(round: MatchRound) {
+  if (round.status && statusLabels.includes(round.status)) return round.status;
+  if (scoreNumber(round.ourScore) !== null && scoreNumber(round.opponentScore) !== null) return 'Risultato caricato';
+  if (round.result && resultLabels.includes(round.result)) return 'Risultato caricato';
+  if (round.result && statusLabels.includes(round.result)) return round.result;
+  return 'Da giocare';
+}
+function extractPlanFromNotes(notes?: string | null): MatchPlan | null {
+  const raw = String(notes || '');
+  const marker = PLAN_MARKERS.find((entry) => raw.includes(entry));
+  if (!marker) return null;
+  try {
+    const json = raw.slice(raw.indexOf(marker) + marker.length);
+    return JSON.parse(json) as MatchPlan;
+  } catch {
+    return null;
+  }
+}
+function buildMatchDetailsHtml(event: EventRow) {
+  const plan = extractPlanFromNotes(event.event_notes);
+  const rounds = plan?.rounds || [];
+  if (!rounds.length) return 'Partite da confermare.';
+  return rounds.map((round, index) => {
+    const n = round.n || index + 1;
+    const mode = modeLabels[round.mode || ''] || safeHtml(round.mode || 'Modalità da decidere');
+    const outcome = matchOutcome(round);
+    const lines = [
+      `<b>Partita ${n}</b> ${mode}`,
+      `Mappa: ${safeHtml(round.map || 'Da decidere')}`,
+      `Ritrovo: ${safeHtml(round.meetingTime || '-')} · Lobby: ${safeHtml(round.lobbyOpen || plan?.lobbyTime || '-')} · Start: ${safeHtml(round.startTime || '-')}`,
+      `Stato: ${safeHtml(matchStatus(round))}${outcome ? ` · Esito: ${safeHtml(outcome)}` : ''}`,
+      round.ourScore || round.opponentScore ? `Score: ${safeHtml(round.ourScore || '-')} - ${safeHtml(round.opponentScore || '-')}` : '',
+      round.players ? `Titolari: ${safeHtml(round.players)}` : '',
+      round.reserves ? `Riserve: ${safeHtml(round.reserves)}` : '',
+      round.bans ? `🚫 BAN: ${safeHtml(round.bans)}` : '',
+      round.mvp ? `MVP: ${safeHtml(round.mvp)}` : '',
+    ];
+    return lines.filter(Boolean).join('\n');
+  }).join('\n\n');
+}
+
 function renderReminderText(event: EventRow, minutes: number) {
   const when = new Date(event.starts_at).toLocaleString('it-IT', { timeZone: 'Europe/Rome' });
   const convocati = event.convocations_text?.trim() || 'Da confermare';
-  const template = event.telegram_message_template || '🎮 <b>AK47DX Reminder</b>\n\n<b>{title}</b>\n⏱️ Mancano {minutes} minuti\n🕒 {date}\n📍 {location}\n\n{description}\n\n<b>Convocati:</b>\n{convocati}';
+  const matchDetails = buildMatchDetailsHtml(event);
+  const template = event.telegram_message_template || '🎮 <b>AK47DX Evento</b>\n\n<b>{title}</b>\n⏱️ Mancano {minutes} minuti\n🕒 {date}\n📍 {location}\n\n<b>Dettaglio partite:</b>\n{match_details}\n\n<b>Convocati:</b>\n{convocati}\n\n{description}';
   return template
     .replaceAll('{title}', safeHtml(event.title))
     .replaceAll('{minutes}', String(minutes))
     .replaceAll('{date}', safeHtml(when))
     .replaceAll('{location}', safeHtml(event.location || 'CODM'))
-    .replaceAll('{description}', safeHtml(event.description || event.event_notes || 'Preparati per evento clan.'))
-    .replaceAll('{convocati}', safeHtml(convocati));
+    .replaceAll('{description}', safeHtml(event.description || 'Preparati per evento clan.'))
+    .replaceAll('{convocati}', safeHtml(convocati))
+    .replaceAll('{match_details}', matchDetails);
 }
 
 

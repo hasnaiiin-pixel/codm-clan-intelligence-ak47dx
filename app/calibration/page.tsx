@@ -33,6 +33,7 @@ const kinds: Array<{ value: CalibrationKind; label: string; help: string }> = [
 
 function pct(value: number) { return `${(value * 100).toFixed(2)}%`; }
 function slug(value: string) { return (value || 'default').toLowerCase().replace(/[^a-z0-9_-]+/g, '_').replace(/^_+|_+$/g, '') || 'default'; }
+function softSlug(value: string) { return (value || '').toLowerCase().replace(/[^a-z0-9_-]+/g, '_').replace(/^_+|_+$/g, ''); }
 
 type DragMode = 'move' | 'resize';
 type DragState = { name: string; mode: DragMode; startX: number; startY: number; start: CalibratedRegion; handle?: 'se' | 'sw' | 'ne' | 'nw' } | null;
@@ -51,6 +52,7 @@ function CalibrationEditor() {
   const [phoneDevice, setPhoneDevice] = useState('default');
   const [templateSlot, setTemplateSlot] = useState('default');
   const [templateName, setTemplateName] = useState('Scoreboard CED');
+  const [templateSource, setTemplateSource] = useState<'default' | 'phone' | 'saved'>('default');
   const [ownerName, setOwnerName] = useState('');
   const [profiles, setProfiles] = useState<string[]>(['default']);
   const [phoneOptions, setPhoneOptions] = useState<string[]>(['default']);
@@ -78,6 +80,7 @@ function CalibrationEditor() {
       setPhoneProfile(activePhone);
       setPhoneDevice(split.phone);
       setTemplateSlot(split.template);
+      setTemplateSource(split.phone === 'default' && split.template === 'default' ? 'default' : split.template === 'default' ? 'phone' : 'saved');
       const bundle = loadCalibrationBundle(kind, activePhone);
       setRegions(bundle.regions);
       setTemplateName(bundle.meta.templateName);
@@ -93,6 +96,7 @@ function CalibrationEditor() {
     setPhoneProfile(nextPhone);
     setPhoneDevice(split.phone);
     setTemplateSlot(split.template);
+    setTemplateSource(split.phone === 'default' && split.template === 'default' ? 'default' : split.template === 'default' ? 'phone' : 'saved');
     setActivePhoneProfile(nextKind, nextPhone);
     const bundle = loadCalibrationBundle(nextKind, nextPhone);
     setRegions(bundle.regions);
@@ -105,15 +109,47 @@ function CalibrationEditor() {
   }
 
   function changeKind(nextKind: CalibrationKind) { loadTemplate(nextKind, getActivePhoneProfile(nextKind)); }
-  function changePhone(nextPhoneRaw: string) { loadTemplate(kind, slug(nextPhoneRaw)); }
+  function applyTemplateSource(nextSource: 'default' | 'phone' | 'saved') {
+    setTemplateSource(nextSource);
+    if (nextSource === 'default') {
+      loadTemplate(kind, makeCalibrationProfileKey('default', 'default'));
+      return;
+    }
+    const phone = softSlug(phoneDevice) || '';
+    if (!phone) {
+      setPhoneDevice('');
+      setMessage('Tipologia telefono vuota: puoi lasciarla vuota mentre prepari il nome, oppure scegliere default/telefono/template salvato.');
+      return;
+    }
+    loadTemplate(kind, makeCalibrationProfileKey(phone, nextSource === 'saved' ? (softSlug(templateSlot) || 'default') : 'default'));
+  }
+  function changePhone(nextPhoneRaw: string) { if (softSlug(nextPhoneRaw)) loadTemplate(kind, softSlug(nextPhoneRaw)); }
   function changePhoneDevice(nextPhoneRaw: string) {
-    const nextPhone = slug(nextPhoneRaw);
+    const nextPhone = softSlug(nextPhoneRaw);
+    if (!nextPhone) {
+      setPhoneDevice('');
+      setTemplateOptions(['default']);
+      setMessage('Tipologia telefono cancellata. Non viene più riscritta default automaticamente; scegli Default o scrivi una tipologia telefono quando vuoi caricare/salvare.');
+      return;
+    }
     const templates = listCalibrationTemplatesForPhone(kind, nextPhone);
-    const nextTemplate = templates.includes(templateSlot) ? templateSlot : 'default';
+    const nextTemplate = templateSource === 'saved' && templates.includes(templateSlot) ? templateSlot : 'default';
     loadTemplate(kind, makeCalibrationProfileKey(nextPhone, nextTemplate));
   }
   function changeTemplateSlot(nextTemplateRaw: string) {
-    loadTemplate(kind, makeCalibrationProfileKey(phoneDevice, nextTemplateRaw));
+    const nextTemplate = softSlug(nextTemplateRaw);
+    if (!nextTemplate) {
+      setTemplateSlot('');
+      setMessage('Nome template cancellato. Puoi lasciarlo vuoto oppure scegliere default/ced/postazione/dominio.');
+      return;
+    }
+    const nextPhone = softSlug(phoneDevice);
+    if (!nextPhone) {
+      setTemplateSlot(nextTemplate);
+      setMessage('Scrivi prima la tipologia telefono o scegli Origine template: Default.');
+      return;
+    }
+    loadTemplate(kind, makeCalibrationProfileKey(nextPhone, nextTemplate));
   }
   function newPhoneProfile() {
     const phoneValue = window.prompt('Nome telefono? Esempio: iphone_17px, samsung_s23, ipad');
@@ -214,14 +250,18 @@ function CalibrationEditor() {
   }
 
   function save() {
-    const nextPhone = makeCalibrationProfileKey(phoneDevice || 'default', templateSlot || 'default');
+    const cleanPhoneDevice = softSlug(phoneDevice);
+    const cleanTemplateSlot = softSlug(templateSlot);
+    const nextPhone = templateSource === 'default'
+      ? makeCalibrationProfileKey('default', 'default')
+      : makeCalibrationProfileKey(cleanPhoneDevice || 'default', templateSource === 'phone' ? 'default' : (cleanTemplateSlot || 'default'));
     const split = splitCalibrationProfileKey(nextPhone);
     setPhoneProfile(nextPhone);
     setPhoneDevice(split.phone);
     setTemplateSlot(split.template);
     setActivePhoneProfile(kind, nextPhone);
-    const cleanTemplateName = templateSlot && templateSlot !== 'default' ? templateSlot : templateName;
-    saveCalibration(kind, regions, nextPhone, cleanTemplateName || templateName, ownerName);
+    const cleanTemplateName = split.template !== 'default' ? split.template : (templateName || split.template || 'default');
+    saveCalibration(kind, regions, nextPhone, cleanTemplateName, ownerName);
     setProfiles(listCalibrationPhoneProfiles(kind));
     setPhoneOptions(listCalibrationPhones(kind));
     setTemplateOptions(listCalibrationTemplatesForPhone(kind, split.phone));
@@ -269,11 +309,15 @@ function CalibrationEditor() {
         <p className="muted">
           Ora i riquadri sono riferiti al content frame dell'immagine, non al bordo nero. Puoi trascinarli liberamente, ridimensionarli dagli angoli e salvarli per telefono/login. Questo riduce lo spostamento tra screenshot diversi dello stesso telefono.
         </p>
-        <div className="grid grid-4">
+        <div className="grid grid-4 calibration-template-flow">
           <div className="field"><label>Tipo template</label><select className="select" value={kind} onChange={(e) => changeKind(e.target.value as CalibrationKind)}>{kinds.map((entry) => <option key={entry.value} value={entry.value}>{entry.label}</option>)}</select><small className="muted">{kinds.find((e) => e.value === kind)?.help}</small></div>
-          <div className="field"><label>Tipologia telefono</label><input className="input" list="cal-phone-options" value={phoneDevice} onChange={(e) => setPhoneDevice(slug(e.target.value))} onBlur={() => changePhoneDevice(phoneDevice)} placeholder="iphone_17px" /><datalist id="cal-phone-options">{phoneOptions.map((p) => <option key={p} value={p} />)}</datalist><small className="muted">Scrivi o scegli il telefono usato, esempio iphone_17px.</small></div>
-          <div className="field"><label>Nome template</label><input className="input" list="cal-template-options" value={templateSlot} onChange={(e) => setTemplateSlot(slug(e.target.value))} onBlur={() => changeTemplateSlot(templateSlot)} placeholder="ced / postazione / dominio / profilo_base" /><datalist id="cal-template-options">{templateOptions.map((p) => <option key={p} value={p} />)}</datalist><input className="input top-gap" value={templateName} onChange={(e) => setTemplateName(e.target.value)} placeholder="Descrizione opzionale" /><small className="muted">Questo nome comparirà in Import dopo aver scelto il telefono.</small></div>
+          <div className="field"><label>Origine template</label><select className="select" value={templateSource} onChange={(e) => applyTemplateSource(e.target.value as 'default' | 'phone' | 'saved')}><option value="default">Default generale</option><option value="phone">Per tipologia telefono</option><option value="saved">Nome template salvato</option></select><small className="muted">Scegli sempre se vuoi default, telefono o template nominato.</small></div>
+          <div className="field"><label>Tipologia telefono</label><input className="input" list="cal-phone-options" value={phoneDevice} onChange={(e) => setPhoneDevice(softSlug(e.target.value))} onBlur={() => changePhoneDevice(phoneDevice)} placeholder="iphone_17px" /><datalist id="cal-phone-options">{phoneOptions.map((p) => <option key={p} value={p} />)}</datalist><small className="muted">Se cancelli, resta vuoto: non torna più default da solo.</small></div>
+          <div className="field"><label>Nome template</label><input className="input" list="cal-template-options" value={templateSlot} onChange={(e) => setTemplateSlot(softSlug(e.target.value))} onBlur={() => changeTemplateSlot(templateSlot)} placeholder="default / ced / postazione / dominio" /><datalist id="cal-template-options">{templateOptions.map((p) => <option key={p} value={p} />)}</datalist><small className="muted">Nome usato anche nelle pagine Import dopo aver scelto il telefono.</small></div>
+        </div>
+        <div className="grid grid-2 top-gap">
           <div className="field"><label>Login/profilo collegato</label><input className="input" value={ownerName} onChange={(e) => setOwnerName(e.target.value)} placeholder="Nome login" /><small className="muted">Chiave attiva: {phoneProfile}</small></div>
+          <div className="notice"><b>Flusso template:</b> puoi caricare il default generale, un default per tipologia telefono, oppure un template salvato per nome. Il campo descrizione opzionale è stato rimosso.</div>
         </div>
         <div className="grid grid-3 top-gap">
           <div className="field"><label>Screenshot campione</label><input className="input" type="file" accept="image/*" onChange={(event) => onFile(event.target.files?.[0] || null)} /></div>

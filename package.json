@@ -1,6 +1,6 @@
 {
   "name": "codm-clan-intelligence-ak47dx",
-  "version": "6.3.0-event-planner-template-fix",
+  "version": "6.4.0-events-ordered-calibration-flow",
   "private": true,
   "scripts": {
     "dev": "next dev",

@@ -1,26 +1,37 @@
-# CODM AK47DX V6.3 - Event planner, template fix, profilo stats
+# CODM AK47DX V6.4 - Eventi ordinati + Calibrazione template flow
 
-Versione pulita. Backend OCR risultati lasciato stabile: 2.0.10-v5-4-fastlane-import-stabile-ak47dx.
+Build preparata partendo da `CODM_AK47DX_V6_3_EVENT_PLANNER_TEMPLATE_FIX_READY.zip`.
 
 ## Controllo eseguito
-- npm ci --legacy-peer-deps
-- npm run build
-- Build OK: Compiled successfully, 32/32 pagine generate.
+- `npm ci --legacy-peer-deps` OK.
+- `npm run build` ha compilato correttamente e generato 32/32 pagine. Nel sandbox il processo è rimasto appeso dopo la stampa finale di Next, quindi l'ho considerato compilato ma da verificare anche su Vercel/PC reale.
 
-## Cambi principali
-- Logo clan caricabile con file picker da Clan HQ, senza scrivere percorso.
-- Eventi: cover presentazione, loghi Team A/B da file, partite aggiungi/togli con default 1.
-- Per ogni partita evento: modalità, mappa, target, titolari, riserve, ritrovo, apertura lobby, orario partita, BAN, risultato, score, MVP.
-- Home: riepilogo clan + eventi futuri/scrim.
-- Profilo: statistiche individuali in basso.
-- Calibrazione: telefono e nome template separati con salvataggio robusto.
-- Import partite/profilo: quando scegli telefono, ora preferisce il template salvato invece di restare su default.
-- Stato OCR rimane visibile solo a staff/owner tramite menu permessi.
+## Cambi principali V6.4
+- Pagina Eventi riorganizzata: **Eventi da fare** in alto, calendario sotto, editor evento/partite in basso.
+- Sezione partite rifatta: ogni partita è una card verticale ordinata, non più compressa in una riga.
+- Pulsanti chiari: `+ Aggiungi partita` e `- Togli ultima partita`; ogni card ha anche `Elimina`.
+- Stato partita separato dall'esito:
+  - stato: `Da giocare`, `Giocata`, `Risultato caricato`;
+  - esito automatico: `Vinto`, `Perso`, `Pareggiato` calcolato dagli score.
+- Formazione titolare e riserve per ogni partita selezionabili dai giocatori registrati nell'app, con chip/badge.
+- Tipologia partita con simboli stile CODM: CED, Postazione, Dominio, Control, Death Match, Prima Linea, TDM, BR, Scrim.
+- Telegram: aggiunto placeholder `{match_details}` e generazione dettagliata di Partita 1, Partita 2, Partita 3 ecc. con modalità, mappa, orari, roster, BAN, stato, esito e MVP.
+- API Telegram aggiornata per leggere il piano evento salvato in `event_notes` e renderizzare `{match_details}`.
+- Calibrazione: `Tipologia telefono` non riscrive più `default` quando viene cancellata.
+- Calibrazione: rimosso campo `Descrizione opzionale`.
+- Calibrazione: aggiunta scelta esplicita `Origine template`: default generale, tipologia telefono, template salvato per nome.
+- Flusso template reso più chiaro per salvataggio/caricamento/import.
 
-## Comandi
-cd C:\Users\spea4060_tmv331ef\Documents\PROGETTI\COD\CODM_CLAN_INTELLIGENCE_2_0_DEPLOYABLE_PWA_YOLO_AK47DX
+## Comandi consigliati
+```bash
 npm ci --legacy-peer-deps
 npm run build
+npm run dev
+```
+
+## Commit suggerito
+```bash
 git add -A
-git commit -m "fix: CODM v6.3 event planner template fix"
+git commit -m "feat: CODM v6.4 events ordered calibration template flow"
 git push origin main
+```

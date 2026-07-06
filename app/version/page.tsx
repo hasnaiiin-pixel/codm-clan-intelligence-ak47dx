@@ -5,8 +5,8 @@ export default function VersionPage() {
         <div className="ak-login-card">
           <div className="ak-pill">AK47DX DEPLOY CHECK</div>
           <h1 className="ak-title">CODM Clan Intelligence</h1>
-          <p className="ak-lead">Versione V6.3: planner eventi con cover/loghi caricabili, partite aggiungi/togli, template telefono+nome corretto, profilo con statistiche e home con eventi futuri.</p>
-          <div className="notice top-gap"><strong>Marker:</strong> V6_3_EVENT_PLANNER_TEMPLATE_FIX_OK</div>
+          <p className="ak-lead">Versione V6.4: eventi da fare in alto, partite ordinate in card verticali, stato partita separato da esito automatico, roster da player app, Telegram con dettaglio Partita 1/2/3 e flusso template calibrazione corretto.</p>
+          <div className="notice top-gap"><strong>Marker:</strong> V6_4_EVENTS_ORDERED_CALIBRATION_FLOW_OK</div>
           <div className="notice top-gap"><strong>Backend OCR consigliato:</strong> 2.0.10-v5-4-fastlane-import-stabile-ak47dx</div>
           <div className="ak-quick-links">
             <a href="/cache-reset">Reset cache sicuro</a>
