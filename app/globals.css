@@ -1469,3 +1469,25 @@ main.container.wide > section.card {
   .mirza-dev-badge img { width: 28px; height: 28px; }
   .mirza-dev-footer-inner { font-size: 11px; text-align: center; }
 }
+
+/* V5.9 clean import/profile stabilization */
+.profile-import-layout { align-items: start; }
+.profile-image-tall .preview { max-height: min(72vh, 820px); object-fit: contain; }
+.profile-confirm-card { min-width: 0; }
+.ak-progress-panel { margin-top: 14px; border: 1px solid rgba(50,214,255,.22); background: rgba(50,214,255,.06); border-radius: 16px; padding: 13px; }
+.ak-progress-row { display: flex; justify-content: space-between; gap: 10px; color: #dff8ff; font-weight: 800; font-size: 13px; }
+.ak-progress-track { height: 12px; overflow: hidden; border-radius: 999px; background: rgba(255,255,255,.11); margin-top: 9px; border: 1px solid rgba(255,255,255,.08); }
+.ak-progress-fill { height: 100%; border-radius: 999px; background: linear-gradient(90deg, var(--accent), var(--accent2)); box-shadow: 0 0 18px rgba(50,214,255,.35); transition: width .25s ease; }
+.ak-progress-note { margin-top: 8px; color: var(--muted); font-size: 12px; }
+.ak-template-status { margin-top: 12px; padding: 12px; border-radius: 14px; border: 1px solid rgba(255,255,255,.11); background: rgba(255,255,255,.05); color: #dbeafe; }
+.ak-template-status.ok { border-color: rgba(57,217,138,.25); background: rgba(57,217,138,.07); }
+.ak-template-status.warn { border-color: rgba(255,209,102,.35); background: rgba(255,209,102,.08); color: #ffe5a3; }
+.ocr-template-layer, .ocr-overlay-layer { position:absolute; inset:0; pointer-events:none; }
+.ocr-template-box { position:absolute; border:1px dashed rgba(255,209,102,.78); background:rgba(255,209,102,.04); border-radius:3px; }
+.ocr-template-blue { border-color:rgba(50,214,255,.9); background:rgba(50,214,255,.05); }
+.ocr-template-red { border-color:rgba(255,54,91,.9); background:rgba(255,54,91,.05); }
+.ocr-template-own { border-width:2px; box-shadow:0 0 0 1px rgba(255,255,255,.35); }
+.import-hero { display:grid; grid-template-columns: minmax(0, 1fr) minmax(280px, .55fr); gap:18px; align-items:center; }
+.import-actions { align-items: stretch; }
+.import-main-btn { width:100%; min-height:48px; }
+@media (max-width: 900px) { .import-hero, .profile-import-layout { grid-template-columns: 1fr; } .container.wide { width: min(100vw - 16px, 1680px); } .card { padding: 16px; border-radius: 18px; } }

@@ -10,6 +10,26 @@ from app.services.image_utils import crop_box, read_image_bytes, resize_long_edg
 from app.services.ocr_engines import read_text_hybrid, numeric_ocr_candidates, vote_int_from_candidates
 
 
+def _client_frame_to_pixels(calibration_frame: str | None, img_w: int, img_h: int) -> tuple[int, int, int, int] | None:
+    if not calibration_frame:
+        return None
+    try:
+        parsed = json.loads(calibration_frame)
+        x = float(parsed.get("x", 0))
+        y = float(parsed.get("y", 0))
+        w = float(parsed.get("w", 1))
+        h = float(parsed.get("h", 1))
+        if w <= 0.45 or h <= 0.45:
+            return None
+        px = max(0, min(img_w - 1, int(round(x * img_w))))
+        py = max(0, min(img_h - 1, int(round(y * img_h))))
+        pw = max(1, min(img_w - px, int(round(w * img_w))))
+        ph = max(1, min(img_h - py, int(round(h * img_h))))
+        return px, py, pw, ph
+    except Exception:
+        return None
+
+
 def _role_from_profile_name(name: str) -> str | None:
     upper = name.upper()
     mapping = {
@@ -76,18 +96,29 @@ def _clean_nickname(text: str) -> str:
 
 
 def _read_number_box(img, box: OcrBox, min_value: int = 0, max_value: int = 999999, prefer_nonzero: bool = False):
-    crop = crop_box(img, (box.x, box.y, box.w, box.h), pad=2)
+    # V5.9: crop più tollerante per profilo. I numeri piccoli CODM vengono tagliati spesso dal box.
+    crop = crop_box(img, (box.x, box.y, box.w, box.h), pad=max(6, int(max(box.w, box.h) * 0.08)))
     cands = numeric_ocr_candidates(crop, "number")
     value, conf, scored = vote_int_from_candidates(cands, min_value, max_value, prefer_nonzero=prefer_nonzero)
     return (value if scored else None), conf, scored[:20]
 
 
-def parse_profile(image_bytes: bytes, calibration_template: str | None = None) -> ProfileOcrResult:
+def parse_profile(image_bytes: bytes, calibration_template: str | None = None, calibration_frame: str | None = None, template_phone: str | None = None, template_slot: str | None = None, import_type: str | None = None) -> ProfileOcrResult:
     original = read_image_bytes(image_bytes)
+    # Non toccare import partite: questa modifica è solo profilo.
     img, _ = resize_long_edge(original, target=1920)
-    fx, fy, fw, fh, frame_conf, frame_reason = detect_content_frame(img)
+    detected_fx, detected_fy, detected_fw, detected_fh, frame_conf, frame_reason = detect_content_frame(img)
+    client_frame = _client_frame_to_pixels(calibration_frame, img.shape[1], img.shape[0])
+    if client_frame is not None:
+        fx, fy, fw, fh = client_frame
+        frame_reason = "frontend_profile_frame_v5_9"
+        frame_conf = max(frame_conf, 0.99)
+    else:
+        fx, fy, fw, fh = detected_fx, detected_fy, detected_fw, detected_fh
     boxes, meta, warnings = _boxes_from_template(img.shape[1], img.shape[0], calibration_template, (fx, fy, fw, fh))
-    warnings.append(f"Content frame profilo: x={fx}, y={fy}, w={fw}, h={fh}, conf={frame_conf:.2f}, reason={frame_reason}.")
+    if template_phone or template_slot:
+        warnings.append(f"Template profilo selezionato: telefono={template_phone or '-'}, template={template_slot or '-'}.")
+    warnings.append(f"Content frame profilo V5.9: x={fx}, y={fy}, w={fw}, h={fh}, conf={frame_conf:.2f}, reason={frame_reason}.")
 
     raw_parts: list[str] = []
     diagnostics = {"calibration_template": meta, "numeric_candidates": {}}
@@ -145,6 +176,8 @@ def parse_profile(image_bytes: bytes, calibration_template: str | None = None) -
         confidences.append(conf)
 
     ocr_conf = sum(confidences) / len(confidences) if confidences else 0.0
+    if boxes and ocr_conf <= 0.05:
+        warnings.append("V5.9: i riquadri sono stati applicati ma Tesseract non ha letto numeri sicuri. Usa centratura manuale o allarga i box in calibrazione; il salvataggio manuale resta disponibile.")
     needs = ocr_conf < 0.55 or not boxes
     return ProfileOcrResult(
         nickname=nickname,

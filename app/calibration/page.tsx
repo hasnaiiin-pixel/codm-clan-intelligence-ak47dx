@@ -89,9 +89,10 @@ function CalibrationEditor() {
   function changeKind(nextKind: CalibrationKind) { loadTemplate(nextKind, getActivePhoneProfile(nextKind)); }
   function changePhone(nextPhoneRaw: string) { loadTemplate(kind, slug(nextPhoneRaw)); }
   function newPhoneProfile() {
-    const value = window.prompt('Nome tipologia telefono/template? Esempio: iphone_15, samsung_s23, whatsapp_1080p');
-    if (!value) return;
-    const next = slug(value);
+    const phoneValue = window.prompt('Nome telefono? Esempio: iphone_17px, samsung_s23, ipad');
+    if (!phoneValue) return;
+    const templateValue = window.prompt('Nome template? Esempio: ced, postazione, dominio, profilo_base') || 'default';
+    const next = templateValue && slug(templateValue) !== 'default' ? `${slug(phoneValue)}__${slug(templateValue)}` : slug(phoneValue);
     setPhoneProfile(next);
     setActivePhoneProfile(kind, next);
     const defaults = defaultCalibration(kind);
@@ -100,7 +101,7 @@ function CalibrationEditor() {
     setTemplateName(`${kind === 'profile_base' ? 'Profilo base' : 'Scoreboard CED'} ${next}`);
     setProfiles(Array.from(new Set([...profiles, next])).sort());
     saveCalibration(kind, defaults, next, `${kind === 'profile_base' ? 'Profilo base' : 'Scoreboard CED'} ${next}`, ownerName);
-    setMessage(`Nuovo template telefono ${next}. Valori iniziali salvati: regola i riquadri, il salvataggio è automatico e puoi anche usare Salva template.`);
+    setMessage(`Nuovo template ${next}. Formato: telefono__template. Regola i riquadri e premi Salva template.`);
   }
 
   async function onFile(file?: File | null) {
@@ -224,14 +225,14 @@ function CalibrationEditor() {
         </p>
         <div className="grid grid-4">
           <div className="field"><label>Tipo template</label><select className="select" value={kind} onChange={(e) => changeKind(e.target.value as CalibrationKind)}>{kinds.map((entry) => <option key={entry.value} value={entry.value}>{entry.label}</option>)}</select><small className="muted">{kinds.find((e) => e.value === kind)?.help}</small></div>
-          <div className="field"><label>Tipologia telefono/template</label><div className="cal-phone-row"><select className="select" value={phoneProfile} onChange={(e) => changePhone(e.target.value)}>{profiles.map((p) => <option key={p} value={p}>{p}</option>)}</select><button className="btn small secondary" type="button" onClick={newPhoneProfile}>Nuovo</button></div></div>
+          <div className="field"><label>Telefono / template</label><div className="cal-phone-row"><select className="select" value={phoneProfile} onChange={(e) => changePhone(e.target.value)}>{profiles.map((p) => <option key={p} value={p}>{p}</option>)}</select><button className="btn small secondary" type="button" onClick={newPhoneProfile}>Nuovo</button></div></div>
           <div className="field"><label>Nome template</label><input className="input" value={templateName} onChange={(e) => setTemplateName(e.target.value)} /></div>
           <div className="field"><label>Login/profilo collegato</label><input className="input" value={ownerName} onChange={(e) => setOwnerName(e.target.value)} placeholder="Nome login" /><small className="muted">Il template resta separato per utente.</small></div>
         </div>
         <div className="grid grid-3 top-gap">
           <div className="field"><label>Screenshot campione</label><input className="input" type="file" accept="image/*" onChange={(event) => onFile(event.target.files?.[0] || null)} /></div>
           <div className="field"><label>Comandi</label><div className="cal-buttons"><button className="btn small" type="button" onClick={save}>Salva template</button><button className="btn small secondary" type="button" onClick={reset}>Reset</button><button className="btn small secondary" type="button" onClick={exportJson}>Esporta</button></div></div>
-          <div className="notice">Trascina il riquadro dal centro. Prendi un angolo per cambiare larghezza/altezza. Il salvataggio è automatico. Il bordo tratteggiato indica il content frame usato per non perdere coordinate tra immagini.</div>
+          <div className="notice">V5.9: per più template sullo stesso telefono usa formato telefono__template, esempio iphone_17px__ced, iphone_17px__postazione, iphone_17px__dominio. Trascina il riquadro dal centro. Prendi un angolo per cambiare larghezza/altezza. Il salvataggio è automatico. Il bordo tratteggiato indica il content frame usato per non perdere coordinate tra immagini.</div>
         </div>
         {message && <div className="notice top-gap">{message}</div>}
       </section>

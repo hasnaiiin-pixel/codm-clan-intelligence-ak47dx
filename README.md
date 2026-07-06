@@ -1,24 +1,38 @@
-# CODM AK47DX V5.5 - Clean Start + MIRZA Logo + Medaglie
+# CODM AK47DX V5.9 — Stable Import + Profile Safe Templates
 
-Base import mantenuta: V5.4 FastLane. Non è stato cambiato il motore OCR funzionante.
+Versione pulita.
 
-## Modifiche
-- 1° posto = Oro / MVP
-- 2° posto = Argento
-- 3° posto = Bronzo
-- 4° posto = Legno
-- 5° posto = Olimpico
-- Logo sviluppatore MIRZA visibile in alto a destra e nel footer in fondo.
-- Aggiunto SQL di reset dati test: `supabase/99_RESET_DATABASE_PULITO_KEEP_OWNER.sql`.
+## Marker frontend
+`V5_9_STABLE_IMPORT_PROFILE_TEMPLATES_OK`
 
-## Reset database pulito
-1. Apri Supabase -> SQL Editor.
-2. Apri `supabase/99_RESET_DATABASE_PULITO_KEEP_OWNER.sql`.
-3. Sostituisci `INSERISCI_EMAIL_OWNER` con la tua email principale.
-4. Esegui.
+## Backend OCR
+Consigliato: `2.0.13-v5-9-stable-import-profile-templates-ak47dx`.
+Il motore import partite FastLane V5.4 è mantenuto: non è stato riscritto.
 
-Il reset cancella partite/statistiche/eventi/notifiche/roster di prova e mantiene solo l'utente principale come owner.
+## Cosa è stato sistemato
+- Import risultati: mantenuto V5.4 FastLane stabile.
+- Import profilo: un solo tasto, niente secondo pulsante fallback.
+- Import profilo: progress percentuale e health non bloccante.
+- Import profilo: invio frame frontend/manuale al backend.
+- Template: selezione separata telefono/template usando chiave `telefono__template`.
+- Import risultati e profilo: centratura manuale immagine/frame.
+- Cartella pulita: rimossi README vecchi e patch storiche dalla root.
 
-## Versione
-Frontend marker: `V5_5_CLEAN_START_LOGO_MEDALS_OK`
-Backend OCR resta: `2.0.10-v5-4-fastlane-import-stabile-ak47dx`
+## Comandi manuali
+```bat
+cd C:\Users\spea4060_tmv331ef\Documents\PROGETTI\COD\CODM_CLAN_INTELLIGENCE_2_0_DEPLOYABLE_PWA_YOLO_AK47DX
+npm ci --legacy-peer-deps
+npm run build
+git add -A
+git commit -m "fix: CODM v5.9 stable import profile templates"
+git push origin main
+```
+
+## Render
+Aggiorna Render solo con la cartella `ocr-backend` di questa versione se vuoi usare OCR profilo V5.9 con frame frontend.
+
+Dopo deploy Render:
+`https://ak47dx-ocr-backend.onrender.com/health`
+
+deve mostrare:
+`2.0.13-v5-9-stable-import-profile-templates-ak47dx`

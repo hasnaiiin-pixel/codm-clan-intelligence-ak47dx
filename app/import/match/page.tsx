@@ -74,6 +74,15 @@ type BackendOcrResult = {
   raw_text?: string;
 };
 
+type FrameNudge = { x: number; y: number; w: number; h: number };
+function applyFrameNudge(frame: ImageContentFrame, nudge: FrameNudge): ImageContentFrame {
+  const x = Math.max(0, Math.min(0.98, frame.x + nudge.x));
+  const y = Math.max(0, Math.min(0.98, frame.y + nudge.y));
+  const w = Math.max(0.5, Math.min(1 - x, frame.w + nudge.w));
+  const h = Math.max(0.5, Math.min(1 - y, frame.h + nudge.h));
+  return { ...frame, x, y, w, h, reason: `${frame.reason}+manual_match_v59` };
+}
+
 function backendCandidates() {
   return getOcrBackendCandidates();
 }
@@ -210,6 +219,7 @@ function ImportMatchEditor() {
   const [backendBoxes, setBackendBoxes] = useState<BackendOcrBox[]>([]);
   const [backendRawJson, setBackendRawJson] = useState('');
   const [imageContentFrame, setImageContentFrame] = useState<ImageContentFrame>(FULL_IMAGE_FRAME);
+  const [frameNudge, setFrameNudge] = useState<FrameNudge>({ x: 0, y: 0, w: 0, h: 0 });
   const [calibrationProfiles, setCalibrationProfiles] = useState<string[]>(['default']);
   const [selectedCalibrationPhone, setSelectedCalibrationPhone] = useState('default');
   const [useCalibrationTemplate, setUseCalibrationTemplate] = useState(true);
@@ -270,6 +280,7 @@ function ImportMatchEditor() {
     setBackendBoxes([]);
     setBackendRawJson('');
     setOcrProgress('');
+    setFrameNudge({ x: 0, y: 0, w: 0, h: 0 });
     setMessage('');
     refreshCalibrationTemplate();
     if (!selected) {
@@ -457,7 +468,7 @@ function ImportMatchEditor() {
           setMessage(`ATTENZIONE: stai usando il template DEFAULT non salvato (${activeTemplate.phone}). Apri /calibration, salva il template corretto e poi torna qui. Importo comunque per revisione manuale.`);
         }
         formData.append('calibration_template', JSON.stringify(activeTemplate.bundle));
-        formData.append('calibration_frame', JSON.stringify(imageContentFrame));
+        formData.append('calibration_frame', JSON.stringify(applyFrameNudge(imageContentFrame, frameNudge)));
         formData.append('calibration_mode', 'content_frame');
         formData.append('template_source', activeTemplate.saved ? `saved_canonical_template_v5_4:${activeTemplate.bundle.meta?.phoneProfile || activeTemplate.phone}` : 'default_template_not_saved');
       }
@@ -579,7 +590,7 @@ function ImportMatchEditor() {
       our_team: ourTeam,
       match_notes: matchNotes || null,
       match_date: parseBackendMatchDate(matchDateText) || new Date().toISOString(),
-      notes: `${matchNotes ? `${matchNotes}\n\n` : ''}Import risultati 2.0. Screenshot prova=${screenshotPath || screenshotUrl || 'non caricato'}. Template=${useCalibrationTemplate ? `${selectedCalibrationPhone}/${calibrationMode}/frame=${imageContentFrame.reason}` : 'OFF'}. OurTeam=${ourTeam}. WinningTeam=${winningTeam || '-'}. MatchDateText=${matchDateText || '-'}.`
+      notes: `${matchNotes ? `${matchNotes}\n\n` : ''}Import risultati 2.0. Screenshot prova=${screenshotPath || screenshotUrl || 'non caricato'}. Template=${useCalibrationTemplate ? `${selectedCalibrationPhone}/${calibrationMode}/frame=${applyFrameNudge(imageContentFrame, frameNudge).reason}` : 'OFF'}. OurTeam=${ourTeam}. WinningTeam=${winningTeam || '-'}. MatchDateText=${matchDateText || '-'}.`
     }).select('id').single();
 
     if (matchError || !match) return setMessage(matchError?.message || 'Partita non creata.');
@@ -775,7 +786,7 @@ function ImportMatchEditor() {
                       key={`tpl-${region.name}`}
                       className={`ocr-template-box ${region.name.startsWith('BLUE') || region.name.includes('BLUE') ? 'ocr-template-blue' : region.name.startsWith('RED') || region.name.includes('RED') ? 'ocr-template-red' : 'ocr-template-neutral'} ${(ourTeam === 'blue' && region.name.startsWith('BLUE')) || (ourTeam === 'red' && region.name.startsWith('RED')) ? 'ocr-template-own' : ''}`}
                       title={`TEMPLATE LOCALE: ${region.name}`}
-                      style={regionToImageStyle(region, imageContentFrame)}
+                      style={regionToImageStyle(region, applyFrameNudge(imageContentFrame, frameNudge))}
                     />
                   ))}
                 </div>
@@ -794,13 +805,27 @@ function ImportMatchEditor() {
             <strong>Template import usato:</strong> {templateSummary} <br /><strong>V5.4:</strong> se hai salvato un template in Calibrazione, viene recuperato e inviato in FastLane; il controllo /health non blocca più l'import.
             <span> · Overlay locale visibile: {localTemplateRegions.length} riquadri. I riquadri sottili sono quelli salvati/calibrati; i riquadri spessi sono quelli realmente letti dal backend.</span>
           </div>
+          <details className="top-gap" open>
+            <summary>🎯 Centratura manuale immagine risultati</summary>
+            <div className="cal-buttons top-gap">
+              <button className="btn small secondary" type="button" onClick={() => setFrameNudge((v) => ({ ...v, y: v.y - 0.005 }))}>↑ Su</button>
+              <button className="btn small secondary" type="button" onClick={() => setFrameNudge((v) => ({ ...v, y: v.y + 0.005 }))}>↓ Giù</button>
+              <button className="btn small secondary" type="button" onClick={() => setFrameNudge((v) => ({ ...v, x: v.x - 0.005 }))}>← Sinistra</button>
+              <button className="btn small secondary" type="button" onClick={() => setFrameNudge((v) => ({ ...v, x: v.x + 0.005 }))}>→ Destra</button>
+              <button className="btn small secondary" type="button" onClick={() => setFrameNudge((v) => ({ ...v, w: v.w + 0.01, h: v.h + 0.01 }))}>Allarga</button>
+              <button className="btn small secondary" type="button" onClick={() => setFrameNudge((v) => ({ ...v, w: v.w - 0.01, h: v.h - 0.01 }))}>Stringi</button>
+              <button className="btn small secondary" type="button" onClick={() => setFrameNudge({ x: 0, y: 0, w: 0, h: 0 })}>Reset</button>
+              <a className="btn small secondary" href="/calibration">Modifica riquadri</a>
+            </div>
+            <small className="muted">Questa correzione sposta il frame inviato al backend senza cambiare il template salvato.</small>
+          </details>
           {message && <div className="notice top-gap">{message}</div>}
           <details className="top-gap">
             <summary>⚙️ Impostazioni avanzate OCR</summary>
             <div className="grid grid-2 top-gap">
               <div className="field"><label>Usa calibrazione</label><select className="select" value={useCalibrationTemplate ? 'yes' : 'no'} onChange={(e) => setUseCalibrationTemplate(e.target.value === 'yes')}><option value="yes">Sì, usa template salvato</option><option value="no">No, layout automatico</option></select></div>
               <div className="field"><label>Template telefono</label><select className="select" value={selectedCalibrationPhone} onChange={(e) => refreshCalibrationTemplate(e.target.value)} disabled={!useCalibrationTemplate}>{calibrationProfiles.map((p) => <option key={p} value={p}>{p}</option>)}</select></div>
-              <div className="field"><label>Modo template</label><select className="select" value={calibrationMode} onChange={(e) => setCalibrationMode(e.target.value as 'table_lock' | 'content_frame' | 'strict_image')} disabled={!useCalibrationTemplate}><option value="content_frame">Content frame consigliato</option><option value="table_lock">Table-lock fallback</option><option value="strict_image">Coordinate immagine esatta</option></select><small className="muted">V4.6 invia anche il frame calcolato dal frontend: {imageContentFrame.reason} ({Math.round(imageContentFrame.x * 100)}%, {Math.round(imageContentFrame.y * 100)}%, {Math.round(imageContentFrame.w * 100)}% x {Math.round(imageContentFrame.h * 100)}%).</small></div>
+              <div className="field"><label>Modo template</label><select className="select" value={calibrationMode} onChange={(e) => setCalibrationMode(e.target.value as 'table_lock' | 'content_frame' | 'strict_image')} disabled={!useCalibrationTemplate}><option value="content_frame">Content frame consigliato</option><option value="table_lock">Table-lock fallback</option><option value="strict_image">Coordinate immagine esatta</option></select><small className="muted">V4.6 invia anche il frame calcolato dal frontend: {applyFrameNudge(imageContentFrame, frameNudge).reason} ({Math.round(applyFrameNudge(imageContentFrame, frameNudge).x * 100)}%, {Math.round(applyFrameNudge(imageContentFrame, frameNudge).y * 100)}%, {Math.round(applyFrameNudge(imageContentFrame, frameNudge).w * 100)}% x {Math.round(applyFrameNudge(imageContentFrame, frameNudge).h * 100)}%).</small></div>
               <div className="field"><label>Conferma nostro team</label><select className="select" value={ourTeam} onChange={(e) => setOurTeam(e.target.value as 'blue' | 'red')}><option value="blue">Blu / sinistra</option><option value="red">Rosso / destra</option></select></div>
             </div>
             <div className="top-gap"><a className="btn small secondary" href="/calibration">🎯 Apri calibrazione</a></div>
