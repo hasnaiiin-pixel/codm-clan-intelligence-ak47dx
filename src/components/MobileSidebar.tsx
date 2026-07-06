@@ -140,7 +140,7 @@ function BottomMobileNav({ pathname, canSeeNotifications, notificationCount, onO
   const items = [
     { href: '/', label: 'Home', emoji: '🏠' },
     { href: '/events', label: 'Eventi', emoji: '📅' },
-    { href: '/matches', label: 'Partite', emoji: '🎮' },
+    { href: '/analytics', label: 'Statistiche', emoji: '📊' },
     { href: canSeeNotifications ? '/notifications' : '/login', label: canSeeNotifications ? 'Notifiche' : 'Login', emoji: canSeeNotifications ? '🔔' : '🔐', badge: notificationCount },
   ];
   return (
@@ -155,9 +155,10 @@ function BottomMobileNav({ pathname, canSeeNotifications, notificationCount, onO
           </Link>
         );
       })}
-      <button type="button" onClick={onOpenMenu} aria-label="Apri menu completo">
-        <span>☰</span>
+      <button type="button" onClick={onOpenMenu} aria-label="Apri menu completo" className={notificationCount ? 'has-badge' : ''}>
+        <span>⚙️</span>
         <small>Altro</small>
+        {!!notificationCount && <b>{notificationCount > 99 ? '99+' : notificationCount}</b>}
       </button>
     </nav>
   );

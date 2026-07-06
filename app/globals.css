@@ -1880,3 +1880,28 @@ main.container.wide > section.card {
   .ak-bottom-nav { gap: 4px; padding: 7px; border-radius: 20px; }
   .ak-bottom-nav a, .ak-bottom-nav button { border-radius: 15px; padding: 7px 1px; }
 }
+
+/* CODM AK47DX V7.1 - PWA mobile pulita: menu basso ufficiale e nessun hamburger alto su telefono */
+@media (max-width: 900px) {
+  .ak-menu-button {
+    display: none !important;
+  }
+  main.container,
+  main.container.wide,
+  .container,
+  .container.wide {
+    padding-top: calc(env(safe-area-inset-top) + 18px) !important;
+    padding-bottom: calc(env(safe-area-inset-bottom) + 104px) !important;
+  }
+  .ak-bottom-nav {
+    grid-template-columns: repeat(5, minmax(0, 1fr)) !important;
+  }
+  .ak-bottom-nav button.has-badge b {
+    position: absolute;
+    top: 2px;
+    right: 8px;
+  }
+  .event-save-button {
+    bottom: calc(env(safe-area-inset-bottom) + 88px) !important;
+  }
+}

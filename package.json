@@ -1,6 +1,6 @@
 {
   "name": "codm-clan-intelligence-ak47dx",
-  "version": "7.0.0-full-pwa-mobile-notifications",
+  "version": "7.1.0-pwa-events-statistics-final",
   "private": true,
   "scripts": {
     "dev": "next dev",

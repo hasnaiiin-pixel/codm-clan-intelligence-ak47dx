@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import type { Session, User } from '@supabase/supabase-js';
 import { supabase, isSupabaseConfigured } from '@/lib/supabaseClient';
-import { loadClanIdentity, clanDisplayName } from '@/lib/clanIdentity';
+import { loadClanIdentity, clanDisplayName, cacheClanIdentity } from '@/lib/clanIdentity';
 
 export type CodmRole = 'anon' | 'registered' | 'viewer' | 'player' | 'staff' | 'coach' | 'owner';
 
@@ -59,6 +59,11 @@ async function getFirstClan() {
   };
 }
 
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+function isUuid(value?: string | null) {
+  return typeof value === 'string' && UUID_RE.test(value);
+}
+
 async function ensureMainAdminOwner(session: Session | null) {
   if (!session?.access_token || !isCodmMainAdminEmail(session.user?.email)) return null;
   try {
@@ -102,15 +107,28 @@ export function useCodmAuth(): CodmAuthState {
       const activeSession = sessionData.session;
       setSession(activeSession);
 
+      let ensuredOwner: any = null;
+      if (activeSession?.user?.id) {
+        ensuredOwner = await ensureMainAdminOwner(activeSession);
+        if (ensuredOwner?.clanId) {
+          cacheClanIdentity({
+            clanId: ensuredOwner.clanId,
+            clanName: ensuredOwner.clanName || 'AK47DX',
+            clanTag: ensuredOwner.clanTag || ensuredOwner.clanName || 'AK47DX'
+          });
+        }
+      }
+
       const clan = await getFirstClan();
-      setClanId(clan.clanId);
-      setClanName(clan.clanName);
+      const resolvedClanId = isUuid(ensuredOwner?.clanId) ? ensuredOwner.clanId : (isUuid(clan.clanId) ? clan.clanId : null);
+      const resolvedClanName = ensuredOwner?.clanName || clan.clanName;
+      setClanId(resolvedClanId);
+      setClanName(resolvedClanName);
 
       if (!activeSession?.user?.id) {
         setRole('anon');
       } else {
-        await ensureMainAdminOwner(activeSession);
-        setRole(await getRoleForUser(activeSession.user.id, clan.clanId, activeSession.user.email));
+        setRole(await getRoleForUser(activeSession.user.id, resolvedClanId, activeSession.user.email));
       }
     } finally {
       setLoading(false);

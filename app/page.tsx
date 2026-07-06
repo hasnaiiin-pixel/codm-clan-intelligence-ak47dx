@@ -10,6 +10,27 @@ type EventRow = { id: string; title: string; starts_at: string; event_type?: str
 type StatRow = { kills?: number | null; deaths?: number | null; assists?: number | null };
 type ScoreRow = { nickname_resolved?: string | null; nickname_raw?: string | null; team_rank?: number | null; mvp_type?: string | null; assists?: number | null; players?: { nickname?: string | null; clan_name?: string | null } | null };
 
+const LOCAL_EVENTS_KEY = 'codm_local_events_v7_0';
+function readLocalHomeEvents(): EventRow[] {
+  if (typeof window === 'undefined') return [];
+  try {
+    const rows = JSON.parse(window.localStorage.getItem(LOCAL_EVENTS_KEY) || '[]');
+    return Array.isArray(rows) ? rows : [];
+  } catch {
+    return [];
+  }
+}
+function mergeHomeEvents(remoteRows: EventRow[]) {
+  const map = new Map<string, EventRow>();
+  for (const event of [...readLocalHomeEvents(), ...remoteRows]) {
+    if (event?.id) map.set(event.id, event);
+  }
+  return Array.from(map.values())
+    .filter((event) => new Date(event.starts_at).getTime() >= Date.now() - 60 * 60 * 1000)
+    .sort((a, b) => new Date(a.starts_at).getTime() - new Date(b.starts_at).getTime())
+    .slice(0, 6);
+}
+
 export default function HomePage() {
   const [clan, setClan] = useState<ClanRow | null>(null);
   const [matches, setMatches] = useState<MatchRow[]>([]);
@@ -36,7 +57,7 @@ export default function HomePage() {
     setMatches((matchData || []) as MatchRow[]);
     setStats((statData || []) as StatRow[]);
     setScoreRows((rowData || []) as ScoreRow[]);
-    setEvents((eventData || []) as EventRow[]);
+    setEvents(mergeHomeEvents((eventData || []) as EventRow[]));
   }
 
   const summary = useMemo(() => {

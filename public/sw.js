@@ -1,4 +1,4 @@
-const CODM_CACHE = 'codm-pwa-full-stable-clean-v4';
+const CODM_CACHE = 'codm-ak47dx-pwa-v7-1-events-statistics-final';
 const CODM_OFFLINE_URL = '/offline.html';
 const CORE_ASSETS = ['/', CODM_OFFLINE_URL, '/manifest.webmanifest'];
 

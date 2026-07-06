@@ -4,7 +4,7 @@ export async function GET() {
   return NextResponse.json({
     ok: true,
     app: 'Clan Manager',
-    version: 'CODM_AK47DX_V7_0_FULL_PWA_MOBILE_NOTIFICATIONS',
+    version: 'CODM_AK47DX_V7_1_PWA_EVENTS_STATISTICS_FINAL',
     routes: [
       '/version',
       '/cache-reset',

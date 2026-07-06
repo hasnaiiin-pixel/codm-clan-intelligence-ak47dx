@@ -91,6 +91,13 @@ const OLD_PLAN_MARKERS = [
 ];
 const DRAFT_KEY = "clan_manager_event_editor_draft_v7_0";
 const LOCAL_EVENTS_KEY = "codm_local_events_v7_0";
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{12}$/i;
+function isUuid(value: unknown): value is string {
+  return typeof value === "string" && UUID_RE.test(value);
+}
+function sortEvents(rows: CodmEvent[]) {
+  return dedupeEvents(rows).sort((a, b) => new Date(a.starts_at).getTime() - new Date(b.starts_at).getTime());
+}
 const matchStatuses = ["Da giocare", "Giocata", "Risultato caricato"];
 const resultLabels = ["Vinto", "Perso", "Pareggiato"];
 
@@ -656,10 +663,16 @@ export default function EventsPage() {
     } catch {}
   }
   function mergeWithLocalEvents(remoteRows: CodmEvent[]) {
-    return dedupeEvents([...getLocalEvents(), ...remoteRows]).sort(
-      (a, b) =>
-        new Date(a.starts_at).getTime() - new Date(b.starts_at).getTime(),
-    );
+    return sortEvents([...getLocalEvents(), ...remoteRows]);
+  }
+  function showEventImmediately(row: CodmEvent) {
+    setEvents((current) => sortEvents([...current, row]));
+    try {
+      localStorage.setItem(
+        "clan_manager_events_cache_v7_0",
+        JSON.stringify(sortEvents([...events, row]).slice(0, 300)),
+      );
+    } catch {}
   }
   async function loadPlayers() {
     try {
@@ -912,9 +925,9 @@ export default function EventsPage() {
         startsAt: startIso,
         endsAt: endIso,
       });
-      const effectiveClanId = auth.clanId || "local-ak47dx";
+      const effectiveClanId = isUuid(auth.clanId) ? auth.clanId : null;
       const basePayload: Record<string, any> = {
-        clan_id: effectiveClanId,
+        ...(effectiveClanId ? { clan_id: effectiveClanId } : {}),
         title: title.trim(),
         description: fullDescription || null,
         location: location || null,
@@ -939,62 +952,84 @@ export default function EventsPage() {
         convocations_text: convocationsText || null,
       };
       const payloadWithPlan = { ...basePayload, event_plan: effectivePlan };
-      let eventId = editingEventId;
+      const remoteEditingId = isUuid(editingEventId) ? editingEventId : null;
+      let eventId: string | null = remoteEditingId;
       let error: any = null;
+      let savedRemoteRow: any = null;
+      const createdBy = isUuid(auth.user?.id) ? auth.user?.id : null;
+
       if (!isSupabaseConfigured) {
         error = new Error(
           "Supabase non configurato: evento salvato solo nella PWA locale.",
         );
-      } else if (editingEventId) {
+      } else if (!effectiveClanId) {
+        error = new Error(
+          "Clan Supabase non pronto: manca un clan_id UUID valido. Fai login come admin e apri Gestione utenti per sincronizzare il clan, poi riprova.",
+        );
+      } else if (remoteEditingId) {
+        const updatePayload = {
+          ...payloadWithPlan,
+          ...(createdBy ? { created_by: createdBy } : {}),
+        };
         const update = await supabase
           .from("codm_events")
-          .update(payloadWithPlan)
-          .eq("id", editingEventId)
-          .select("id")
+          .update(updatePayload)
+          .eq("id", remoteEditingId)
+          .select("*")
           .single();
         error = update.error;
+        savedRemoteRow = update.data;
         if (error && /event_plan|column/i.test(error.message)) {
           const retry = await supabase
             .from("codm_events")
             .update(basePayload)
-            .eq("id", editingEventId)
-            .select("id")
+            .eq("id", remoteEditingId)
+            .select("*")
             .single();
           error = retry.error;
+          savedRemoteRow = retry.data;
         }
       } else {
         const insertPayload = {
           ...payloadWithPlan,
-          created_by: auth.user?.id || null,
+          ...(createdBy ? { created_by: createdBy } : {}),
         };
         const insert = await supabase
           .from("codm_events")
           .insert(insertPayload)
-          .select("id")
+          .select("*")
           .single();
         error = insert.error;
         eventId = insert.data?.id || null;
+        savedRemoteRow = insert.data;
         if (error && /event_plan|column/i.test(error.message)) {
+          const retryPayload = {
+            ...basePayload,
+            ...(createdBy ? { created_by: createdBy } : {}),
+          };
           const retry = await supabase
             .from("codm_events")
-            .insert({ ...basePayload, created_by: auth.user?.id || null })
-            .select("id")
+            .insert(retryPayload)
+            .select("*")
             .single();
           error = retry.error;
           eventId = retry.data?.id || null;
+          savedRemoteRow = retry.data;
         }
       }
       if (error) {
+        const localId = editingEventId && !isUuid(editingEventId) ? editingEventId : `local-${Date.now()}`;
         const localEvent = buildLocalEventFromPayload({
           ...payloadWithPlan,
-          id: editingEventId || `local-${Date.now()}`,
+          id: localId,
+          clan_id: effectiveClanId || null,
         });
         const nextLocal = [
           localEvent,
           ...getLocalEvents().filter((event) => event.id !== localEvent.id),
         ];
         saveLocalEvents(nextLocal);
-        setEvents(mergeWithLocalEvents([]));
+        setEvents((current) => sortEvents([...current.filter((event) => event.id !== localEvent.id), ...nextLocal]));
         pushLocalNotification({
           type: "event",
           title: editingEventId
@@ -1009,7 +1044,7 @@ export default function EventsPage() {
         setEditingEventId(null);
         return;
       }
-      if (eventId) {
+      if (eventId && isUuid(eventId) && effectiveClanId) {
         await supabase
           .from("codm_event_players")
           .delete()
@@ -1018,19 +1053,29 @@ export default function EventsPage() {
           ...convocati.map((p) => ({
             event_id: eventId,
             clan_id: effectiveClanId,
-            player_id: p.id,
+            player_id: isUuid(p.id) ? p.id : null,
             nickname: p.nickname,
             status: "titolare",
           })),
           ...reserves.map((p) => ({
             event_id: eventId,
             clan_id: effectiveClanId,
-            player_id: p.id,
+            player_id: isUuid(p.id) ? p.id : null,
             nickname: p.nickname,
             status: "riserva",
           })),
         ];
         if (rows.length) await supabase.from("codm_event_players").insert(rows);
+      }
+      if (eventId) {
+        const savedEvent = buildLocalEventFromPayload({
+          ...payloadWithPlan,
+          ...(savedRemoteRow || {}),
+          id: eventId,
+          clan_id: effectiveClanId,
+          created_at: savedRemoteRow?.created_at || new Date().toISOString(),
+        });
+        showEventImmediately(savedEvent);
       }
       pushLocalNotification({
         type: "event",
@@ -1059,9 +1104,9 @@ export default function EventsPage() {
     if (!canWrite)
       return setMessage("Solo staff/coach/owner possono cancellare eventi.");
     if (!confirm("Cancellare evento e convocazioni?")) return;
-    if (String(id).startsWith("local-")) {
+    if (!isUuid(id)) {
       saveLocalEvents(getLocalEvents().filter((event) => event.id !== id));
-      setEvents(mergeWithLocalEvents([]));
+      setEvents((current) => sortEvents(current.filter((event) => event.id !== id)));
       setMessage("Evento locale cancellato.");
       return;
     }
@@ -1193,7 +1238,7 @@ export default function EventsPage() {
         </div>
       </section>
 
-      <section className="card top-gap">
+      <section className="card top-gap" id="calendario">
         <div className="section-title">
           <h2>Calendario</h2>
           <input
@@ -1648,7 +1693,7 @@ function dedupeEvents(rows: CodmEvent[]) {
 function buildLocalEventFromPayload(payload: Record<string, any>): CodmEvent {
   return {
     id: payload.id || `local-${Date.now()}`,
-    clan_id: payload.clan_id || "local-ak47dx",
+    clan_id: isUuid(payload.clan_id) ? payload.clan_id : "",
     title: payload.title || "Evento CODM",
     description: payload.description || null,
     starts_at: payload.starts_at || new Date().toISOString(),
