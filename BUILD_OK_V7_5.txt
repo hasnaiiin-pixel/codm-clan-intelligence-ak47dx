@@ -1,0 +1,14 @@
+CODM AK47DX V7.5 DEEP EVENTS DELETE OPPONENT SYNC FINAL
+
+Verifiche:
+- npx tsc --noEmit: OK
+- node --check public/sw.js: OK
+- npm run build: compilazione Next.js OK, 37 pagine generate, API /api/events/list e /api/events/delete incluse.
+
+Correzioni reali:
+- Eventi letti da API server no-store.
+- Cancellazione da API server con service role.
+- Tombstone locale per impedire riapparizione da PWA/cache.
+- Local queue solo per eventi pending/error, non per eventi già sincronizzati.
+- Nome avversario letto dal form al submit tramite ref, non solo da stato React.
+- Titolo automatico aggiornato con Team B reale.

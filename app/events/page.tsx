@@ -95,8 +95,9 @@ const OLD_PLAN_MARKERS = [
 const DRAFT_KEY = "clan_manager_event_editor_draft_v7_0";
 const EVENTS_CACHE_KEY = "clan_manager_events_cache_v7_0";
 const LOCAL_EVENTS_KEY = "codm_local_events_v7_0";
+const DELETED_EVENTS_KEY = "codm_deleted_events_v7_5";
 const EVENTS_FORM_VERSION_KEY = "codm_events_form_version";
-const EVENTS_FORM_VERSION = "V7_4_PWA_FORM_SYNC_STABLE";
+const EVENTS_FORM_VERSION = "V7_5_DEEP_EVENTS_DELETE_OPPONENT_SYNC";
 const MAX_LOCAL_IMAGE_DATA_URL_CHARS = 240_000;
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{12}$/i;
 function isUuid(value: unknown): value is string {
@@ -549,6 +550,8 @@ export default function EventsPage() {
   const [reservePlayers, setReservePlayers] = useState<string[]>([]);
   const [plan, setPlan] = useState<MatchPlan>(() => emptyPlan("AK47DX"));
   const planRef = useRef<MatchPlan>(plan);
+  const teamAInputRef = useRef<HTMLInputElement | null>(null);
+  const teamBInputRef = useRef<HTMLInputElement | null>(null);
   const titleRef = useRef(title);
   const descriptionRef = useRef(description);
   const locationRef = useRef(location);
@@ -696,17 +699,35 @@ export default function EventsPage() {
     } catch {}
   }, [events]);
 
+  function getDeletedEventIds(): Set<string> {
+    try {
+      return new Set(JSON.parse(localStorage.getItem(DELETED_EVENTS_KEY) || "[]").map(String));
+    } catch {
+      return new Set();
+    }
+  }
+  function rememberDeletedEvent(ids: Array<string | null | undefined>) {
+    const deleted = getDeletedEventIds();
+    for (const id of ids) if (id) deleted.add(String(id));
+    try {
+      localStorage.setItem(DELETED_EVENTS_KEY, JSON.stringify(Array.from(deleted).slice(-500)));
+    } catch {}
+  }
+  function eventMatchesDeleted(event: CodmEvent, deleted = getDeletedEventIds()) {
+    return deleted.has(String(event.id)) || Boolean(event.local_id && deleted.has(String(event.local_id)));
+  }
   function getLocalEvents(): CodmEvent[] {
     try {
-      return JSON.parse(
-        localStorage.getItem(LOCAL_EVENTS_KEY) || "[]",
-      ) as CodmEvent[];
+      const deleted = getDeletedEventIds();
+      return (JSON.parse(localStorage.getItem(LOCAL_EVENTS_KEY) || "[]") as CodmEvent[])
+        .filter((event) => !eventMatchesDeleted(event, deleted));
     } catch {
       return [];
     }
   }
   function saveLocalEvents(rows: CodmEvent[]) {
-    const normalized = sortEvents(rows).slice(0, 150);
+    const deleted = getDeletedEventIds();
+    const normalized = sortEvents(rows.filter((event) => !eventMatchesDeleted(event, deleted))).slice(0, 150);
     try {
       localStorage.setItem(LOCAL_EVENTS_KEY, JSON.stringify(normalized));
       window.dispatchEvent(new CustomEvent("codm-events-changed"));
@@ -719,27 +740,34 @@ export default function EventsPage() {
     }
   }
   function saveEventsCache(rows: CodmEvent[]) {
+    const deleted = getDeletedEventIds();
+    const cleanRows = rows.filter((event) => !eventMatchesDeleted(event, deleted));
     try {
-      localStorage.setItem(EVENTS_CACHE_KEY, JSON.stringify(sortEvents(rows).slice(0, 300)));
+      localStorage.setItem(EVENTS_CACHE_KEY, JSON.stringify(sortEvents(cleanRows).slice(0, 300)));
     } catch {
       try {
-        localStorage.setItem(EVENTS_CACHE_KEY, JSON.stringify(sortEvents(rows).slice(0, 300).map(compactEventForLocalStorage)));
+        localStorage.setItem(EVENTS_CACHE_KEY, JSON.stringify(sortEvents(cleanRows).slice(0, 300).map(compactEventForLocalStorage)));
       } catch {}
     }
   }
   function mergeWithLocalEvents(remoteRows: CodmEvent[]) {
-    return sortEvents([...getLocalEvents(), ...remoteRows]);
+    const deleted = getDeletedEventIds();
+    const remoteLocalIds = new Set(remoteRows.map((event) => event.local_id).filter(Boolean).map(String));
+    const localRows = getLocalEvents().filter((event) => !event.local_id || !remoteLocalIds.has(String(event.local_id)));
+    return sortEvents([...localRows, ...remoteRows].filter((event) => !eventMatchesDeleted(event, deleted)));
   }
   function persistEventInPwa(row: CodmEvent, replaceIds: string[] = []) {
     const idsToReplace = new Set([row.id, row.local_id, ...replaceIds].filter(Boolean).map(String));
-    const merge = (current: CodmEvent[]) => {
-      const kept = current.filter((event) => !idsToReplace.has(String(event.id)) && !(event.local_id && idsToReplace.has(String(event.local_id))));
-      return sortEvents([row, ...kept]);
+    const merge = (current: CodmEvent[], includeRow = true) => {
+      const deleted = getDeletedEventIds();
+      const kept = current.filter((event) => !idsToReplace.has(String(event.id)) && !(event.local_id && idsToReplace.has(String(event.local_id))) && !eventMatchesDeleted(event, deleted));
+      return includeRow ? sortEvents([row, ...kept]) : sortEvents(kept);
     };
-    const nextLocal = merge(getLocalEvents());
+    const isConfirmedRemote = isUuid(row.id) && row.sync_status === "synced";
+    const nextLocal = merge(getLocalEvents(), !isConfirmedRemote);
     saveLocalEvents(nextLocal);
     setEvents((current) => {
-      const next = merge(current);
+      const next = merge(current, true);
       saveEventsCache(next);
       return next;
     });
@@ -790,6 +818,16 @@ export default function EventsPage() {
       setPlayers([]);
     }
   }
+  async function readSessionToken() {
+    const { data: sessionData } = await supabase.auth.getSession();
+    let token = sessionData.session?.access_token;
+    if (!token) {
+      const { data: refreshed } = await supabase.auth.refreshSession();
+      token = refreshed.session?.access_token;
+    }
+    return token || null;
+  }
+
   async function loadEvents() {
     setEventsLoading(true);
     setMessage((m) => (m && m.includes("Bozza") ? m : ""));
@@ -797,6 +835,23 @@ export default function EventsPage() {
     if (localRows.length)
       setEvents((current) => dedupeEvents([...current, ...localRows]));
     try {
+      const token = isSupabaseConfigured ? await readSessionToken() : null;
+      if (token) {
+        const params = isUuid(auth.clanId) ? `?clan_id=${encodeURIComponent(auth.clanId)}` : "";
+        const response = await fetch(`/api/events/list${params}`, {
+          method: "GET",
+          cache: "no-store",
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        const json = await response.json().catch(() => null);
+        if (!response.ok || !json?.ok) throw new Error(json?.error || "API eventi non disponibile.");
+        const rows = mergeWithLocalEvents((json.events || []) as CodmEvent[]);
+        setEvents(rows);
+        saveEventsCache(rows);
+        setEventPlayers((json.eventPlayers || []) as EventPlayerRow[]);
+        return;
+      }
+
       const { data, error } = await supabase
         .from("codm_events")
         .select("*")
@@ -805,6 +860,7 @@ export default function EventsPage() {
       if (error) throw error;
       const rows = mergeWithLocalEvents((data || []) as CodmEvent[]);
       setEvents(rows);
+      saveEventsCache(rows);
       const ids = rows
         .filter((e) => !String(e.id).startsWith("local-"))
         .map((e) => e.id)
@@ -1002,6 +1058,37 @@ export default function EventsPage() {
     );
   }
 
+
+  function isDefaultOpponentName(value: string) {
+    const text = value.trim().toLowerCase();
+    return !text || text === "clan avversario" || text === "cl clan avversario";
+  }
+  function isAutoEventTitle(value: string) {
+    const text = value.trim().toLowerCase();
+    return !text || text.includes("clan avversario") || text.startsWith("scrim ak47dx vs") || text.startsWith("scrim ");
+  }
+  function readPlanFromVisibleForm() {
+    const current = planRef.current || plan;
+    const teamAFromInput = teamAInputRef.current?.value?.trim();
+    const teamBFromInput = teamBInputRef.current?.value?.trim();
+    return normalizePlan({
+      ...current,
+      teamAName: teamAFromInput || current.teamAName || auth.clanName || "AK47DX",
+      teamBName: teamBFromInput || current.teamBName || "Clan avversario",
+    });
+  }
+  function updateTeamName(side: "A" | "B", value: string) {
+    const current = planRef.current || plan;
+    const next = side === "A" ? { ...current, teamAName: value } : { ...current, teamBName: value };
+    planRef.current = next;
+    setPlan(next);
+    const teamA = next.teamAName?.trim() || auth.clanName || "AK47DX";
+    const teamB = next.teamBName?.trim() || "Clan avversario";
+    if (side === "B" && !isDefaultOpponentName(teamB) && isAutoEventTitle(titleRef.current || title)) {
+      commitTitle(`Scrim ${teamA} vs ${teamB}`);
+    }
+  }
+
   async function createEvent() {
     if (savingEvent) return;
     setSavingEvent(true);
@@ -1013,8 +1100,11 @@ export default function EventsPage() {
       const currentTitle = (titleRef.current || title).trim();
       const currentDescription = descriptionRef.current ?? description;
       const currentLocation = locationRef.current ?? location;
-      const currentPlan = planRef.current || plan;
-      if (!currentTitle) {
+      const currentPlan = readPlanFromVisibleForm();
+      const finalTitle = isAutoEventTitle(currentTitle) && !isDefaultOpponentName(currentPlan.teamBName)
+        ? `Scrim ${(currentPlan.teamAName || auth.clanName || "AK47DX").trim()} vs ${currentPlan.teamBName.trim()}`
+        : currentTitle;
+      if (!finalTitle) {
         setMessage("Inserisci il titolo evento prima di salvare.");
         return;
       }
@@ -1042,7 +1132,7 @@ export default function EventsPage() {
       ].filter(Boolean).join("\n\n");
       const fullDescription = [currentDescription, convocationsText].filter(Boolean).join("\n\n");
       const googleUrl = buildGoogleCalendarUrl({
-        title: currentTitle,
+        title: finalTitle,
         description: fullDescription,
         location: currentLocation,
         startsAt: startIso,
@@ -1059,7 +1149,7 @@ export default function EventsPage() {
 
       const basePayload: Record<string, any> = {
         ...(effectiveClanId ? { clan_id: effectiveClanId } : {}),
-        title: currentTitle,
+        title: finalTitle,
         description: fullDescription || null,
         location: currentLocation || null,
         event_type: eventType,
@@ -1216,19 +1306,44 @@ export default function EventsPage() {
   async function deleteEvent(id: string) {
     if (!canWrite)
       return setMessage("Solo staff/coach/owner possono cancellare eventi.");
-    if (!confirm("Cancellare evento e convocazioni?")) return;
+    const eventToDelete = events.find((event) => event.id === id || event.local_id === id);
+    if (!confirm(`Cancellare definitivamente evento${eventToDelete?.title ? ` "${eventToDelete.title}"` : ""} e convocazioni?`)) return;
+
+    const idsToRemove = [id, eventToDelete?.id, eventToDelete?.local_id].filter(Boolean).map(String);
+    rememberDeletedEvent(idsToRemove);
+    saveLocalEvents(getLocalEvents().filter((event) => !idsToRemove.includes(String(event.id)) && !(event.local_id && idsToRemove.includes(String(event.local_id)))));
+    setEvents((current) => {
+      const next = sortEvents(current.filter((event) => !idsToRemove.includes(String(event.id)) && !(event.local_id && idsToRemove.includes(String(event.local_id)))));
+      saveEventsCache(next);
+      return next;
+    });
+    setEventPlayers((current) => current.filter((row) => !idsToRemove.includes(String(row.event_id))));
+
     if (!isUuid(id)) {
-      saveLocalEvents(getLocalEvents().filter((event) => event.id !== id));
-      setEvents((current) => sortEvents(current.filter((event) => event.id !== id)));
-      setMessage("Evento locale cancellato.");
+      setMessage("Evento locale cancellato e bloccato dalla cache PWA.");
       return;
     }
-    const { error } = await supabase.from("codm_events").delete().eq("id", id);
-    if (error) return setMessage(error.message);
-    saveLocalEvents(getLocalEvents().filter((event) => event.id !== id && event.local_id !== id));
-    setEvents((current) => sortEvents(current.filter((event) => event.id !== id && event.local_id !== id)));
-    setMessage("Evento cancellato.");
-    await loadEvents();
+
+    try {
+      const token = await readSessionToken();
+      if (!token) throw new Error("Login richiesto: fai logout/login e riprova cancellazione.");
+      const response = await fetch("/api/events/delete", {
+        method: "POST",
+        cache: "no-store",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ id }),
+      });
+      const json = await response.json().catch(() => null);
+      if (!response.ok || !json?.ok) throw new Error(json?.error || "Supabase/API non ha confermato la cancellazione.");
+      setMessage("Evento cancellato da Supabase e dalla PWA. Non deve più riapparire.");
+      window.dispatchEvent(new CustomEvent("codm-server-notifications-changed"));
+      window.setTimeout(() => void loadEvents(), 250);
+    } catch (error) {
+      setMessage(error instanceof Error ? `Evento nascosto nella PWA, ma cancellazione cloud non confermata: ${error.message}` : "Evento nascosto nella PWA, ma cancellazione cloud non confermata.");
+    }
   }
 
   const eventsByDay = useMemo(() => {
@@ -1498,21 +1613,27 @@ export default function EventsPage() {
                 <div className="field">
                   <label>Team A</label>
                   <input
+                    ref={teamAInputRef}
                     className="input"
+                    name="teamAName"
+                    autoComplete="off"
+                    spellCheck={false}
                     value={plan.teamAName}
-                    onChange={(e) =>
-                      commitPlan((p) => ({ ...p, teamAName: e.target.value }))
-                    }
+                    onInput={(e) => updateTeamName("A", e.currentTarget.value)}
+                    onChange={(e) => updateTeamName("A", e.target.value)}
                   />
                 </div>
                 <div className="field">
                   <label>Team B</label>
                   <input
+                    ref={teamBInputRef}
                     className="input"
+                    name="teamBName"
+                    autoComplete="off"
+                    spellCheck={false}
                     value={plan.teamBName}
-                    onChange={(e) =>
-                      commitPlan((p) => ({ ...p, teamBName: e.target.value }))
-                    }
+                    onInput={(e) => updateTeamName("B", e.currentTarget.value)}
+                    onChange={(e) => updateTeamName("B", e.target.value)}
                   />
                 </div>
               </div>
@@ -1803,9 +1924,21 @@ export default function EventsPage() {
 
 function dedupeEvents(rows: CodmEvent[]) {
   const map = new Map<string, CodmEvent>();
+  const localKeyToId = new Map<string, string>();
   for (const row of rows) {
     if (!row?.id) continue;
+    const localKey = row.local_id ? String(row.local_id) : "";
+    if (localKey && localKeyToId.has(localKey)) {
+      const previousId = localKeyToId.get(localKey)!;
+      const previous = map.get(previousId);
+      const chosen = isUuid(row.id) || previous?.sync_status !== "synced" ? row : previous;
+      map.delete(previousId);
+      map.set(chosen.id, chosen);
+      localKeyToId.set(localKey, chosen.id);
+      continue;
+    }
     map.set(row.id, row);
+    if (localKey) localKeyToId.set(localKey, row.id);
   }
   return Array.from(map.values());
 }

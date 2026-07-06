@@ -1,4 +1,4 @@
-const CODM_CACHE = 'codm-ak47dx-pwa-v7-4-mobile-form-sync-cache-reset';
+const CODM_CACHE = 'codm-ak47dx-pwa-v7-5-deep-events-delete-opponent-sync';
 const CODM_OFFLINE_URL = '/offline.html';
 const CORE_ASSETS = [CODM_OFFLINE_URL, '/manifest.webmanifest', '/icons/icon-192.png', '/icons/icon-512.png', '/icons/icon-maskable-512.png'];
 
