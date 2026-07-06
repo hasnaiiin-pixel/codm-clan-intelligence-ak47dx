@@ -1,20 +1,21 @@
-# CODM AK47DX V6.0 — Stable Template Profile Editor
+# CODM AK47DX V6.1 — Import editor, template, profilo UI
 
-Versione pulita e controllata.
+Versione pulita basata su import risultati V5.4 FastLane stabile.
 
-## Marker
-- Frontend: `V6_0_STABLE_TEMPLATE_PROFILE_EDITOR_OK`
-- Backend OCR consigliato: `2.0.10-v5-4-fastlane-import-stabile-ak47dx`
+## Modifiche principali
+- Import risultati: riquadri modificabili direttamente sopra l'immagine con mouse/dito, come Calibrazione.
+- Import profilo: riquadri modificabili direttamente sopra l'immagine con mouse/dito.
+- Template OCR: telefono e nome template separati. Esempio: `iphone_17px` + `ced`, `postazione`, `dominio`, `profilo_base`.
+- Lista template: ora legge i nomi salvati dal contenuto del template, non dal suffisso errato della chiave localStorage.
+- Profilo utente: foto, cambio password, storico nome gioco, descrizione, Instagram, TikTok, YouTube, Discord, note e shortcut Import profilo.
+- Menu: rimosso `Entra nel clan`; clan unico associato automaticamente e gestibile da admin.
+- Stato OCR visibile solo Owner/Admin nel menu.
+- Statistiche clan ordinate come medagliere: Oro/MVP, Argento, Bronzo, Legno, Olimpico.
+- Root pulita: niente vecchi README patch.
 
-## Cambiamenti principali
-- Import partite V5.4 FastLane mantenuto stabile.
-- Data/ora partita selezionabile con campo `datetime-local`.
-- Gestione template separata: tipologia telefono + nome template.
-- Editor riquadri direttamente in Import risultati e Import profilo.
-- Import profilo con un solo tasto, progress visibile, fallback browser se Render profilo è lento.
-- Pagina `/profile` con foto, cambio password, collegamento player e storico cambio nome gioco.
-- Calendario eventi migliorato con sezione “Prossimi eventi in programma”.
-- Cartella root pulita: rimossi README storici e patch obsolete.
+## Backend OCR
+Per non rompere import risultati, la V6.1 accetta ancora backend stabile:
+`2.0.10-v5-4-fastlane-import-stabile-ak47dx`.
 
 ## Comandi
 ```bat
@@ -22,6 +23,10 @@ cd C:\Users\spea4060_tmv331ef\Documents\PROGETTI\COD\CODM_CLAN_INTELLIGENCE_2_0_
 npm ci --legacy-peer-deps
 npm run build
 git add -A
-git commit -m "fix: CODM v6.0 stable template profile editor"
+git commit -m "fix: CODM v6.1 import editor template profile ui"
 git push origin main
 ```
+
+## Marker
+Apri `/version` e verifica:
+`V6_1_IMPORT_EDITOR_TEMPLATE_PROFILE_UI_OK`

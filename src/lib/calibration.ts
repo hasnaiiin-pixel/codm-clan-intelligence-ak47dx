@@ -288,10 +288,11 @@ function readBundleFromStorage(
   meta: CalibrationTemplateMeta,
 ): CalibrationTemplateBundle | null {
   if (typeof window === "undefined") return null;
+  const exactPhone = slug(phone);
   const keys = [
-    storageKey(kind, phone),
-    storageKey(kind, phone, "anonymous"),
-    lastActiveKey(kind, phone),
+    storageKey(kind, exactPhone),
+    storageKey(kind, exactPhone, "anonymous"),
+    lastActiveKey(kind, exactPhone),
     canonicalKey(kind),
     latestSavedKey(kind),
   ];
@@ -301,12 +302,11 @@ function readBundleFromStorage(
       defaults,
       meta,
     );
-    if (bundle) return bundle;
+    if (bundle && slug(bundle.meta?.phoneProfile || exactPhone) === exactPhone) return bundle;
   }
-  return (
-    readLatestSavedBundle(kind, defaults, meta, phone) ||
-    readLatestSavedBundle(kind, defaults, meta, undefined)
-  );
+  // V6.1: non caricare piu un template casuale se telefono/template scelto non esiste.
+  // Questo evita che in Import compaia "default" o un template generico invece di CED/Postazione/Dominio.
+  return readLatestSavedBundle(kind, defaults, meta, exactPhone);
 }
 
 export function clampRegion(region: CalibratedRegion): CalibratedRegion {
@@ -421,11 +421,27 @@ export function listCalibrationPhoneProfiles(kind: CalibrationKind): string[] {
   if (typeof window === "undefined") return ["default"];
   const base = baseKey(kind);
   const found = new Set<string>(["default"]);
+  const lastPrefix = `${CALIBRATION_LAST_PREFIX}${kind}_`;
+
   for (let i = 0; i < window.localStorage.length; i += 1) {
     const key = window.localStorage.key(i) || "";
-    if (key.startsWith(`${base}_`)) found.add(key.split("_").slice(-1)[0]);
-    const lastPrefix = `${CALIBRATION_LAST_PREFIX}${kind}_`;
-    if (key.startsWith(lastPrefix)) found.add(key.slice(lastPrefix.length));
+    const raw = window.localStorage.getItem(key);
+    let parsedPhone = "";
+    try {
+      const parsed = raw ? JSON.parse(raw) : null;
+      if (parsed?.meta?.kind === kind && parsed?.meta?.phoneProfile) {
+        parsedPhone = slug(parsed.meta.phoneProfile);
+      }
+    } catch {
+      parsedPhone = "";
+    }
+    if (parsedPhone) {
+      found.add(parsedPhone);
+      continue;
+    }
+    // Supporto vecchi salvataggi senza meta JSON.
+    if (key.startsWith(lastPrefix)) found.add(slug(key.slice(lastPrefix.length)));
+    if (key.startsWith(`${base}_anonymous_`)) found.add(slug(key.slice(`${base}_anonymous_`.length)));
   }
   return Array.from(found).filter(Boolean).sort();
 }
@@ -436,24 +452,20 @@ export function hasSavedCalibration(
 ): boolean {
   if (typeof window === "undefined") return false;
   const phone = slug(phoneProfile || getActivePhoneProfile(kind));
-  const directKeys = [
-    storageKey(kind, phone),
-    storageKey(kind, phone, "anonymous"),
-    lastActiveKey(kind, phone),
-    canonicalKey(kind),
-    latestSavedKey(kind),
-  ];
+  const directKeys = [storageKey(kind, phone), storageKey(kind, phone, "anonymous"), lastActiveKey(kind, phone)];
   if (directKeys.some((key) => !!window.localStorage.getItem(key))) return true;
-  const base = baseKey(kind);
-  for (let i = 0; i < window.localStorage.length; i += 1) {
-    const key = window.localStorage.key(i) || "";
-    if (
-      key.startsWith(base) ||
-      key.startsWith(`${CALIBRATION_LAST_PREFIX}${kind}_`)
-    )
-      return true;
-  }
-  return false;
+  const defaults = defaultCalibration(kind);
+  const meta: CalibrationTemplateMeta = {
+    kind,
+    templateName: kind === "profile_base" ? "Profilo base" : "Scoreboard CED",
+    phoneProfile: phone,
+    ownerUserId: getActiveUserId(),
+    ownerName: getActiveUserName(),
+    updatedAt: new Date().toISOString(),
+    version: 3,
+    coordinateSpace: "content_frame_v1",
+  };
+  return Boolean(readLatestSavedBundle(kind, defaults, meta, phone));
 }
 
 export function getBestCalibrationPhoneProfile(kind: CalibrationKind): string {

@@ -131,10 +131,10 @@ export default function AnalyticsPage() {
   const mvpPie = useMemo(() => groupPie(filteredRows.filter((r) => r.mvp_type).map((r) => ({ key: r.nickname_resolved || r.nickname_raw || r.players?.nickname || 'MVP non letto' }))), [filteredRows]);
 
   const clanSummary = useMemo(() => {
-    const grouped = new Map<string, { clan: string; players: Set<string>; kills: number; deaths: number; assists: number; mvp: number; rows: number; gold: number; silver: number; bronze: number; rankSum: number; rankCount: number }>();
+    const grouped = new Map<string, { clan: string; players: Set<string>; kills: number; deaths: number; assists: number; mvp: number; rows: number; gold: number; silver: number; bronze: number; wood: number; olympic: number; rankSum: number; rankCount: number }>();
     for (const row of filteredRows) {
       const clan = row.players?.clan_name || 'Senza clan';
-      const item = grouped.get(clan) || { clan, players: new Set<string>(), kills: 0, deaths: 0, assists: 0, mvp: 0, rows: 0, gold: 0, silver: 0, bronze: 0, rankSum: 0, rankCount: 0 };
+      const item = grouped.get(clan) || { clan, players: new Set<string>(), kills: 0, deaths: 0, assists: 0, mvp: 0, rows: 0, gold: 0, silver: 0, bronze: 0, wood: 0, olympic: 0, rankSum: 0, rankCount: 0 };
       item.players.add(row.player_id || row.nickname_resolved || row.nickname_raw || row.id);
       item.kills += row.kills || 0;
       item.deaths += row.deaths || 0;
@@ -143,18 +143,20 @@ export default function AnalyticsPage() {
       if (row.team_rank === 1) item.gold += 1;
       if (row.team_rank === 2) item.silver += 1;
       if (row.team_rank === 3) item.bronze += 1;
+      if (row.team_rank === 4) item.wood += 1;
+      if (row.team_rank === 5) item.olympic += 1;
       if (row.team_rank) { item.rankSum += row.team_rank; item.rankCount += 1; }
       if (row.mvp_type) item.mvp += 1;
       grouped.set(clan, item);
     }
-    return Array.from(grouped.values()).map((x) => ({ ...x, playerCount: x.players.size, kd: kdRatio(x.kills, x.deaths), avgRank: x.rankCount ? (x.rankSum / x.rankCount).toFixed(1) : '-' })).sort((a, b) => b.kills - a.kills);
+    return Array.from(grouped.values()).map((x) => ({ ...x, playerCount: x.players.size, kd: kdRatio(x.kills, x.deaths), avgRank: x.rankCount ? (x.rankSum / x.rankCount).toFixed(1) : '-' })).sort((a, b) => b.gold - a.gold || b.silver - a.silver || b.bronze - a.bronze || b.wood - a.wood || b.olympic - a.olympic || b.mvp - a.mvp || b.kills - a.kills);
   }, [filteredRows]);
 
   const topPlayers = useMemo(() => {
-    const grouped = new Map<string, { name: string; clan: string; kills: number; deaths: number; assists: number; mvp: number; rows: number; rankSum: number; rankCount: number; gold: number; silver: number; bronze: number }>();
+    const grouped = new Map<string, { name: string; clan: string; kills: number; deaths: number; assists: number; mvp: number; rows: number; rankSum: number; rankCount: number; gold: number; silver: number; bronze: number; wood: number; olympic: number }>();
     for (const row of filteredRows) {
       const key = row.player_id || row.nickname_resolved || row.nickname_raw || row.id;
-      const item = grouped.get(key) || { name: row.nickname_resolved || row.nickname_raw || row.players?.nickname || 'Player non letto', clan: row.players?.clan_name || 'Senza clan', kills: 0, deaths: 0, assists: 0, mvp: 0, rows: 0, rankSum: 0, rankCount: 0, gold: 0, silver: 0, bronze: 0 };
+      const item = grouped.get(key) || { name: row.nickname_resolved || row.nickname_raw || row.players?.nickname || 'Player non letto', clan: row.players?.clan_name || 'Senza clan', kills: 0, deaths: 0, assists: 0, mvp: 0, rows: 0, rankSum: 0, rankCount: 0, gold: 0, silver: 0, bronze: 0, wood: 0, olympic: 0 };
       item.kills += row.kills || 0;
       item.deaths += row.deaths || 0;
       item.assists += row.assists || 0;
@@ -163,10 +165,12 @@ export default function AnalyticsPage() {
       if (row.team_rank === 1) item.gold += 1;
       if (row.team_rank === 2) item.silver += 1;
       if (row.team_rank === 3) item.bronze += 1;
+      if (row.team_rank === 4) item.wood += 1;
+      if (row.team_rank === 5) item.olympic += 1;
       if (row.mvp_type) item.mvp += 1;
       grouped.set(key, item);
     }
-    return Array.from(grouped.values()).map((x) => ({ ...x, kd: kdRatio(x.kills, x.deaths), avgRank: x.rankCount ? (x.rankSum / x.rankCount).toFixed(1) : '-' })).sort((a, b) => b.kills - a.kills).slice(0, 12);
+    return Array.from(grouped.values()).map((x) => ({ ...x, kd: kdRatio(x.kills, x.deaths), avgRank: x.rankCount ? (x.rankSum / x.rankCount).toFixed(1) : '-' })).sort((a, b) => b.gold - a.gold || b.silver - a.silver || b.bronze - a.bronze || b.wood - a.wood || b.olympic - a.olympic || b.mvp - a.mvp || b.kills - a.kills).slice(0, 12);
   }, [filteredRows]);
 
   function PieCard({ title, slices }: { title: string; slices: PieSlice[] }) {
@@ -212,9 +216,9 @@ export default function AnalyticsPage() {
       <section className="grid grid-2 top-gap">
         <PieCard title="Distribuzione MVP" slices={mvpPie} />
         <div className="card">
-          <h2>Statistiche per clan</h2>
+          <h2>Statistiche per clan · medagliere MVP</h2><p className="muted">Ordinato come medagliere: 🥇 Oro/MVP, 🥈 Argento, 🥉 Bronzo, 🪵 Legno, 🏛️ Olimpico.</p>
           <div className="table-scroll">
-            <table className="table compact"><thead><tr><th>Clan</th><th>Player</th><th>Righe</th><th>Kill</th><th>Death</th><th>Assist</th><th>K/D</th><th>🥇</th><th>🥈</th><th>🥉</th><th>Pos. media</th><th>MVP</th></tr></thead><tbody>{clanSummary.map((c) => <tr key={c.clan}><td>{c.clan}</td><td>{c.playerCount}</td><td>{c.rows}</td><td>{c.kills}</td><td>{c.deaths}</td><td>{c.assists}</td><td>{c.kd}</td><td>{c.gold}</td><td>{c.silver}</td><td>{c.bronze}</td><td>{c.avgRank}</td><td>{c.mvp}</td></tr>)}{!clanSummary.length && <tr><td colSpan={12} className="muted">Nessun dato clan.</td></tr>}</tbody></table>
+            <table className="table compact"><thead><tr><th>Clan</th><th>Player</th><th>Righe</th><th>Kill</th><th>Death</th><th>Assist</th><th>K/D</th><th>🥇</th><th>🥈</th><th>🥉</th><th>🪵</th><th>🏛️</th><th>Pos. media</th><th>MVP</th></tr></thead><tbody>{clanSummary.map((c) => <tr key={c.clan}><td>{c.clan}</td><td>{c.playerCount}</td><td>{c.rows}</td><td>{c.kills}</td><td>{c.deaths}</td><td>{c.assists}</td><td>{c.kd}</td><td>{c.gold}</td><td>{c.silver}</td><td>{c.bronze}</td><td>{c.wood}</td><td>{c.olympic}</td><td>{c.avgRank}</td><td>{c.mvp}</td></tr>)}{!clanSummary.length && <tr><td colSpan={14} className="muted">Nessun dato clan.</td></tr>}</tbody></table>
           </div>
         </div>
       </section>
@@ -222,7 +226,7 @@ export default function AnalyticsPage() {
       <section className="card top-gap">
         <h2>Top player filtrati</h2>
         <div className="table-scroll">
-          <table className="table compact"><thead><tr><th>Player</th><th>Clan</th><th>Match/Righe</th><th>Kill</th><th>Death</th><th>Assist</th><th>K/D</th><th>🥇 Oro</th><th>🥈 Argento</th><th>🥉 Bronzo</th><th>MVP</th><th>Pos. media</th></tr></thead><tbody>{topPlayers.map((p) => <tr key={`${p.name}-${p.clan}`}><td>{p.name}</td><td>{p.clan}</td><td>{p.rows}</td><td>{p.kills}</td><td>{p.deaths}</td><td>{p.assists}</td><td>{p.kd}</td><td>{p.gold}</td><td>{p.silver}</td><td>{p.bronze}</td><td>{p.mvp}</td><td>{p.avgRank}</td></tr>)}{!topPlayers.length && <tr><td colSpan={12} className="muted">Nessun player trovato.</td></tr>}</tbody></table>
+          <table className="table compact"><thead><tr><th>Player</th><th>Clan</th><th>Match/Righe</th><th>Kill</th><th>Death</th><th>Assist</th><th>K/D</th><th>🥇 Oro</th><th>🥈 Argento</th><th>🥉 Bronzo</th><th>🪵 Legno</th><th>🏛️ Olimpico</th><th>MVP</th><th>Pos. media</th></tr></thead><tbody>{topPlayers.map((p) => <tr key={`${p.name}-${p.clan}`}><td>{p.name}</td><td>{p.clan}</td><td>{p.rows}</td><td>{p.kills}</td><td>{p.deaths}</td><td>{p.assists}</td><td>{p.kd}</td><td>{p.gold}</td><td>{p.silver}</td><td>{p.bronze}</td><td>{p.wood}</td><td>{p.olympic}</td><td>{p.mvp}</td><td>{p.avgRank}</td></tr>)}{!topPlayers.length && <tr><td colSpan={14} className="muted">Nessun player trovato.</td></tr>}</tbody></table>
         </div>
       </section>
     </main>

@@ -17,7 +17,6 @@ const navItems: NavItem[] = [
   { href: '/clan', label: 'Clan HQ', emoji: '🛡️', group: 'Pubblico', audience: 'public' },
   { href: '/events', label: 'Eventi', emoji: '📅', group: 'Pubblico', audience: 'public' },
   { href: '/loadouts', label: 'Loadout', emoji: '🔫', group: 'Pubblico', audience: 'public' },
-  { href: '/join', label: 'Entra nel clan', emoji: '➕', group: 'Player', audience: 'public' },
   { href: '/notifications', label: 'Notifiche', emoji: '🔔', group: 'Player', audience: 'player' },
   { href: '/profile', label: 'Mio profilo', emoji: '🪪', group: 'Player', audience: 'player' },
   { href: '/profile-import', label: 'Profilo player', emoji: '📇', group: 'Player', audience: 'player' },
@@ -27,7 +26,7 @@ const navItems: NavItem[] = [
   { href: '/calibration', label: 'Calibrazione OCR', emoji: '🎯', group: 'Staff / Coach', audience: 'write' },
   { href: '/admin/users', label: 'Gestione utenti', emoji: '🔐', group: 'Owner', audience: 'owner' },
   { href: '/deploy', label: 'Deploy', emoji: '🚀', group: 'Owner', audience: 'owner' },
-  { href: '/ocr-status', label: 'Stato OCR', emoji: '🤖', group: 'Sistema', audience: 'system' },
+  { href: '/ocr-status', label: 'Stato OCR', emoji: '🤖', group: 'Owner', audience: 'owner' },
   { href: '/version', label: 'Versione', emoji: '✅', group: 'Sistema', audience: 'system' },
   { href: '/cache-reset', label: 'Reset cache', emoji: '🧹', group: 'Sistema', audience: 'system' },
 ];

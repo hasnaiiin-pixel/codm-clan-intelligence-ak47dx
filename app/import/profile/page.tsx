@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { supabase } from '@/lib/supabaseClient';
 import { parseCodmProfileText, type ParsedProfileStats } from '@/lib/ocrParsers';
 import { recognizeCodmImage } from '@/lib/codmOcrEngine';
@@ -17,6 +17,7 @@ import { getOcrBackendCandidates } from '@/lib/ocrBackend';
 import {
   detectImageContentFrameFromUrl,
   frameToStyle,
+  imagePointToFrameNorm,
   regionToImageStyle,
   type ImageContentFrame,
   FULL_IMAGE_FRAME,
@@ -53,6 +54,8 @@ type BackendProfileResult = {
 };
 
 type FrameNudge = { x: number; y: number; w: number; h: number };
+type DragMode = 'move' | 'resize';
+type DragState = { name: string; mode: DragMode; startX: number; startY: number; start: CalibratedRegion; handle?: 'se' | 'sw' | 'ne' | 'nw' } | null;
 
 function slug(value: string) {
   return (value || 'default').toLowerCase().replace(/[^a-z0-9_-]+/g, '_').replace(/^_+|_+$/g, '') || 'default';
@@ -150,6 +153,8 @@ export default function ImportProfilePage() {
 
   const activeKey = useMemo(() => joinPhoneTemplate(phone, template), [phone, template]);
   const activeFrame = useMemo(() => adjustFrame(imageFrame, frameNudge), [imageFrame, frameNudge]);
+  const imageWrapRef = useRef<HTMLDivElement | null>(null);
+  const dragRef = useRef<DragState>(null);
 
   function refreshTemplateLists(nextPhone?: string, nextTemplate?: string) {
     const profiles = listCalibrationPhoneProfiles('profile_base');
@@ -157,7 +162,10 @@ export default function ImportProfilePage() {
     const phones = uniqueSorted(['default', ...parsed.map((x) => x.phone)]);
     const chosenPhone = slug(nextPhone || phone || splitPhoneTemplate(getActivePhoneProfile('profile_base')).phone || 'default');
     const templates = uniqueSorted(['default', ...parsed.filter((x) => x.phone === chosenPhone).map((x) => x.template)]);
-    const chosenTemplate = slug(nextTemplate || template || templates[0] || 'default');
+    const previousTemplate = template || splitPhoneTemplate(getActivePhoneProfile('profile_base')).template || 'default';
+    const chosenTemplate = nextTemplate !== undefined
+      ? slug(nextTemplate)
+      : (templates.includes(previousTemplate) ? previousTemplate : (templates.find((t) => t !== 'default') || 'default'));
     setCalibrationPhones(phones);
     setCalibrationTemplates(templates.includes(chosenTemplate) ? templates : uniqueSorted([...templates, chosenTemplate]));
     setPhone(chosenPhone);
@@ -179,6 +187,57 @@ export default function ImportProfilePage() {
     const region = templateRegions.find((r) => r.name === name);
     if (!region) return;
     updateProfileRegion(name, { x: region.x + dx, y: region.y + dy, w: region.w + dw, h: region.h + dh });
+  }
+
+
+  function pointerToNorm(event: PointerEvent | React.PointerEvent) {
+    const rect = imageWrapRef.current?.getBoundingClientRect();
+    if (!rect) return { x: 0, y: 0 };
+    const px = (event.clientX - rect.left) / rect.width;
+    const py = (event.clientY - rect.top) / rect.height;
+    return imagePointToFrameNorm(px, py, activeFrame);
+  }
+
+  function startProfileRegionDrag(event: React.PointerEvent, region: CalibratedRegion, mode: DragMode, handle?: 'se' | 'sw' | 'ne' | 'nw') {
+    event.preventDefault();
+    event.stopPropagation();
+    setSelectedProfileRegionName(region.name);
+    const point = pointerToNorm(event);
+    dragRef.current = { name: region.name, mode, startX: point.x, startY: point.y, start: region, handle };
+    window.addEventListener('pointermove', onGlobalPointerMove);
+    window.addEventListener('pointerup', stopProfileRegionDrag);
+  }
+
+  function onGlobalPointerMove(event: PointerEvent) {
+    const drag = dragRef.current;
+    if (!drag) return;
+    const point = pointerToNorm(event);
+    const dx = point.x - drag.startX;
+    const dy = point.y - drag.startY;
+    const r = drag.start;
+    let nx = r.x;
+    let ny = r.y;
+    let nw = r.w;
+    let nh = r.h;
+    if (drag.mode === 'move') {
+      nx = r.x + dx;
+      ny = r.y + dy;
+    } else if (drag.handle === 'se') {
+      nw = r.w + dx; nh = r.h + dy;
+    } else if (drag.handle === 'sw') {
+      nx = r.x + dx; nw = r.w - dx; nh = r.h + dy;
+    } else if (drag.handle === 'ne') {
+      ny = r.y + dy; nw = r.w + dx; nh = r.h - dy;
+    } else if (drag.handle === 'nw') {
+      nx = r.x + dx; ny = r.y + dy; nw = r.w - dx; nh = r.h - dy;
+    }
+    updateProfileRegion(drag.name, { x: nx, y: ny, w: nw, h: nh });
+  }
+
+  function stopProfileRegionDrag() {
+    dragRef.current = null;
+    window.removeEventListener('pointermove', onGlobalPointerMove);
+    window.removeEventListener('pointerup', stopProfileRegionDrag);
   }
 
   function saveProfileTemplateFromImport() {
@@ -473,12 +532,22 @@ export default function ImportProfilePage() {
         <div className="card">
           <h2>Screenshot e template</h2>
           {imageUrl ? (
-            <div className="ocr-image-wrap profile-image-tall">
+            <div className="ocr-image-wrap profile-image-tall" ref={imageWrapRef}>
               <img className="preview ocr-overlay-image" src={imageUrl} alt="Screenshot profilo" />
               <div className="cal-content-frame" style={frameToStyle(activeFrame)} />
-              {useCalibrationTemplate && templateRegions.map((region) => (
-                <div key={region.name} className="ocr-template-box ocr-template-neutral" title={`TEMPLATE PROFILO: ${region.name}`} style={regionToImageStyle(region, activeFrame)} />
-              ))}
+              {useCalibrationTemplate && <div className="ocr-template-layer editable">{templateRegions.map((region) => (
+                <div
+                  key={region.name}
+                  className={`ocr-template-box cal-rect ocr-template-neutral ${selectedProfileRegionName === region.name ? 'active' : ''}`}
+                  title={`TRASCINA/ALLARGA PROFILO: ${region.label || region.name}`}
+                  style={regionToImageStyle(region, activeFrame)}
+                  onPointerDown={(e) => startProfileRegionDrag(e, region, 'move')}
+                  onClick={() => setSelectedProfileRegionName(region.name)}
+                >
+                  <span>{region.label || region.name}</span>
+                  {(['nw', 'ne', 'sw', 'se'] as const).map((handle) => <i key={handle} className={`cal-handle ${handle}`} onPointerDown={(e) => startProfileRegionDrag(e, region, 'resize', handle)} />)}
+                </div>
+              ))}</div>}
               {!!backendBoxes.length && <div className="ocr-overlay-layer">{backendBoxes.map((box, index) => <div key={`${box.name}-${index}`} className="ocr-box ocr-box-neutral" title={`BACKEND: ${box.name} | ${box.role}`} style={{ left: `${box.x_norm * 100}%`, top: `${box.y_norm * 100}%`, width: `${box.w_norm * 100}%`, height: `${box.h_norm * 100}%` }} />)}</div>}
             </div>
           ) : <div className="empty-state">Carica screenshot profilo CODM.</div>}
@@ -489,7 +558,7 @@ export default function ImportProfilePage() {
           <div className="grid grid-2 top-gap">
             <div className="field"><label>Tipo screenshot</label><select className="select" value={importType} onChange={(e) => setImportType(e.target.value as ProfileImportType)}>{importTypes.map((x) => <option key={x.value} value={x.value}>{x.label}</option>)}</select><small className="muted">{importTypes.find((x) => x.value === importType)?.hint}</small></div>
             <div className="field"><label>Usa calibrazione</label><select className="select" value={useCalibrationTemplate ? 'yes' : 'no'} onChange={(e) => setUseCalibrationTemplate(e.target.value === 'yes')}><option value="yes">Sì, usa template</option><option value="no">No, solo automatico</option></select></div>
-            <div className="field"><label>Tipologia telefono</label><select className="select" value={phone} onChange={(e) => refreshTemplateLists(e.target.value, 'default')}>{calibrationPhones.map((p) => <option key={p} value={p}>{p}</option>)}</select></div>
+            <div className="field"><label>Tipologia telefono</label><select className="select" value={phone} onChange={(e) => refreshTemplateLists(e.target.value)}>{calibrationPhones.map((p) => <option key={p} value={p}>{p}</option>)}</select></div>
             <div className="field"><label>Tipologia template</label><select className="select" value={template} onChange={(e) => refreshTemplateLists(phone, e.target.value)}>{calibrationTemplates.map((t) => <option key={t} value={t}>{t}</option>)}</select></div>
           </div>
 
@@ -507,20 +576,12 @@ export default function ImportProfilePage() {
             </div>
             <small className="muted">Questa centratura sposta il frame inviato al backend senza modificare il template salvato.</small>
           </details>
-          <details className="top-gap">
-            <summary>🧩 Regola riquadri direttamente in Import profilo</summary>
+          <details className="top-gap" open>
+            <summary>🧩 Regola riquadri profilo direttamente sull'immagine</summary>
+            <div className="notice top-gap">Clicca un riquadro nello screenshot profilo, trascinalo con mouse/dito e ridimensionalo dagli angoli. Poi salva il template telefono + nome template.</div>
             <div className="grid grid-2 top-gap">
-              <div className="field"><label>Riquadro profilo</label><select className="select" value={selectedProfileRegionName} onChange={(e) => setSelectedProfileRegionName(e.target.value)}>{templateRegions.map((r) => <option key={r.name} value={r.name}>{r.label || r.name}</option>)}</select></div>
+              <div className="field"><label>Riquadro selezionato</label><select className="select" value={selectedProfileRegionName} onChange={(e) => setSelectedProfileRegionName(e.target.value)}>{templateRegions.map((r) => <option key={r.name} value={r.name}>{r.label || r.name}</option>)}</select></div>
               <div className="field"><label>Salvataggio template</label><button className="btn small" type="button" onClick={saveProfileTemplateFromImport}>💾 Salva riquadri profilo</button><small className="muted">Salva per telefono + tipologia template scelti sopra.</small></div>
-            </div>
-            <div className="cal-buttons top-gap">
-              <button className="btn small secondary" type="button" onClick={() => nudgeProfileRegion(selectedProfileRegionName, 0, -0.003)}>Riquadro ↑</button>
-              <button className="btn small secondary" type="button" onClick={() => nudgeProfileRegion(selectedProfileRegionName, 0, 0.003)}>Riquadro ↓</button>
-              <button className="btn small secondary" type="button" onClick={() => nudgeProfileRegion(selectedProfileRegionName, -0.003, 0)}>Riquadro ←</button>
-              <button className="btn small secondary" type="button" onClick={() => nudgeProfileRegion(selectedProfileRegionName, 0.003, 0)}>Riquadro →</button>
-              <button className="btn small secondary" type="button" onClick={() => nudgeProfileRegion(selectedProfileRegionName, 0, 0, 0.004, 0.004)}>Allarga cella</button>
-              <button className="btn small secondary" type="button" onClick={() => nudgeProfileRegion(selectedProfileRegionName, 0, 0, -0.004, -0.004)}>Stringi cella</button>
-              <button className="btn small secondary" type="button" onClick={() => refreshTemplateLists(phone, template)}>Annulla modifiche non salvate</button>
             </div>
           </details>
           {message && <div className="notice top-gap">{message}</div>}

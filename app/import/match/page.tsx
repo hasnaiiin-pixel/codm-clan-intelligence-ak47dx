@@ -3,13 +3,13 @@ import { useCodmAuth } from '@/lib/authRoles';
 import { WriteAccessBlock } from '@/components/WriteAccessBlock';
 
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { supabase } from '@/lib/supabaseClient';
 import { findBestNicknameMatch, type ParsedScoreRow } from '@/lib/ocrParsers';
 import { calculatePlayerRating } from '@/lib/statistics';
 import { clampRegion, getBestCalibrationPhoneProfile, hasSavedCalibration, listCalibrationPhones, listCalibrationTemplatesForPhone, loadCalibrationBundle, makeCalibrationProfileKey, saveCalibration, setActivePhoneProfile, setActiveUserContext, splitCalibrationProfileKey, type CalibratedRegion } from '@/lib/calibration';
 import { ACCEPTED_OCR_BACKEND_VERSIONS, EXPECTED_OCR_BACKEND_VERSION, getOcrBackendCandidates } from '@/lib/ocrBackend';
-import { FULL_IMAGE_FRAME, detectImageContentFrameFromUrl, regionToImageStyle, type ImageContentFrame } from '@/lib/imageFrame';
+import { FULL_IMAGE_FRAME, detectImageContentFrameFromUrl, imagePointToFrameNorm, regionToImageStyle, type ImageContentFrame } from '@/lib/imageFrame';
 import type { GameMode, MatchResult, MatchType, Player, TeamSide } from '@/lib/types';
 
 const modes: GameMode[] = ['CED', 'TDM', 'PRIMA_LINEA', 'DOMINIO', 'POSTAZIONE', 'KILL_CONFIRMED', 'BR_SOLO', 'BR_DUO', 'BR_SQUAD'];
@@ -75,6 +75,8 @@ type BackendOcrResult = {
 };
 
 type FrameNudge = { x: number; y: number; w: number; h: number };
+type DragMode = 'move' | 'resize';
+type DragState = { name: string; mode: DragMode; startX: number; startY: number; start: CalibratedRegion; handle?: 'se' | 'sw' | 'ne' | 'nw' } | null;
 function applyFrameNudge(frame: ImageContentFrame, nudge: FrameNudge): ImageContentFrame {
   const x = Math.max(0, Math.min(0.98, frame.x + nudge.x));
   const y = Math.max(0, Math.min(0.98, frame.y + nudge.y));
@@ -241,13 +243,19 @@ function ImportMatchEditor() {
   const [winningTeam, setWinningTeam] = useState<'blue' | 'red' | 'draw' | ''>('');
   const [working, setWorking] = useState(false);
   const [ocrProgressPct, setOcrProgressPct] = useState(0);
+  const imageWrapRef = useRef<HTMLDivElement | null>(null);
+  const dragRef = useRef<DragState>(null);
+  const activeFrame = useMemo(() => applyFrameNudge(imageContentFrame, frameNudge), [imageContentFrame, frameNudge]);
 
   function refreshCalibrationTemplate(phoneRaw?: string, templateRaw?: string) {
     const phoneInput = phoneRaw || selectedCalibrationPhone || splitCalibrationProfileKey(getBestCalibrationPhoneProfile('scoreboard_ced')).phone;
-    const templateInput = templateRaw || selectedCalibrationTemplate || splitCalibrationProfileKey(getBestCalibrationPhoneProfile('scoreboard_ced')).template;
-    const key = makeCalibrationProfileKey(phoneInput, templateInput);
     const phoneOptions = listCalibrationPhones('scoreboard_ced');
     const templateOptions = listCalibrationTemplatesForPhone('scoreboard_ced', phoneInput);
+    const previousTemplate = selectedCalibrationTemplate || splitCalibrationProfileKey(getBestCalibrationPhoneProfile('scoreboard_ced')).template;
+    const templateInput = templateRaw !== undefined
+      ? templateRaw
+      : (templateOptions.includes(previousTemplate) ? previousTemplate : (templateOptions.find((t) => t !== 'default') || 'default'));
+    const key = makeCalibrationProfileKey(phoneInput, templateInput);
     setCalibrationPhoneOptions(Array.from(new Set([...phoneOptions, phoneInput])).sort());
     setCalibrationTemplateOptions(Array.from(new Set([...templateOptions, templateInput])).sort());
     setSelectedCalibrationPhone(phoneInput);
@@ -281,6 +289,57 @@ function ImportMatchEditor() {
     const region = localTemplateRegions.find((r) => r.name === name);
     if (!region) return;
     updateImportRegion(name, { x: region.x + dx, y: region.y + dy, w: region.w + dw, h: region.h + dh });
+  }
+
+
+  function pointerToNorm(event: PointerEvent | React.PointerEvent) {
+    const rect = imageWrapRef.current?.getBoundingClientRect();
+    if (!rect) return { x: 0, y: 0 };
+    const px = (event.clientX - rect.left) / rect.width;
+    const py = (event.clientY - rect.top) / rect.height;
+    return imagePointToFrameNorm(px, py, activeFrame);
+  }
+
+  function startRegionDrag(event: React.PointerEvent, region: CalibratedRegion, mode: DragMode, handle?: 'se' | 'sw' | 'ne' | 'nw') {
+    event.preventDefault();
+    event.stopPropagation();
+    setSelectedImportRegionName(region.name);
+    const point = pointerToNorm(event);
+    dragRef.current = { name: region.name, mode, startX: point.x, startY: point.y, start: region, handle };
+    window.addEventListener('pointermove', onGlobalPointerMove);
+    window.addEventListener('pointerup', stopRegionDrag);
+  }
+
+  function onGlobalPointerMove(event: PointerEvent) {
+    const drag = dragRef.current;
+    if (!drag) return;
+    const point = pointerToNorm(event);
+    const dx = point.x - drag.startX;
+    const dy = point.y - drag.startY;
+    const r = drag.start;
+    let nx = r.x;
+    let ny = r.y;
+    let nw = r.w;
+    let nh = r.h;
+    if (drag.mode === 'move') {
+      nx = r.x + dx;
+      ny = r.y + dy;
+    } else if (drag.handle === 'se') {
+      nw = r.w + dx; nh = r.h + dy;
+    } else if (drag.handle === 'sw') {
+      nx = r.x + dx; nw = r.w - dx; nh = r.h + dy;
+    } else if (drag.handle === 'ne') {
+      ny = r.y + dy; nw = r.w + dx; nh = r.h - dy;
+    } else if (drag.handle === 'nw') {
+      nx = r.x + dx; ny = r.y + dy; nw = r.w - dx; nh = r.h - dy;
+    }
+    updateImportRegion(drag.name, { x: nx, y: ny, w: nw, h: nh });
+  }
+
+  function stopRegionDrag() {
+    dragRef.current = null;
+    window.removeEventListener('pointermove', onGlobalPointerMove);
+    window.removeEventListener('pointerup', stopRegionDrag);
   }
 
   useEffect(() => {
@@ -502,7 +561,7 @@ function ImportMatchEditor() {
           setMessage(`ATTENZIONE: stai usando il template DEFAULT non salvato (${activeTemplate.phone}). Apri /calibration, salva il template corretto e poi torna qui. Importo comunque per revisione manuale.`);
         }
         formData.append('calibration_template', JSON.stringify(activeTemplate.bundle));
-        formData.append('calibration_frame', JSON.stringify(applyFrameNudge(imageContentFrame, frameNudge)));
+        formData.append('calibration_frame', JSON.stringify(activeFrame));
         formData.append('calibration_mode', 'content_frame');
         formData.append('template_source', activeTemplate.saved ? `saved_canonical_template_v5_4:${activeTemplate.bundle.meta?.phoneProfile || activeTemplate.phone}` : 'default_template_not_saved');
       }
@@ -628,7 +687,7 @@ function ImportMatchEditor() {
       our_team: ourTeam,
       match_notes: matchNotes || null,
       match_date: matchDateLocal ? new Date(matchDateLocal).toISOString() : (parseBackendMatchDate(matchDateText) || new Date().toISOString()),
-      notes: `${matchNotes ? `${matchNotes}\n\n` : ''}Import risultati 2.0. Screenshot prova=${screenshotPath || screenshotUrl || 'non caricato'}. Template=${useCalibrationTemplate ? `${selectedCalibrationPhone}/${calibrationMode}/frame=${applyFrameNudge(imageContentFrame, frameNudge).reason}` : 'OFF'}. OurTeam=${ourTeam}. WinningTeam=${winningTeam || '-'}. MatchDateText=${matchDateText || '-'}; MatchDateLocal=${matchDateLocal || '-'}.`
+      notes: `${matchNotes ? `${matchNotes}\n\n` : ''}Import risultati 2.0. Screenshot prova=${screenshotPath || screenshotUrl || 'non caricato'}. Template=${useCalibrationTemplate ? `${selectedCalibrationPhone}/${calibrationMode}/frame=${activeFrame.reason}` : 'OFF'}. OurTeam=${ourTeam}. WinningTeam=${winningTeam || '-'}. MatchDateText=${matchDateText || '-'}; MatchDateLocal=${matchDateLocal || '-'}.`
     }).select('id').single();
 
     if (matchError || !match) return setMessage(matchError?.message || 'Partita non creata.');
@@ -815,17 +874,22 @@ function ImportMatchEditor() {
         <div className="card">
           <h2>Screenshot prova</h2>
           {imageUrl ? (
-            <div className="ocr-image-wrap">
+            <div className="ocr-image-wrap" ref={imageWrapRef}>
               <img className="preview ocr-overlay-image" src={imageUrl} alt="Scoreboard" />
               {useCalibrationTemplate && !!localTemplateRegions.length && (
-                <div className="ocr-template-layer" aria-label="Template salvato applicato localmente">
+                <div className="ocr-template-layer editable" aria-label="Template salvato applicato localmente">
                   {localTemplateRegions.map((region) => (
                     <div
                       key={`tpl-${region.name}`}
-                      className={`ocr-template-box ${region.name.startsWith('BLUE') || region.name.includes('BLUE') ? 'ocr-template-blue' : region.name.startsWith('RED') || region.name.includes('RED') ? 'ocr-template-red' : 'ocr-template-neutral'} ${(ourTeam === 'blue' && region.name.startsWith('BLUE')) || (ourTeam === 'red' && region.name.startsWith('RED')) ? 'ocr-template-own' : ''}`}
-                      title={`TEMPLATE LOCALE: ${region.name}`}
-                      style={regionToImageStyle(region, applyFrameNudge(imageContentFrame, frameNudge))}
-                    />
+                      className={`ocr-template-box cal-rect ${selectedImportRegionName === region.name ? 'active' : ''} ${region.name.startsWith('BLUE') || region.name.includes('BLUE') ? 'ocr-template-blue' : region.name.startsWith('RED') || region.name.includes('RED') ? 'ocr-template-red' : 'ocr-template-neutral'} ${(ourTeam === 'blue' && region.name.startsWith('BLUE')) || (ourTeam === 'red' && region.name.startsWith('RED')) ? 'ocr-template-own' : ''}`}
+                      title={`TRASCINA/ALLARGA: ${region.label || region.name}`}
+                      style={regionToImageStyle(region, activeFrame)}
+                      onPointerDown={(e) => startRegionDrag(e, region, 'move')}
+                      onClick={() => setSelectedImportRegionName(region.name)}
+                    >
+                      <span>{region.label || region.name}</span>
+                      {(['nw', 'ne', 'sw', 'se'] as const).map((handle) => <i key={handle} className={`cal-handle ${handle}`} onPointerDown={(e) => startRegionDrag(e, region, 'resize', handle)} />)}
+                    </div>
                   ))}
                 </div>
               )}
@@ -857,20 +921,12 @@ function ImportMatchEditor() {
             </div>
             <small className="muted">Questa correzione sposta il frame inviato al backend senza cambiare il template salvato.</small>
           </details>
-          <details className="top-gap">
-            <summary>🧩 Regola riquadri direttamente in Import risultati</summary>
+          <details className="top-gap" open>
+            <summary>🧩 Regola riquadri direttamente sull'immagine</summary>
+            <div className="notice top-gap">Clicca un riquadro nello screenshot, trascinalo con mouse/dito e ridimensionalo dagli angoli. Non devi più scegliere dalla lista e usare i tasti freccia.</div>
             <div className="grid grid-2 top-gap">
-              <div className="field"><label>Riquadro da modificare</label><select className="select" value={selectedImportRegionName} onChange={(e) => setSelectedImportRegionName(e.target.value)}>{localTemplateRegions.map((r) => <option key={r.name} value={r.name}>{r.label || r.name}</option>)}</select></div>
-              <div className="field"><label>Salvataggio</label><button className="btn small" type="button" onClick={() => saveImportTemplateRegions()}>💾 Salva riquadri per questo telefono/template</button><small className="muted">Le modifiche restano disponibili anche in Calibrazione.</small></div>
-            </div>
-            <div className="cal-buttons top-gap">
-              <button className="btn small secondary" type="button" onClick={() => nudgeImportRegion(selectedImportRegionName, 0, -0.003)}>Riquadro ↑</button>
-              <button className="btn small secondary" type="button" onClick={() => nudgeImportRegion(selectedImportRegionName, 0, 0.003)}>Riquadro ↓</button>
-              <button className="btn small secondary" type="button" onClick={() => nudgeImportRegion(selectedImportRegionName, -0.003, 0)}>Riquadro ←</button>
-              <button className="btn small secondary" type="button" onClick={() => nudgeImportRegion(selectedImportRegionName, 0.003, 0)}>Riquadro →</button>
-              <button className="btn small secondary" type="button" onClick={() => nudgeImportRegion(selectedImportRegionName, 0, 0, 0.004, 0.004)}>Allarga cella</button>
-              <button className="btn small secondary" type="button" onClick={() => nudgeImportRegion(selectedImportRegionName, 0, 0, -0.004, -0.004)}>Stringi cella</button>
-              <button className="btn small secondary" type="button" onClick={() => refreshCalibrationTemplate(selectedCalibrationPhone, selectedCalibrationTemplate)}>Annulla modifiche non salvate</button>
+              <div className="field"><label>Riquadro selezionato</label><select className="select" value={selectedImportRegionName} onChange={(e) => setSelectedImportRegionName(e.target.value)}>{localTemplateRegions.map((r) => <option key={r.name} value={r.name}>{r.label || r.name}</option>)}</select></div>
+              <div className="field"><label>Salvataggio</label><button className="btn small" type="button" onClick={() => saveImportTemplateRegions()}>💾 Salva riquadri per questo telefono/template</button><small className="muted">Le modifiche vengono rilette anche dalla pagina Calibrazione.</small></div>
             </div>
           </details>
           {message && <div className="notice top-gap">{message}</div>}
@@ -878,8 +934,8 @@ function ImportMatchEditor() {
             <summary>⚙️ Impostazioni avanzate OCR</summary>
             <div className="grid grid-2 top-gap">
               <div className="field"><label>Usa calibrazione</label><select className="select" value={useCalibrationTemplate ? 'yes' : 'no'} onChange={(e) => setUseCalibrationTemplate(e.target.value === 'yes')}><option value="yes">Sì, usa template salvato</option><option value="no">No, layout automatico</option></select></div>
-              <div className="field"><label>Tipologia telefono</label><select className="select" value={selectedCalibrationPhone} onChange={(e) => refreshCalibrationTemplate(e.target.value, 'default')} disabled={!useCalibrationTemplate}>{calibrationPhoneOptions.map((p) => <option key={p} value={p}>{p}</option>)}</select></div><div className="field"><label>Nome template</label><select className="select" value={selectedCalibrationTemplate} onChange={(e) => refreshCalibrationTemplate(selectedCalibrationPhone, e.target.value)} disabled={!useCalibrationTemplate}>{calibrationTemplateOptions.map((p) => <option key={p} value={p}>{p}</option>)}</select><small className="muted">Esempio: CED, Postazione, Dominio.</small></div>
-              <div className="field"><label>Modo template</label><select className="select" value={calibrationMode} onChange={(e) => setCalibrationMode(e.target.value as 'table_lock' | 'content_frame' | 'strict_image')} disabled={!useCalibrationTemplate}><option value="content_frame">Content frame consigliato</option><option value="table_lock">Table-lock fallback</option><option value="strict_image">Coordinate immagine esatta</option></select><small className="muted">V4.6 invia anche il frame calcolato dal frontend: {applyFrameNudge(imageContentFrame, frameNudge).reason} ({Math.round(applyFrameNudge(imageContentFrame, frameNudge).x * 100)}%, {Math.round(applyFrameNudge(imageContentFrame, frameNudge).y * 100)}%, {Math.round(applyFrameNudge(imageContentFrame, frameNudge).w * 100)}% x {Math.round(applyFrameNudge(imageContentFrame, frameNudge).h * 100)}%).</small></div>
+              <div className="field"><label>Tipologia telefono</label><select className="select" value={selectedCalibrationPhone} onChange={(e) => refreshCalibrationTemplate(e.target.value)} disabled={!useCalibrationTemplate}>{calibrationPhoneOptions.map((p) => <option key={p} value={p}>{p}</option>)}</select></div><div className="field"><label>Nome template</label><select className="select" value={selectedCalibrationTemplate} onChange={(e) => refreshCalibrationTemplate(selectedCalibrationPhone, e.target.value)} disabled={!useCalibrationTemplate}>{calibrationTemplateOptions.map((p) => <option key={p} value={p}>{p}</option>)}</select><small className="muted">Esempio: CED, Postazione, Dominio.</small></div>
+              <div className="field"><label>Modo template</label><select className="select" value={calibrationMode} onChange={(e) => setCalibrationMode(e.target.value as 'table_lock' | 'content_frame' | 'strict_image')} disabled={!useCalibrationTemplate}><option value="content_frame">Content frame consigliato</option><option value="table_lock">Table-lock fallback</option><option value="strict_image">Coordinate immagine esatta</option></select><small className="muted">V4.6 invia anche il frame calcolato dal frontend: {activeFrame.reason} ({Math.round(activeFrame.x * 100)}%, {Math.round(activeFrame.y * 100)}%, {Math.round(activeFrame.w * 100)}% x {Math.round(activeFrame.h * 100)}%).</small></div>
               <div className="field"><label>Conferma nostro team</label><select className="select" value={ourTeam} onChange={(e) => setOurTeam(e.target.value as 'blue' | 'red')}><option value="blue">Blu / sinistra</option><option value="red">Rosso / destra</option></select></div>
             </div>
             <div className="top-gap"><a className="btn small secondary" href="/calibration">🎯 Apri calibrazione</a></div>

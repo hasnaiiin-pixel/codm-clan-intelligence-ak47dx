@@ -19,6 +19,12 @@ export default function ProfilePage() {
   const [codmNickname, setCodmNickname] = useState('');
   const [uidCodm, setUidCodm] = useState('');
   const [avatarUrl, setAvatarUrl] = useState('');
+  const [description, setDescription] = useState('');
+  const [socialInstagram, setSocialInstagram] = useState('');
+  const [socialTikTok, setSocialTikTok] = useState('');
+  const [socialYouTube, setSocialYouTube] = useState('');
+  const [socialDiscord, setSocialDiscord] = useState('');
+  const [profileNotes, setProfileNotes] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [players, setPlayers] = useState<PlayerLite[]>([]);
   const [linkedPlayerId, setLinkedPlayerId] = useState('');
@@ -31,6 +37,12 @@ export default function ProfilePage() {
     setCodmNickname(String(meta.player_nickname || meta.codm_nickname || ''));
     setUidCodm(String(meta.codm_uid || ''));
     setAvatarUrl(String(meta.avatar_url || ''));
+    setDescription(String(meta.description || meta.codm_description || ''));
+    setSocialInstagram(String(meta.social_instagram || ''));
+    setSocialTikTok(String(meta.social_tiktok || ''));
+    setSocialYouTube(String(meta.social_youtube || ''));
+    setSocialDiscord(String(meta.social_discord || ''));
+    setProfileNotes(String(meta.profile_notes || ''));
     try {
       setHistory(JSON.parse(localStorage.getItem(historyKey(auth.user.id)) || '[]'));
     } catch {
@@ -91,6 +103,13 @@ export default function ProfilePage() {
           codm_nickname: codmNickname,
           codm_uid: uidCodm,
           avatar_url: avatarUrl,
+          description,
+          codm_description: description,
+          social_instagram: socialInstagram,
+          social_tiktok: socialTikTok,
+          social_youtube: socialYouTube,
+          social_discord: socialDiscord,
+          profile_notes: profileNotes,
         }
       });
       addHistory(oldCodm, codmNickname, 'profilo_utente');
@@ -137,6 +156,8 @@ export default function ProfilePage() {
         </div>
       </section>
 
+      <section className="card top-gap profile-import-shortcut"><div><strong>Import profilo CODM</strong><p className="muted">Carica screenshot profilo e aggiorna dati/Leggendario dal tuo account.</p></div><a className="btn" href="/import/profile">🖼️ Importa dati profilo</a></section>
+
       {message && <div className="notice top-gap">{message}</div>}
 
       <section className="grid grid-2 top-gap profile-settings-grid">
@@ -150,6 +171,14 @@ export default function ProfilePage() {
               <div className="field"><label>UID CODM</label><input className="input" value={uidCodm} onChange={(e) => setUidCodm(e.target.value)} /></div>
             </div>
             <div className="field"><label>Collega giocatore roster</label><select className="select" value={linkedPlayerId} onChange={(e) => setLinkedPlayerId(e.target.value)}><option value="">Nessun collegamento</option>{players.map((player) => <option key={player.id} value={player.id}>{player.nickname}</option>)}</select></div>
+            <div className="field"><label>Descrizione profilo</label><textarea className="input" rows={3} value={description} onChange={(e) => setDescription(e.target.value)} placeholder="Ruolo, stile di gioco, orari, specialità..." /></div>
+            <div className="profile-social-grid">
+              <div className="field"><label>📸 Instagram</label><input className="input" value={socialInstagram} onChange={(e) => setSocialInstagram(e.target.value)} placeholder="link o username" /></div>
+              <div className="field"><label>🎵 TikTok</label><input className="input" value={socialTikTok} onChange={(e) => setSocialTikTok(e.target.value)} placeholder="link o username" /></div>
+              <div className="field"><label>▶️ YouTube</label><input className="input" value={socialYouTube} onChange={(e) => setSocialYouTube(e.target.value)} placeholder="link canale" /></div>
+              <div className="field"><label>💬 Discord</label><input className="input" value={socialDiscord} onChange={(e) => setSocialDiscord(e.target.value)} placeholder="server o username" /></div>
+            </div>
+            <div className="field"><label>Note private</label><textarea className="input" rows={3} value={profileNotes} onChange={(e) => setProfileNotes(e.target.value)} placeholder="Note admin/personali, preferenze, disponibilità..." /></div>
             <button className="btn" type="button" disabled={loading} onClick={saveProfile}>💾 Salva profilo</button>
           </div>
         </div>
