@@ -110,7 +110,7 @@ export default function DashboardPage() {
       if (rank === 3) item.bronze += 1;
       map.set(key, item);
     }
-    return Array.from(map.values()).map((x) => ({ ...x, kd: kdRatio(x.kills, x.deaths), avgRank: x.ranks.length ? average(x.ranks.reduce((a, b) => a + b, 0), x.ranks.length) : '-' })).sort((a, b) => b.gold - a.gold || b.kills - a.kills).slice(0, 8);
+    return Array.from(map.values()).map((x) => ({ ...x, kd: kdRatio(x.kills, x.deaths), avgRank: x.ranks.length ? average(x.ranks.reduce((a, b) => a + b, 0), x.ranks.length) : '-' })).sort((a, b) => b.gold - a.gold || b.assists - a.assists || b.kills - a.kills).slice(0, 8);
   }, [scoreRows, stats]);
 
   return (

@@ -149,7 +149,7 @@ export default function AnalyticsPage() {
       if (row.mvp_type) item.mvp += 1;
       grouped.set(clan, item);
     }
-    return Array.from(grouped.values()).map((x) => ({ ...x, playerCount: x.players.size, kd: kdRatio(x.kills, x.deaths), avgRank: x.rankCount ? (x.rankSum / x.rankCount).toFixed(1) : '-' })).sort((a, b) => b.gold - a.gold || b.silver - a.silver || b.bronze - a.bronze || b.wood - a.wood || b.olympic - a.olympic || b.mvp - a.mvp || b.kills - a.kills);
+    return Array.from(grouped.values()).map((x) => ({ ...x, playerCount: x.players.size, kd: kdRatio(x.kills, x.deaths), avgRank: x.rankCount ? (x.rankSum / x.rankCount).toFixed(1) : '-' })).sort((a, b) => b.gold - a.gold || b.silver - a.silver || b.bronze - a.bronze || b.wood - a.wood || b.olympic - a.olympic || b.mvp - a.mvp || b.assists - a.assists || b.kills - a.kills);
   }, [filteredRows]);
 
   const topPlayers = useMemo(() => {
@@ -170,7 +170,7 @@ export default function AnalyticsPage() {
       if (row.mvp_type) item.mvp += 1;
       grouped.set(key, item);
     }
-    return Array.from(grouped.values()).map((x) => ({ ...x, kd: kdRatio(x.kills, x.deaths), avgRank: x.rankCount ? (x.rankSum / x.rankCount).toFixed(1) : '-' })).sort((a, b) => b.gold - a.gold || b.silver - a.silver || b.bronze - a.bronze || b.wood - a.wood || b.olympic - a.olympic || b.mvp - a.mvp || b.kills - a.kills).slice(0, 12);
+    return Array.from(grouped.values()).map((x) => ({ ...x, kd: kdRatio(x.kills, x.deaths), avgRank: x.rankCount ? (x.rankSum / x.rankCount).toFixed(1) : '-' })).sort((a, b) => b.gold - a.gold || b.silver - a.silver || b.bronze - a.bronze || b.wood - a.wood || b.olympic - a.olympic || b.mvp - a.mvp || b.assists - a.assists || b.kills - a.kills).slice(0, 12);
   }, [filteredRows]);
 
   function PieCard({ title, slices }: { title: string; slices: PieSlice[] }) {

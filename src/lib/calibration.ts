@@ -139,6 +139,23 @@ function slug(value: string) {
       .replace(/^_+|_+$/g, "") || "default"
   );
 }
+
+function templateSlugFromName(value?: string | null) {
+  const raw = slug(value || "default")
+    .replace(/^scoreboard_?/, "")
+    .replace(/^profilo_?/, "")
+    .replace(/^profile_?/, "")
+    .replace(/^template_?/, "");
+  if (!raw || ["default", "base", "ced_base", "scoreboard", "profilo", "profile"].includes(raw)) return "default";
+  return raw;
+}
+
+function profileKeyFromMeta(phoneProfile?: string | null, templateName?: string | null) {
+  const split = splitCalibrationProfileKey(phoneProfile || "default");
+  if (split.template !== "default") return makeCalibrationProfileKey(split.phone, split.template);
+  const template = templateSlugFromName(templateName);
+  return makeCalibrationProfileKey(split.phone, template);
+}
 export function getActiveUserId() {
   if (typeof window === "undefined") return "anonymous";
   return window.localStorage.getItem(ACTIVE_USER_ID_KEY) || "anonymous";
@@ -288,25 +305,50 @@ function readBundleFromStorage(
   meta: CalibrationTemplateMeta,
 ): CalibrationTemplateBundle | null {
   if (typeof window === "undefined") return null;
-  const exactPhone = slug(phone);
-  const keys = [
+  const requested = splitCalibrationProfileKey(phone);
+  const exactPhone = makeCalibrationProfileKey(requested.phone, requested.template);
+  const directKeys = [
     storageKey(kind, exactPhone),
     storageKey(kind, exactPhone, "anonymous"),
     lastActiveKey(kind, exactPhone),
-    canonicalKey(kind),
-    latestSavedKey(kind),
   ];
-  for (const key of keys) {
-    const bundle = tryReadBundleValue(
-      window.localStorage.getItem(key),
-      defaults,
-      meta,
-    );
-    if (bundle && slug(bundle.meta?.phoneProfile || exactPhone) === exactPhone) return bundle;
+
+  for (const key of directKeys) {
+    const bundle = tryReadBundleValue(window.localStorage.getItem(key), defaults, meta);
+    if (!bundle) continue;
+    const parsedKey = splitCalibrationProfileKey(profileKeyFromMeta(bundle.meta?.phoneProfile, bundle.meta?.templateName));
+    if (parsedKey.phone === requested.phone && parsedKey.template === requested.template) return bundle;
   }
-  // V6.1: non caricare piu un template casuale se telefono/template scelto non esiste.
-  // Questo evita che in Import compaia "default" o un template generico invece di CED/Postazione/Dominio.
-  return readLatestSavedBundle(kind, defaults, meta, exactPhone);
+
+  // V6.2: se un vecchio salvataggio aveva solo il telefono in meta.phoneProfile
+  // e il nome template in meta.templateName, recuperalo comunque.
+  const candidates: CalibrationTemplateBundle[] = [];
+  for (let i = 0; i < window.localStorage.length; i += 1) {
+    const key = window.localStorage.key(i) || "";
+    const raw = window.localStorage.getItem(key);
+    if (!raw) continue;
+    const bundle = tryReadBundleValue(raw, defaults, meta);
+    if (!bundle || bundle.meta?.kind !== kind) continue;
+    const parsed = splitCalibrationProfileKey(profileKeyFromMeta(bundle.meta?.phoneProfile, bundle.meta?.templateName));
+    if (parsed.phone === requested.phone && parsed.template === requested.template) candidates.push(bundle);
+  }
+  if (candidates.length) {
+    candidates.sort((a, b) => bundleTimestamp(b) - bundleTimestamp(a));
+    return candidates[0];
+  }
+
+  if (requested.template === "default") {
+    const canonical = [canonicalKey(kind), latestSavedKey(kind)];
+    for (const key of canonical) {
+      const bundle = tryReadBundleValue(window.localStorage.getItem(key), defaults, meta);
+      if (!bundle) continue;
+      const parsed = splitCalibrationProfileKey(profileKeyFromMeta(bundle.meta?.phoneProfile, bundle.meta?.templateName));
+      if (parsed.phone === requested.phone) return bundle;
+    }
+    return readLatestSavedBundle(kind, defaults, meta, requested.phone);
+  }
+
+  return null;
 }
 
 export function clampRegion(region: CalibratedRegion): CalibratedRegion {
@@ -407,7 +449,7 @@ export function listCalibrationTemplatesForPhone(kind: CalibrationKind, phone: s
     .map((key) => splitCalibrationProfileKey(key))
     .filter((entry) => entry.phone === safePhone)
     .map((entry) => entry.template || "default");
-  return Array.from(new Set(["default", ...templates])).sort();
+  return Array.from(new Set(["default", ...templates])).sort((a, b) => a.localeCompare(b));
 }
 
 export function listCalibrationPhoneTemplateOptions(kind: CalibrationKind) {
@@ -427,15 +469,20 @@ export function listCalibrationPhoneProfiles(kind: CalibrationKind): string[] {
     const key = window.localStorage.key(i) || "";
     const raw = window.localStorage.getItem(key);
     let parsedPhone = "";
+    let parsedTemplate = "default";
     try {
       const parsed = raw ? JSON.parse(raw) : null;
-      if (parsed?.meta?.kind === kind && parsed?.meta?.phoneProfile) {
-        parsedPhone = slug(parsed.meta.phoneProfile);
+      if (parsed?.meta?.kind === kind) {
+        const profileKey = profileKeyFromMeta(parsed.meta.phoneProfile, parsed.meta.templateName);
+        const split = splitCalibrationProfileKey(profileKey);
+        parsedPhone = split.phone;
+        parsedTemplate = split.template;
       }
     } catch {
       parsedPhone = "";
     }
     if (parsedPhone) {
+      found.add(makeCalibrationProfileKey(parsedPhone, parsedTemplate));
       found.add(parsedPhone);
       continue;
     }
@@ -443,7 +490,7 @@ export function listCalibrationPhoneProfiles(kind: CalibrationKind): string[] {
     if (key.startsWith(lastPrefix)) found.add(slug(key.slice(lastPrefix.length)));
     if (key.startsWith(`${base}_anonymous_`)) found.add(slug(key.slice(`${base}_anonymous_`.length)));
   }
-  return Array.from(found).filter(Boolean).sort();
+  return Array.from(found).filter(Boolean).sort((a, b) => a.localeCompare(b));
 }
 
 export function hasSavedCalibration(

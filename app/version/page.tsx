@@ -5,8 +5,8 @@ export default function VersionPage() {
         <div className="ak-login-card">
           <div className="ak-pill">AK47DX DEPLOY CHECK</div>
           <h1 className="ak-title">CODM Clan Intelligence</h1>
-          <p className="ak-lead">Versione V6.1: import partite stabile mantenuto, editor riquadri drag/resize direttamente in import, template telefono+nome corretti, profilo utente migliorato, calendario eventi e OCR status solo admin.</p>
-          <div className="notice top-gap"><strong>Marker:</strong> V6_1_IMPORT_EDITOR_TEMPLATE_PROFILE_UI_OK</div>
+          <p className="ak-lead">Versione V6.2: home clan con riepilogo reale, eventi match card con roster/round, template telefono+nome corretti, profilo esteso, OCR status solo admin e import partite stabile mantenuto.</p>
+          <div className="notice top-gap"><strong>Marker:</strong> V6_2_HOME_EVENTI_TEMPLATE_PROFILO_OK</div>
           <div className="notice top-gap"><strong>Backend OCR consigliato:</strong> 2.0.10-v5-4-fastlane-import-stabile-ak47dx</div>
           <div className="ak-quick-links">
             <a href="/cache-reset">Reset cache sicuro</a>

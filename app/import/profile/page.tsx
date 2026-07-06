@@ -350,15 +350,15 @@ export default function ImportProfilePage() {
       const xhr = new XMLHttpRequest();
       xhr.open('POST', `${backendUrl}/ocr/profile`);
       xhr.responseType = 'text';
-      xhr.timeout = 90000;
+      xhr.timeout = 45000;
       let fakePct = 45;
       let timer: number | null = null;
       const startFake = () => {
         if (timer !== null) return;
         timer = window.setInterval(() => {
-          fakePct = Math.min(96, fakePct + 4);
+          fakePct = Math.min(82, fakePct + 5);
           setOcrProgressPct(fakePct);
-          setOcrProgress('Profilo in lettura OCR. Se Render è freddo può richiedere più tempo, ma non blocca /health.');
+          setOcrProgress('Profilo in lettura OCR rapida. Se supera 45s passo al fallback browser senza resettare immagine.');
         }, 2500);
       };
       const clearFake = () => { if (timer !== null) window.clearInterval(timer); timer = null; };
@@ -379,7 +379,7 @@ export default function ImportProfilePage() {
         reject(new Error(`Backend profilo HTTP ${xhr.status}: ${xhr.responseText || xhr.statusText}`));
       };
       xhr.onerror = () => { clearFake(); reject(new Error('Errore rete verso backend profilo.')); };
-      xhr.ontimeout = () => { clearFake(); reject(new Error('Timeout profilo dopo 90 secondi. Avvio fallback browser se disponibile.')); };
+      xhr.ontimeout = () => { clearFake(); reject(new Error('Timeout profilo dopo 45 secondi. Avvio fallback browser senza resettare immagine.')); };
       setOcrProgressPct(5);
       setOcrProgress('Preparazione import profilo...');
       xhr.send(formData);
@@ -394,7 +394,7 @@ export default function ImportProfilePage() {
     setBackendRawJson('');
     setBackendBoxes([]);
     setRawText('');
-    setMessage('Import profilo V5.9: un solo tasto, niente health bloccante, template telefono+tipo e frame manuale.');
+    setMessage('Import profilo V6.2: un solo tasto, OCR rapido con timeout 45s e fallback browser automatico, immagine sempre mantenuta.');
     try {
       const selected = refreshTemplateLists(phone, template);
       const formData = new FormData();
@@ -418,7 +418,7 @@ export default function ImportProfilePage() {
       const warnings = parsed.warnings?.length ? ` Warning: ${parsed.warnings.join(' | ')}` : '';
       setOcrProgressPct(100);
       setOcrProgress('Profilo completato. Controlla campi prima di salvare.');
-      setMessage(`OCR profilo V5.9 completato. Layout=${Math.round((parsed.layout_confidence || 0) * 100)}%, OCR=${Math.round((parsed.ocr_confidence || 0) * 100)}%. Template=${phone}/${template}. ${hasUsefulProfile(parsed) ? 'Campi applicati.' : 'Nessun numero sicuro letto: correggi manualmente o regola i riquadri.'}${warnings}`);
+      setMessage(`OCR profilo V6.2 completato. Layout=${Math.round((parsed.layout_confidence || 0) * 100)}%, OCR=${Math.round((parsed.ocr_confidence || 0) * 100)}%. Template=${phone}/${template}. ${hasUsefulProfile(parsed) ? 'Campi applicati.' : 'Nessun numero sicuro letto: correggi manualmente o regola i riquadri.'}${warnings}`);
     } catch (error) {
       const fallbackOk = await runBrowserProfileFallback();
       setOcrProgressPct(100);

@@ -319,3 +319,30 @@ where p.user_id is null
 insert into public.codm_notification_preferences (user_id)
 select id from public.profiles
 on conflict (user_id) do nothing;
+
+-- CODM V6.2 - Event planner, profile data and cleaner profile metadata
+alter table public.codm_events add column if not exists event_plan jsonb default '{}'::jsonb;
+alter table public.profiles add column if not exists avatar_url text;
+alter table public.profiles add column if not exists description text;
+alter table public.profiles add column if not exists social_instagram text;
+alter table public.profiles add column if not exists social_tiktok text;
+alter table public.profiles add column if not exists social_youtube text;
+alter table public.profiles add column if not exists social_discord text;
+alter table public.profiles add column if not exists profile_notes text;
+
+create table if not exists public.player_name_history (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid references auth.users(id) on delete cascade,
+  player_id uuid references public.players(id) on delete set null,
+  old_name text,
+  new_name text,
+  source text default 'profile',
+  created_at timestamptz default now()
+);
+alter table public.player_name_history enable row level security;
+drop policy if exists player_name_history_self_or_owner_read on public.player_name_history;
+create policy player_name_history_self_or_owner_read on public.player_name_history for select using (
+  user_id = auth.uid() or exists (select 1 from public.clan_members cm where cm.user_id = auth.uid() and cm.role = 'owner')
+);
+drop policy if exists player_name_history_self_insert on public.player_name_history;
+create policy player_name_history_self_insert on public.player_name_history for insert with check (user_id = auth.uid());
