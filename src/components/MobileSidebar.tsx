@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useEffect, useMemo, useState } from 'react';
 import { roleLabel, useCodmAuth } from '@/lib/authRoles';
+import { useLocalNotificationBadge } from '@/lib/clientNotifications';
 
 type NavAudience = 'public' | 'player' | 'write' | 'owner' | 'system';
 type NavItem = { href: string; label: string; emoji: string; group: string; audience: NavAudience };
@@ -35,6 +36,7 @@ export function MobileSidebar() {
   const pathname = usePathname();
   const auth = useCodmAuth();
   const [open, setOpen] = useState(false);
+  const { count: notificationCount } = useLocalNotificationBadge();
 
   useEffect(() => { setOpen(false); }, [pathname]);
   useEffect(() => {
@@ -104,6 +106,7 @@ export function MobileSidebar() {
           )}
         </nav>
       </aside>
+      <BottomMobileNav pathname={pathname} canSeeNotifications={!!auth.user} notificationCount={notificationCount} onOpenMenu={() => setOpen(true)} />
     </>
   );
 }
@@ -117,11 +120,45 @@ function NavGroup({ title, items, pathname }: { title: string; items: NavItem[];
           const active = pathname === item.href || (item.href !== '/' && pathname.startsWith(item.href));
           return (
             <Link key={item.href} href={item.href} className={`ak-sidebar-link ${active ? 'active' : ''}`}>
-              <span>{item.emoji}</span><span>{item.label}</span>
+              <span>{item.emoji}</span><span>{item.label}</span>{item.href === '/notifications' && <NotificationBadge />}
             </Link>
           );
         })}
       </div>
     </div>
+  );
+}
+
+
+function NotificationBadge() {
+  const { count } = useLocalNotificationBadge();
+  if (!count) return null;
+  return <b className="ak-nav-badge" aria-label={`${count} notifiche non lette`}>{count > 99 ? '99+' : count}</b>;
+}
+
+function BottomMobileNav({ pathname, canSeeNotifications, notificationCount, onOpenMenu }: { pathname: string; canSeeNotifications: boolean; notificationCount: number; onOpenMenu: () => void }) {
+  const items = [
+    { href: '/', label: 'Home', emoji: '🏠' },
+    { href: '/events', label: 'Eventi', emoji: '📅' },
+    { href: '/matches', label: 'Partite', emoji: '🎮' },
+    { href: canSeeNotifications ? '/notifications' : '/login', label: canSeeNotifications ? 'Notifiche' : 'Login', emoji: canSeeNotifications ? '🔔' : '🔐', badge: notificationCount },
+  ];
+  return (
+    <nav className="ak-bottom-nav" aria-label="Menu mobile rapido">
+      {items.map((item) => {
+        const active = pathname === item.href || (item.href !== '/' && pathname.startsWith(item.href));
+        return (
+          <Link key={item.href} href={item.href} className={active ? 'active' : ''}>
+            <span>{item.emoji}</span>
+            <small>{item.label}</small>
+            {!!item.badge && <b>{item.badge > 99 ? '99+' : item.badge}</b>}
+          </Link>
+        );
+      })}
+      <button type="button" onClick={onOpenMenu} aria-label="Apri menu completo">
+        <span>☰</span>
+        <small>Altro</small>
+      </button>
+    </nav>
   );
 }

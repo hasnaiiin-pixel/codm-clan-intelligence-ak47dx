@@ -1743,3 +1743,140 @@ main.container.wide > section.card {
     justify-content: flex-start;
   }
 }
+
+/* V7.0 - PWA completa mobile, bottom nav, badge notifiche e fix crea evento telefono */
+.pwa-mini-install,
+.pwa-status-chip,
+.pwa-install-panel {
+  position: fixed;
+  z-index: 1180;
+  right: max(12px, env(safe-area-inset-right));
+  bottom: max(12px, env(safe-area-inset-bottom));
+}
+.pwa-mini-install,
+.pwa-status-chip {
+  border: 1px solid rgba(34, 211, 238, .26);
+  border-radius: 999px;
+  background: linear-gradient(135deg, rgba(15, 23, 42, .94), rgba(127, 29, 29, .82));
+  color: #fff;
+  box-shadow: 0 16px 42px rgba(0,0,0,.38), 0 0 24px rgba(34,211,238,.12);
+  min-height: 42px;
+  padding: 10px 14px;
+  font-weight: 950;
+  cursor: pointer;
+}
+.pwa-status-chip { cursor: default; display: inline-flex; gap: 8px; align-items: center; }
+.pwa-status-chip b,
+.ak-nav-badge,
+.ak-bottom-nav b {
+  min-width: 20px;
+  height: 20px;
+  display: inline-grid;
+  place-items: center;
+  border-radius: 999px;
+  padding: 0 6px;
+  background: #ef4444;
+  color: #fff;
+  font-size: 11px;
+  line-height: 1;
+  font-weight: 1000;
+  box-shadow: 0 0 0 2px rgba(2,6,23,.72), 0 0 16px rgba(239,68,68,.45);
+}
+.ak-sidebar-link { position: relative; }
+.ak-nav-badge { margin-left: auto; }
+.pwa-install-panel {
+  width: min(520px, calc(100vw - 24px));
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 12px;
+  align-items: center;
+  border: 1px solid rgba(255,255,255,.14);
+  border-radius: 22px;
+  background: linear-gradient(135deg, rgba(2, 6, 23, .96), rgba(30, 41, 59, .94));
+  color: #fff;
+  box-shadow: 0 24px 70px rgba(0,0,0,.46);
+  padding: 14px;
+}
+.pwa-install-panel strong { display: block; color: #e0f2fe; }
+.pwa-install-panel p { margin: 4px 0; color: #cbd5e1; font-size: 13px; line-height: 1.4; }
+.pwa-install-panel small { color: #fde68a; font-weight: 800; }
+.pwa-install-actions { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; justify-content: flex-end; }
+.pwa-close { border: 0; width: 36px; height: 36px; border-radius: 14px; background: rgba(255,255,255,.08); color: #fff; font-size: 22px; cursor: pointer; }
+.ak-bottom-nav { display: none; }
+.event-mobile-create-cta { margin-top: 14px; width: max-content; }
+.event-save-button { width: 100%; min-height: 54px; font-size: 1.05rem; position: sticky; bottom: 84px; z-index: 30; box-shadow: 0 18px 44px rgba(239,68,68,.24); }
+.event-save-button:disabled { filter: grayscale(.35); }
+@media (max-width: 900px) {
+  .ak-bottom-nav {
+    position: fixed;
+    left: max(8px, env(safe-area-inset-left));
+    right: max(8px, env(safe-area-inset-right));
+    bottom: max(8px, env(safe-area-inset-bottom));
+    z-index: 1175;
+    display: grid;
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+    gap: 6px;
+    padding: 8px;
+    border: 1px solid rgba(255,255,255,.13);
+    border-radius: 24px;
+    background: rgba(2, 6, 23, .92);
+    backdrop-filter: blur(18px);
+    box-shadow: 0 18px 60px rgba(0,0,0,.50), inset 0 0 0 1px rgba(34,211,238,.04);
+  }
+  .ak-bottom-nav a,
+  .ak-bottom-nav button {
+    position: relative;
+    display: grid;
+    place-items: center;
+    gap: 2px;
+    min-width: 0;
+    border: 0;
+    border-radius: 18px;
+    padding: 7px 3px;
+    background: transparent;
+    color: #cbd5e1;
+    font: inherit;
+    cursor: pointer;
+  }
+  .ak-bottom-nav a.active,
+  .ak-bottom-nav button:active {
+    background: linear-gradient(135deg, rgba(34,211,238,.20), rgba(239,68,68,.16));
+    color: #fff;
+  }
+  .ak-bottom-nav span { font-size: 20px; line-height: 1; }
+  .ak-bottom-nav small { font-size: 10px; font-weight: 900; letter-spacing: .01em; max-width: 100%; overflow: hidden; text-overflow: ellipsis; }
+  .ak-bottom-nav b { position: absolute; top: 2px; right: 8px; }
+  .pwa-mini-install,
+  .pwa-status-chip { bottom: calc(env(safe-area-inset-bottom) + 84px); right: 10px; font-size: 12px; min-height: 38px; padding: 8px 11px; }
+  .pwa-install-panel { bottom: calc(env(safe-area-inset-bottom) + 84px); left: 10px; right: 10px; width: auto; grid-template-columns: 1fr; }
+  .pwa-install-actions { justify-content: stretch; }
+  .pwa-install-actions .btn { flex: 1; }
+  .event-mobile-create-cta { width: 100%; min-height: 52px; }
+  .event-create-v64 {
+    border-color: rgba(34,211,238,.34) !important;
+    box-shadow: 0 24px 65px rgba(14,165,233,.12), inset 0 0 0 1px rgba(34,211,238,.06) !important;
+  }
+  .event-create-v64 .section-title,
+  .match-card-head,
+  .editor-actions-row,
+  .match-head-actions,
+  .event-card-actions-v65 {
+    display: grid !important;
+    grid-template-columns: 1fr !important;
+    justify-content: stretch !important;
+    width: 100%;
+  }
+  .event-create-v64 .btn,
+  .event-card-actions-v65 .btn,
+  .match-head-actions .btn,
+  .editor-actions-row .btn { width: 100%; }
+  .round-roster-picks,
+  .ban-chip-list { max-height: 220px; -webkit-overflow-scrolling: touch; }
+  .event-save-button { bottom: calc(env(safe-area-inset-bottom) + 84px); }
+  .mirza-dev-footer { padding-bottom: 92px; }
+}
+@media (max-width: 420px) {
+  .ak-bottom-nav small { font-size: 9px; }
+  .ak-bottom-nav { gap: 4px; padding: 7px; border-radius: 20px; }
+  .ak-bottom-nav a, .ak-bottom-nav button { border-radius: 15px; padding: 7px 1px; }
+}

@@ -1,36 +1,30 @@
 {
-  "name": "Clan Manager by MIRZA",
-  "short_name": "MIRZA",
-  "description": "Clan Manager by MIRZA - piattaforma CODM per clan, eventi, roster, risultati OCR, regolamento e statistiche.",
-  "start_url": "/dashboard",
+  "id": "/?source=pwa",
+  "name": "CODM Clan Intelligence by MIRZA",
+  "short_name": "CODM MIRZA",
+  "description": "PWA CODM per clan, eventi, calendario, roster, risultati OCR, notifiche e statistiche.",
+  "start_url": "/dashboard?source=pwa",
   "scope": "/",
   "display": "standalone",
+  "display_override": ["standalone", "minimal-ui", "browser"],
   "background_color": "#05070d",
   "theme_color": "#ff2a2a",
-  "orientation": "any",
-  "categories": [
-    "games",
-    "sports",
-    "productivity"
-  ],
+  "orientation": "portrait-primary",
+  "categories": ["games", "sports", "productivity"],
+  "lang": "it",
+  "dir": "ltr",
   "icons": [
-    {
-      "src": "/assets/mirza-app-icon-192.png",
-      "sizes": "192x192",
-      "type": "image/png",
-      "purpose": "any maskable"
-    },
-    {
-      "src": "/assets/mirza-app-icon-512.png",
-      "sizes": "512x512",
-      "type": "image/png",
-      "purpose": "any maskable"
-    },
-    {
-      "src": "/assets/mirza-apple-touch-icon.png",
-      "sizes": "512x512",
-      "type": "image/png",
-      "purpose": "any"
-    }
+    { "src": "/assets/mirza-app-icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "/assets/mirza-app-icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "/assets/mirza-app-icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" },
+    { "src": "/assets/mirza-apple-touch-icon.png", "sizes": "180x180", "type": "image/png", "purpose": "any" }
+  ],
+  "shortcuts": [
+    { "name": "Eventi", "short_name": "Eventi", "description": "Apri eventi e calendario", "url": "/events?source=pwa-shortcut", "icons": [{ "src": "/assets/mirza-app-icon-192.png", "sizes": "192x192" }] },
+    { "name": "Import partita", "short_name": "Import", "description": "Carica risultato partita", "url": "/import/match?source=pwa-shortcut", "icons": [{ "src": "/assets/mirza-app-icon-192.png", "sizes": "192x192" }] },
+    { "name": "Notifiche", "short_name": "Notifiche", "description": "Apri centro notifiche", "url": "/notifications?source=pwa-shortcut", "icons": [{ "src": "/assets/mirza-app-icon-192.png", "sizes": "192x192" }] }
+  ],
+  "screenshots": [
+    { "src": "/assets/mirza-app-icon-512.png", "sizes": "512x512", "type": "image/png", "form_factor": "narrow", "label": "CODM MIRZA PWA" }
   ]
 }

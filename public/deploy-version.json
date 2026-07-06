@@ -1,7 +1,7 @@
 {
   "app": "Clan Manager by MIRZA",
-  "version": "CODM_AK47DX_V6_9_OFFICIAL_STABLE_USERS_PERFORMANCE_MIRZA_PWA",
-  "marker": "V6_9_OFFICIAL_STABLE_USERS_PERFORMANCE_MIRZA_PWA_OK",
+  "version": "CODM_AK47DX_V7_0_FULL_PWA_MOBILE_NOTIFICATIONS",
+  "marker": "V7_0_FULL_PWA_MOBILE_NOTIFICATIONS_OK",
   "backend_ocr": "2.0.10-v5-4-fastlane-import-stabile-ak47dx",
   "routes": [
     "/version",
@@ -13,5 +13,6 @@
     "/rules",
     "/ocr-status",
     "/notifications"
-  ]
+  ],
+  "notes": "PWA completa: service worker registrato, offline page, install prompt iOS/Android, badge notifiche, bottom nav mobile, fix crea evento telefono con fallback locale."
 }

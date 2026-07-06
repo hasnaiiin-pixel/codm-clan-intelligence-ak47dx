@@ -1,4 +1,4 @@
-# Clan Manager CODM AK47DX - V6.9 Official Stable
+# Clan Manager CODM AK47DX - V7.0 Full PWA Mobile
 
 Build ufficiale stabile con gestione utenti reale, sync roster e icona PWA MIRZA.
 
@@ -12,7 +12,7 @@ npm run dev
 
 ## Supabase obbligatorio
 
-Esegui in Supabase SQL Editor:
+Usa ancora lo SQL V6.9 per utenti/roster/ruoli. Questa V7.0 cambia PWA/mobile, non richiede una nuova migrazione Supabase. Esegui in Supabase SQL Editor se non lo hai già fatto:
 
 ```text
 supabase/08_V6_9_OFFICIAL_STABLE_USERS_ROSTER_PERFORMANCE.sql
@@ -28,7 +28,7 @@ SUPABASE_SERVICE_ROLE_KEY
 
 ## Verifica rilascio
 
-- `/version` deve mostrare marker V6_9.
+- `/version` deve mostrare marker V7_0.
 - `/admin/users` deve mostrare gli utenti registrati.
 - Premere `Sincronizza Auth → Roster` per allineare Auth, profili, roster e ruoli.
 - Sul telefono l'icona installata deve essere MIRZA.
@@ -74,3 +74,18 @@ git add -A
 git commit -m "fix: CODM v6.8 main admin owner permissions"
 git push origin main
 ```
+
+
+## V7.0 Full PWA Mobile
+
+Questa release completa la parte PWA per telefono:
+
+- service worker registrato lato client;
+- manifest PWA completo con icona MIRZA;
+- offline page;
+- install prompt Android e guida iPhone;
+- bottom navigation mobile;
+- badge notifiche PWA;
+- fix Crea Evento su telefono con fallback locale se Supabase non risponde.
+
+Marker verifica: `V7_0_FULL_PWA_MOBILE_NOTIFICATIONS_OK`.

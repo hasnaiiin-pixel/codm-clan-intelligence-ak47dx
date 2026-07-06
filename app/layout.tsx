@@ -4,21 +4,21 @@ import { MobileSidebar } from '@/components/MobileSidebar';
 import { PwaInstaller } from '@/components/PwaInstaller';
 
 export const metadata: Metadata = {
-  title: 'Clan Manager',
-  description: 'Clan Manager: eventi, roster, risultati, regolamento e statistiche CODM.',
+  title: 'CODM Clan Intelligence',
+  description: 'CODM Clan Intelligence by MIRZA: eventi, roster, calendario, notifiche, risultati e statistiche CODM.',
   manifest: '/manifest.webmanifest',
-  appleWebApp: { capable: true, title: 'MIRZA', statusBarStyle: 'black-translucent' },
+  appleWebApp: { capable: true, title: 'CODM MIRZA', statusBarStyle: 'black-translucent' },
   icons: {
     icon: [
       { url: '/assets/mirza-app-icon-192.png', sizes: '192x192', type: 'image/png' },
       { url: '/assets/mirza-app-icon-512.png', sizes: '512x512', type: 'image/png' }
     ],
-    apple: [{ url: '/assets/mirza-apple-touch-icon.png', sizes: '512x512', type: 'image/png' }]
+    apple: [{ url: '/assets/mirza-apple-touch-icon.png', sizes: '180x180', type: 'image/png' }]
   }
 };
 
 export const viewport: Viewport = {
-  themeColor: '#ff2a2a',
+  themeColor: '#05070d',
   width: 'device-width',
   initialScale: 1,
   maximumScale: 1
