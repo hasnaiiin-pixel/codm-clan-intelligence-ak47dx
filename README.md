@@ -35,3 +35,19 @@ git add -A
 git commit -m "feat: CODM v6.4 events ordered calibration template flow"
 git push origin main
 ```
+
+
+## CODM AK47DX V6.5 — Events Import BAN Persist Flow
+
+Questa release migliora la pagina Eventi e il collegamento con Import partita:
+
+- mappe CODM già disponibili in lista;
+- tipologia round/punteggio con preset;
+- BAN selezionabili da lista + inserimento manuale;
+- score/MVP/esito compilati automaticamente dal carico partita;
+- import da evento con modalità già selezionata;
+- modifica, copia e duplicazione evento;
+- apertura evento dal calendario;
+- riepilogo partite ordinato con dettagli, orari e convocati;
+- badge stato partita;
+- bozza editor persistente quando si cambia tab/finestra.

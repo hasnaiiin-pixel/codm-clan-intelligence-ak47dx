@@ -162,6 +162,129 @@ function parseBackendMatchDate(textValue: string) {
 }
 
 
+
+
+type LinkedEventRound = {
+  n: number;
+  mode: string;
+  map: string;
+  scoreType: string;
+  target: string;
+  players: string;
+  reserves: string;
+  lobbyOpen: string;
+  meetingTime: string;
+  startTime: string;
+  bans: string;
+  status?: string;
+  result: string;
+  ourScore: string;
+  opponentScore: string;
+  mvp: string;
+};
+
+type LinkedEventPlan = {
+  teamAName: string;
+  teamBName: string;
+  teamALogo?: string;
+  teamBLogo?: string;
+  coverImage?: string;
+  totalMatches: number;
+  lobbyTime: string;
+  discordLink: string;
+  lobbyLink: string;
+  roomNumber: string;
+  rounds: LinkedEventRound[];
+};
+
+type LinkedCodmEvent = {
+  id: string;
+  title: string;
+  starts_at: string;
+  ends_at?: string | null;
+  event_type?: string | null;
+  event_notes?: string | null;
+  event_plan?: LinkedEventPlan | null;
+};
+
+const IMPORT_PLAN_MARKER = 'AK_EVENT_PLAN_V6_5::';
+const IMPORT_OLD_PLAN_MARKERS = ['AK_EVENT_PLAN_V6_4::', 'AK_EVENT_PLAN_V6_3::', 'AK_EVENT_PLAN_V6_2::'];
+
+function emptyLinkedRound(n = 1): LinkedEventRound {
+  return { n, mode: 'CED', map: '', scoreType: 'Punteggio round', target: '', players: '', reserves: '', lobbyOpen: '', meetingTime: '', startTime: '', bans: '', status: 'Da giocare', result: '', ourScore: '', opponentScore: '', mvp: '' };
+}
+function emptyLinkedPlan(): LinkedEventPlan {
+  return { teamAName: 'AK47DX', teamBName: 'Clan avversario', totalMatches: 1, lobbyTime: '', discordLink: '', lobbyLink: '', roomNumber: '', rounds: [emptyLinkedRound(1)] };
+}
+function sanitizeLinkedRound(raw: Partial<LinkedEventRound>, index: number): LinkedEventRound {
+  return { ...emptyLinkedRound(index + 1), ...raw, n: index + 1 };
+}
+function readLinkedPlan(event: LinkedCodmEvent): LinkedEventPlan {
+  if (event.event_plan && typeof event.event_plan === 'object') {
+    const plan = event.event_plan as LinkedEventPlan;
+    return { ...emptyLinkedPlan(), ...plan, rounds: (plan.rounds || [emptyLinkedRound(1)]).map(sanitizeLinkedRound) };
+  }
+  const note = event.event_notes || '';
+  const marker = [IMPORT_PLAN_MARKER, ...IMPORT_OLD_PLAN_MARKERS].find((item) => note.includes(item));
+  if (marker) {
+    const idx = note.indexOf(marker);
+    try {
+      const parsed = JSON.parse(note.slice(idx + marker.length));
+      return { ...emptyLinkedPlan(), ...parsed, rounds: (parsed.rounds || [emptyLinkedRound(1)]).map(sanitizeLinkedRound) };
+    } catch {}
+  }
+  return emptyLinkedPlan();
+}
+function stripLinkedPlan(notes = '') {
+  let output = notes || '';
+  for (const marker of [IMPORT_PLAN_MARKER, ...IMPORT_OLD_PLAN_MARKERS]) {
+    const idx = output.indexOf(marker);
+    if (idx >= 0) output = output.slice(0, idx).trim();
+  }
+  return output.trim();
+}
+function linkedPlanNote(plan: LinkedEventPlan, notes = '') {
+  return `${stripLinkedPlan(notes)}\n\n${IMPORT_PLAN_MARKER}${JSON.stringify(plan)}`.trim();
+}
+function eventModeToGameMode(value?: string | null): GameMode {
+  const normalized = String(value || '').toUpperCase().replace(/\s+/g, '_');
+  if (normalized === 'CED') return 'CED';
+  if (normalized === 'POSTAZIONE' || normalized === 'HARDPOINT') return 'POSTAZIONE';
+  if (normalized === 'DOMINIO') return 'DOMINIO';
+  if (normalized === 'PRIMA_LINEA' || normalized === 'FRONTLINE') return 'PRIMA_LINEA';
+  if (normalized === 'TDM' || normalized === 'DM_DEATH_MATCH' || normalized === 'DEATH_MATCH') return 'TDM';
+  if (normalized === 'KILL_CONFIRMED') return 'KILL_CONFIRMED';
+  if (normalized === 'BR' || normalized === 'BR_SQUAD') return 'BR_SQUAD';
+  if (modes.includes(normalized as GameMode)) return normalized as GameMode;
+  return 'CED';
+}
+function eventTypeToMatchType(value?: string | null): MatchType {
+  const normalized = String(value || '').toLowerCase();
+  if (normalized === 'ranked') return 'ranked';
+  if (normalized === 'torneo' || normalized === 'tournament') return 'tournament';
+  if (normalized === 'allenamento' || normalized === 'training') return 'training';
+  if (normalized === 'br') return 'br';
+  return 'scrim';
+}
+function combineEventDateAndRoundTime(eventIso: string, timeValue?: string) {
+  if (!timeValue) return toLocalDateTimeValue(new Date(eventIso));
+  const date = new Date(eventIso);
+  const [h, m] = timeValue.split(':').map((x) => Number(x));
+  if (Number.isFinite(h) && Number.isFinite(m)) {
+    date.setHours(h, m, 0, 0);
+    return toLocalDateTimeValue(date);
+  }
+  return toLocalDateTimeValue(new Date(eventIso));
+}
+function resultFromScores(our: string, opponent: string) {
+  const a = Number(String(our).replace(',', '.'));
+  const b = Number(String(opponent).replace(',', '.'));
+  if (!Number.isFinite(a) || !Number.isFinite(b)) return '';
+  if (a > b) return 'Vinto';
+  if (a < b) return 'Perso';
+  return 'Pareggiato';
+}
+
 function rankMedal(rank?: number | null) {
   if (rank === 1) return { icon: '🥇', label: 'Oro / MVP', className: 'medal-gold' };
   if (rank === 2) return { icon: '🥈', label: 'Argento', className: 'medal-silver' };
@@ -246,6 +369,10 @@ function ImportMatchEditor() {
   const imageWrapRef = useRef<HTMLDivElement | null>(null);
   const dragRef = useRef<DragState>(null);
   const activeFrame = useMemo(() => applyFrameNudge(imageContentFrame, frameNudge), [imageContentFrame, frameNudge]);
+  const [linkedEvent, setLinkedEvent] = useState<LinkedCodmEvent | null>(null);
+  const [linkedEventPlan, setLinkedEventPlan] = useState<LinkedEventPlan | null>(null);
+  const [linkedRoundIndex, setLinkedRoundIndex] = useState<number | null>(null);
+  const linkedRound = linkedEventPlan && linkedRoundIndex !== null ? linkedEventPlan.rounds[linkedRoundIndex] : null;
 
   function refreshCalibrationTemplate(phoneRaw?: string, templateRaw?: string) {
     const phoneInput = phoneRaw || selectedCalibrationPhone || splitCalibrationProfileKey(getBestCalibrationPhoneProfile('scoreboard_ced')).phone;
@@ -344,6 +471,7 @@ function ImportMatchEditor() {
 
   useEffect(() => {
     loadRoster();
+    loadLinkedEventFromQuery();
     supabase.auth.getUser().then(({ data }) => {
       const user = data.user;
       setActiveUserContext(user?.id || 'anonymous', String(user?.user_metadata?.display_name || user?.email || ''));
@@ -355,6 +483,14 @@ function ImportMatchEditor() {
     setResult(computeOurResult(winningTeam, ourTeam));
   }, [winningTeam, ourTeam]);
 
+  useEffect(() => {
+    const our = Number(String(teamScore).replace(',', '.'));
+    const enemy = Number(String(enemyScore).replace(',', '.'));
+    if (!Number.isFinite(our) || !Number.isFinite(enemy)) return;
+    if (our === enemy) setWinningTeam('draw');
+    else setWinningTeam(our > enemy ? ourTeam : (ourTeam === 'blue' ? 'red' : 'blue'));
+  }, [teamScore, enemyScore, ourTeam]);
+
   async function loadRoster() {
     const { data: clansData } = await supabase.from('clans').select('*').limit(1);
     const clans = (clansData || []) as Array<{ id: string; name?: string; tag?: string | null }>;
@@ -364,6 +500,43 @@ function ImportMatchEditor() {
     }
     const { data } = await supabase.from('players').select('*').order('nickname');
     setRoster((data || []) as Player[]);
+  }
+
+  async function loadLinkedEventFromQuery() {
+    try {
+      const params = new URLSearchParams(window.location.search);
+      const eventId = params.get('event');
+      const roundParam = Number(params.get('round') || '1');
+      if (!eventId) return;
+      const { data, error } = await supabase.from('codm_events').select('*').eq('id', eventId).single();
+      if (error || !data) {
+        setMessage(`Import da eventi non caricato: ${error?.message || 'evento non trovato'}`);
+        return;
+      }
+      const event = data as LinkedCodmEvent;
+      const plan = readLinkedPlan(event);
+      const index = Math.max(0, Math.min((Number.isFinite(roundParam) ? roundParam : 1) - 1, Math.max(0, plan.rounds.length - 1)));
+      const round = plan.rounds[index] || emptyLinkedRound(index + 1);
+      setLinkedEvent(event);
+      setLinkedEventPlan(plan);
+      setLinkedRoundIndex(index);
+      setMode(eventModeToGameMode(round.mode));
+      setMatchType(eventTypeToMatchType(event.event_type));
+      setMapName(round.map || '');
+      setOpponent(plan.teamBName || 'Clan avversario');
+      setTeamScore(round.ourScore || '');
+      setEnemyScore(round.opponentScore || '');
+      setMatchDateLocal(combineEventDateAndRoundTime(event.starts_at, round.startTime));
+      setMatchNotes((current) => current || `Import risultato da evento: ${event.title} · Partita ${round.n}`);
+      if (round.ourScore && round.opponentScore) {
+        const our = Number(round.ourScore);
+        const enemy = Number(round.opponentScore);
+        if (Number.isFinite(our) && Number.isFinite(enemy)) setWinningTeam(our === enemy ? 'draw' : our > enemy ? ourTeam : (ourTeam === 'blue' ? 'red' : 'blue'));
+      }
+      setMessage(`Stai importando la Partita ${round.n} dall'evento: ${event.title}. Modalità già selezionata: ${modeLabel(eventModeToGameMode(round.mode))}.`);
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : 'Errore apertura import da evento.');
+    }
   }
 
   function onFileSelected(selected: File | null) {
@@ -663,6 +836,29 @@ function ImportMatchEditor() {
     return created?.id as string;
   }
 
+  async function updateLinkedEventAfterSave(matchId: string, screenshotUrl: string | null) {
+    if (!linkedEvent || !linkedEventPlan || linkedRoundIndex === null) return;
+    const mvpRow = rows.find((row) => (row.teamSide || 'ALLY') !== 'ENEMY' && row.mvp) || rows.find((row) => (row.teamSide || 'ALLY') !== 'ENEMY' && row.rankPosition === 1);
+    const updatedRounds = linkedEventPlan.rounds.map((round, index) => index === linkedRoundIndex ? {
+      ...round,
+      mode: round.mode || mode,
+      map: mapName || round.map,
+      status: 'Risultato caricato',
+      result: resultFromScores(teamScore, enemyScore),
+      ourScore: teamScore,
+      opponentScore: enemyScore,
+      mvp: mvpRow?.nickname || round.mvp,
+    } : round);
+    const updatedPlan = { ...linkedEventPlan, teamBName: opponent || linkedEventPlan.teamBName, rounds: updatedRounds, totalMatches: updatedRounds.length };
+    const baseNotes = `${stripLinkedPlan(linkedEvent.event_notes || '')}\n\nRisultato importato da /import/match: evento=${linkedEvent.title}; partita=${(linkedRoundIndex || 0) + 1}; match_id=${matchId}; screenshot=${screenshotUrl || '-'}`.trim();
+    const payloadWithPlan = { event_plan: updatedPlan, event_notes: linkedPlanNote(updatedPlan, baseNotes) } as Record<string, unknown>;
+    const update = await supabase.from('codm_events').update(payloadWithPlan).eq('id', linkedEvent.id);
+    if (update.error && /event_plan|column/i.test(update.error.message)) {
+      await supabase.from('codm_events').update({ event_notes: linkedPlanNote(updatedPlan, baseNotes) }).eq('id', linkedEvent.id);
+    }
+    setLinkedEventPlan(updatedPlan);
+  }
+
   async function saveMatch() {
     setMessage('');
     const activeClanId = clanId;
@@ -786,8 +982,9 @@ function ImportMatchEditor() {
       });
     }
 
+    await updateLinkedEventAfterSave(match.id, screenshotUrl);
     await loadRoster();
-    setMessage(`Partita salvata. Statistiche salvate per giocatori registrati e manuali: ${savedStats.join(', ') || 'nessuna riga'}. Screenshot allegato come prova.`);
+    setMessage(`Partita salvata. ${linkedEvent ? `Aggiornato anche evento ${linkedEvent.title} · Partita ${(linkedRoundIndex || 0) + 1} con score e MVP automatici. ` : ''}Statistiche salvate per giocatori registrati e manuali: ${savedStats.join(', ') || 'nessuna riga'}. Screenshot allegato come prova.`);
   }
 
   const allyRows = useMemo(() => rows.map((row, index) => ({ row, index })).filter((item) => item.row.teamSide !== 'ENEMY'), [rows]);
@@ -869,6 +1066,20 @@ function ImportMatchEditor() {
           <button className="btn import-main-btn" onClick={runBackendOcr} disabled={working || !file}>{working ? '⏳ Lettura in corso...' : '🚀 Importa risultati'}</button>
         </div>
       </section>
+
+      {linkedEvent && linkedRound && (
+        <section className="card top-gap import-linked-event-banner">
+          <p className="eyebrow">📥 Import da Eventi</p>
+          <h2>Stai importando la Partita {linkedRound.n} da: {linkedEvent.title}</h2>
+          <div className="linked-event-grid">
+            <span>Modalità già selezionata: <b>{modeLabel(mode)}</b></span>
+            <span>Mappa evento: <b>{mapName || 'da leggere/importare'}</b></span>
+            <span>Avversario: <b>{opponent || 'da compilare'}</b></span>
+            <span>Orario partita: <b>{linkedRound.startTime || '-'}</b></span>
+          </div>
+          <p className="muted">Quando salvi la partita, l'evento viene aggiornato automaticamente con score, esito e MVP.</p>
+        </section>
+      )}
 
       <section className="grid grid-2 top-gap">
         <div className="card">
