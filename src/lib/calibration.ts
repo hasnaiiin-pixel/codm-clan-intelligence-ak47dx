@@ -381,6 +381,42 @@ export function resetCalibration(kind: CalibrationKind, phoneProfile?: string) {
   window.localStorage.removeItem(storageKey(kind, phone));
   window.localStorage.removeItem(lastActiveKey(kind, phone));
 }
+
+export function splitCalibrationProfileKey(value: string) {
+  const safe = slug(value || "default");
+  const parts = safe.split("__");
+  return {
+    phone: parts[0] || "default",
+    template: parts.slice(1).join("__") || "default",
+  };
+}
+
+export function makeCalibrationProfileKey(phone: string, template?: string) {
+  const p = slug(phone || "default");
+  const t = slug(template || "default");
+  return t === "default" ? p : `${p}__${t}`;
+}
+
+export function listCalibrationPhones(kind: CalibrationKind): string[] {
+  return Array.from(new Set(listCalibrationPhoneProfiles(kind).map((key) => splitCalibrationProfileKey(key).phone).concat(["default"]))).sort();
+}
+
+export function listCalibrationTemplatesForPhone(kind: CalibrationKind, phone: string): string[] {
+  const safePhone = slug(phone || "default");
+  const templates = listCalibrationPhoneProfiles(kind)
+    .map((key) => splitCalibrationProfileKey(key))
+    .filter((entry) => entry.phone === safePhone)
+    .map((entry) => entry.template || "default");
+  return Array.from(new Set(["default", ...templates])).sort();
+}
+
+export function listCalibrationPhoneTemplateOptions(kind: CalibrationKind) {
+  return listCalibrationPhoneProfiles(kind).map((key) => ({
+    key,
+    ...splitCalibrationProfileKey(key),
+  }));
+}
+
 export function listCalibrationPhoneProfiles(kind: CalibrationKind): string[] {
   if (typeof window === "undefined") return ["default"];
   const base = baseKey(kind);

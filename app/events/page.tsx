@@ -254,6 +254,17 @@ export default function EventsPage() {
         )}
       </section>
 
+      <section className="card top-gap ak-next-events">
+        <div className="section-title"><h2>Prossimi eventi in programma</h2><button className="btn secondary small" onClick={() => void loadEvents()}>Aggiorna</button></div>
+        <div className="ak-upcoming-strip">
+          {futureEvents.slice(0, 6).map((event) => {
+            const convocati = convocatiForEvent(event);
+            return <article key={event.id} className="ak-upcoming-card"><strong>{event.title}</strong><span>{new Date(event.starts_at).toLocaleString('it-IT')}</span><small>{event.location || 'CODM'} {convocati.length ? `• ${convocati.length} convocati` : ''}</small></article>;
+          })}
+          {!futureEvents.length && <p className="empty-state">Nessun evento futuro. Crea uno scrim/allenamento e apparirà qui sotto il calendario.</p>}
+        </div>
+      </section>
+
       <section className="card top-gap">
         <div className="section-title">
           <div>

@@ -7,7 +7,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { supabase } from '@/lib/supabaseClient';
 import { findBestNicknameMatch, type ParsedScoreRow } from '@/lib/ocrParsers';
 import { calculatePlayerRating } from '@/lib/statistics';
-import { getBestCalibrationPhoneProfile, hasSavedCalibration, listCalibrationPhoneProfiles, loadCalibrationBundle, setActivePhoneProfile, setActiveUserContext, type CalibratedRegion } from '@/lib/calibration';
+import { clampRegion, getBestCalibrationPhoneProfile, hasSavedCalibration, listCalibrationPhones, listCalibrationTemplatesForPhone, loadCalibrationBundle, makeCalibrationProfileKey, saveCalibration, setActivePhoneProfile, setActiveUserContext, splitCalibrationProfileKey, type CalibratedRegion } from '@/lib/calibration';
 import { ACCEPTED_OCR_BACKEND_VERSIONS, EXPECTED_OCR_BACKEND_VERSION, getOcrBackendCandidates } from '@/lib/ocrBackend';
 import { FULL_IMAGE_FRAME, detectImageContentFrameFromUrl, regionToImageStyle, type ImageContentFrame } from '@/lib/imageFrame';
 import type { GameMode, MatchResult, MatchType, Player, TeamSide } from '@/lib/types';
@@ -139,6 +139,11 @@ function computeOurResult(winningTeam: 'blue' | 'red' | 'draw' | '', ourTeam: 'b
   return winningTeam === ourTeam ? 'WIN' : 'LOSE';
 }
 
+function toLocalDateTimeValue(date: Date) {
+  const tzOffset = date.getTimezoneOffset() * 60000;
+  return new Date(date.getTime() - tzOffset).toISOString().slice(0, 16);
+}
+
 function parseBackendMatchDate(textValue: string) {
   const text = textValue.trim();
   const m = text.match(/(\d{1,2}):(\d{2})(?::(\d{2}))?\s+(\d{2,4})[-/.](\d{1,2})[-/.](\d{1,2})/);
@@ -210,6 +215,7 @@ function ImportMatchEditor() {
   const [result, setResult] = useState<MatchResult>('WIN');
   const [mapName, setMapName] = useState('');
   const [matchDateText, setMatchDateText] = useState('');
+  const [matchDateLocal, setMatchDateLocal] = useState(toLocalDateTimeValue(new Date()));
   const [opponent, setOpponent] = useState('');
   const [matchNotes, setMatchNotes] = useState('');
   const [teamScore, setTeamScore] = useState('');
@@ -222,6 +228,10 @@ function ImportMatchEditor() {
   const [frameNudge, setFrameNudge] = useState<FrameNudge>({ x: 0, y: 0, w: 0, h: 0 });
   const [calibrationProfiles, setCalibrationProfiles] = useState<string[]>(['default']);
   const [selectedCalibrationPhone, setSelectedCalibrationPhone] = useState('default');
+  const [selectedCalibrationTemplate, setSelectedCalibrationTemplate] = useState('default');
+  const [calibrationPhoneOptions, setCalibrationPhoneOptions] = useState<string[]>(['default']);
+  const [calibrationTemplateOptions, setCalibrationTemplateOptions] = useState<string[]>(['default']);
+  const [selectedImportRegionName, setSelectedImportRegionName] = useState('BLUE_R1_KDA');
   const [useCalibrationTemplate, setUseCalibrationTemplate] = useState(true);
   const [calibrationMode, setCalibrationMode] = useState<'table_lock' | 'content_frame' | 'strict_image'>('content_frame');
   const [localTemplateRegions, setLocalTemplateRegions] = useState<CalibratedRegion[]>([]);
@@ -232,21 +242,45 @@ function ImportMatchEditor() {
   const [working, setWorking] = useState(false);
   const [ocrProgressPct, setOcrProgressPct] = useState(0);
 
-  function refreshCalibrationTemplate(phoneRaw?: string) {
-    const profiles = listCalibrationPhoneProfiles('scoreboard_ced');
-    const nextPhone = phoneRaw || getBestCalibrationPhoneProfile('scoreboard_ced');
-    setSelectedCalibrationPhone(nextPhone);
-    setActivePhoneProfile('scoreboard_ced', nextPhone);
-    setCalibrationProfiles(Array.from(new Set([...profiles, nextPhone])).sort());
-    const bundle = loadCalibrationBundle('scoreboard_ced', nextPhone);
-    const actualPhone = bundle.meta?.phoneProfile || nextPhone;
-    const saved = hasSavedCalibration('scoreboard_ced', actualPhone) || hasSavedCalibration('scoreboard_ced', nextPhone);
-    setSelectedCalibrationPhone(actualPhone);
-    setActivePhoneProfile('scoreboard_ced', actualPhone);
+  function refreshCalibrationTemplate(phoneRaw?: string, templateRaw?: string) {
+    const phoneInput = phoneRaw || selectedCalibrationPhone || splitCalibrationProfileKey(getBestCalibrationPhoneProfile('scoreboard_ced')).phone;
+    const templateInput = templateRaw || selectedCalibrationTemplate || splitCalibrationProfileKey(getBestCalibrationPhoneProfile('scoreboard_ced')).template;
+    const key = makeCalibrationProfileKey(phoneInput, templateInput);
+    const phoneOptions = listCalibrationPhones('scoreboard_ced');
+    const templateOptions = listCalibrationTemplatesForPhone('scoreboard_ced', phoneInput);
+    setCalibrationPhoneOptions(Array.from(new Set([...phoneOptions, phoneInput])).sort());
+    setCalibrationTemplateOptions(Array.from(new Set([...templateOptions, templateInput])).sort());
+    setSelectedCalibrationPhone(phoneInput);
+    setSelectedCalibrationTemplate(templateInput);
+    setCalibrationProfiles(Array.from(new Set([...phoneOptions, phoneInput])).sort());
+    setActivePhoneProfile('scoreboard_ced', key);
+    const bundle = loadCalibrationBundle('scoreboard_ced', key);
+    const saved = hasSavedCalibration('scoreboard_ced', key);
     setLocalTemplateRegions(bundle.regions || []);
+    if (!selectedImportRegionName && bundle.regions?.[0]?.name) setSelectedImportRegionName(bundle.regions[0].name);
     setTemplateSaved(saved);
-    setTemplateSummary(`${bundle.meta?.templateName || 'Scoreboard CED'} / ${actualPhone} · ${bundle.regions?.length || 0} riquadri · ${saved ? 'SALVATO/CANONICO' : 'DEFAULT NON SALVATO'}`);
-    return { phone: actualPhone, bundle, saved };
+    setTemplateSummary(`${phoneInput} / ${templateInput} · ${bundle.meta?.templateName || 'Scoreboard CED'} · ${bundle.regions?.length || 0} riquadri · ${saved ? 'SALVATO' : 'DEFAULT NON SALVATO'}`);
+    return { phone: key, bundle, saved };
+  }
+
+  function saveImportTemplateRegions(nextRegions = localTemplateRegions) {
+    const key = makeCalibrationProfileKey(selectedCalibrationPhone, selectedCalibrationTemplate);
+    saveCalibration('scoreboard_ced', nextRegions, key, `Scoreboard ${selectedCalibrationTemplate}`, clanName);
+    refreshCalibrationTemplate(selectedCalibrationPhone, selectedCalibrationTemplate);
+    setMessage(`Template risultati salvato da Import: telefono ${selectedCalibrationPhone}, template ${selectedCalibrationTemplate}.`);
+  }
+
+  function updateImportRegion(name: string, patch: Partial<CalibratedRegion>) {
+    setLocalTemplateRegions((current) => {
+      const next = current.map((region) => region.name === name ? clampRegion({ ...region, ...patch }) : region);
+      return next;
+    });
+  }
+
+  function nudgeImportRegion(name: string, dx = 0, dy = 0, dw = 0, dh = 0) {
+    const region = localTemplateRegions.find((r) => r.name === name);
+    if (!region) return;
+    updateImportRegion(name, { x: region.x + dx, y: region.y + dy, w: region.w + dw, h: region.h + dh });
   }
 
   useEffect(() => {
@@ -463,7 +497,7 @@ function ImportMatchEditor() {
       const formData = new FormData();
       formData.append('file', file);
       if (useCalibrationTemplate) {
-        const activeTemplate = refreshCalibrationTemplate(selectedCalibrationPhone);
+        const activeTemplate = refreshCalibrationTemplate(selectedCalibrationPhone, selectedCalibrationTemplate);
         if (!activeTemplate.saved) {
           setMessage(`ATTENZIONE: stai usando il template DEFAULT non salvato (${activeTemplate.phone}). Apri /calibration, salva il template corretto e poi torna qui. Importo comunque per revisione manuale.`);
         }
@@ -491,7 +525,11 @@ function ImportMatchEditor() {
       const backendMode = modeFromBackend(parsed.mode);
       if (backendMode) setMode(backendMode);
       if (parsed.map) setMapName(parsed.map);
-      if (parsed.match_datetime) setMatchDateText(parsed.match_datetime);
+      if (parsed.match_datetime) {
+        setMatchDateText(parsed.match_datetime);
+        const parsedDate = parseBackendMatchDate(parsed.match_datetime);
+        if (parsedDate) setMatchDateLocal(toLocalDateTimeValue(new Date(parsedDate)));
+      }
       const ourScore = (parsed.our_team || ourTeam) === 'blue' ? parsed.blue_score : parsed.red_score;
       const opponentScore = (parsed.our_team || ourTeam) === 'blue' ? parsed.red_score : parsed.blue_score;
       setTeamScore(ourScore === null || ourScore === undefined ? '' : String(ourScore));
@@ -589,8 +627,8 @@ function ImportMatchEditor() {
       winning_team: winningTeam || null,
       our_team: ourTeam,
       match_notes: matchNotes || null,
-      match_date: parseBackendMatchDate(matchDateText) || new Date().toISOString(),
-      notes: `${matchNotes ? `${matchNotes}\n\n` : ''}Import risultati 2.0. Screenshot prova=${screenshotPath || screenshotUrl || 'non caricato'}. Template=${useCalibrationTemplate ? `${selectedCalibrationPhone}/${calibrationMode}/frame=${applyFrameNudge(imageContentFrame, frameNudge).reason}` : 'OFF'}. OurTeam=${ourTeam}. WinningTeam=${winningTeam || '-'}. MatchDateText=${matchDateText || '-'}.`
+      match_date: matchDateLocal ? new Date(matchDateLocal).toISOString() : (parseBackendMatchDate(matchDateText) || new Date().toISOString()),
+      notes: `${matchNotes ? `${matchNotes}\n\n` : ''}Import risultati 2.0. Screenshot prova=${screenshotPath || screenshotUrl || 'non caricato'}. Template=${useCalibrationTemplate ? `${selectedCalibrationPhone}/${calibrationMode}/frame=${applyFrameNudge(imageContentFrame, frameNudge).reason}` : 'OFF'}. OurTeam=${ourTeam}. WinningTeam=${winningTeam || '-'}. MatchDateText=${matchDateText || '-'}; MatchDateLocal=${matchDateLocal || '-'}.`
     }).select('id').single();
 
     if (matchError || !match) return setMessage(matchError?.message || 'Partita non creata.');
@@ -819,12 +857,28 @@ function ImportMatchEditor() {
             </div>
             <small className="muted">Questa correzione sposta il frame inviato al backend senza cambiare il template salvato.</small>
           </details>
+          <details className="top-gap">
+            <summary>🧩 Regola riquadri direttamente in Import risultati</summary>
+            <div className="grid grid-2 top-gap">
+              <div className="field"><label>Riquadro da modificare</label><select className="select" value={selectedImportRegionName} onChange={(e) => setSelectedImportRegionName(e.target.value)}>{localTemplateRegions.map((r) => <option key={r.name} value={r.name}>{r.label || r.name}</option>)}</select></div>
+              <div className="field"><label>Salvataggio</label><button className="btn small" type="button" onClick={() => saveImportTemplateRegions()}>💾 Salva riquadri per questo telefono/template</button><small className="muted">Le modifiche restano disponibili anche in Calibrazione.</small></div>
+            </div>
+            <div className="cal-buttons top-gap">
+              <button className="btn small secondary" type="button" onClick={() => nudgeImportRegion(selectedImportRegionName, 0, -0.003)}>Riquadro ↑</button>
+              <button className="btn small secondary" type="button" onClick={() => nudgeImportRegion(selectedImportRegionName, 0, 0.003)}>Riquadro ↓</button>
+              <button className="btn small secondary" type="button" onClick={() => nudgeImportRegion(selectedImportRegionName, -0.003, 0)}>Riquadro ←</button>
+              <button className="btn small secondary" type="button" onClick={() => nudgeImportRegion(selectedImportRegionName, 0.003, 0)}>Riquadro →</button>
+              <button className="btn small secondary" type="button" onClick={() => nudgeImportRegion(selectedImportRegionName, 0, 0, 0.004, 0.004)}>Allarga cella</button>
+              <button className="btn small secondary" type="button" onClick={() => nudgeImportRegion(selectedImportRegionName, 0, 0, -0.004, -0.004)}>Stringi cella</button>
+              <button className="btn small secondary" type="button" onClick={() => refreshCalibrationTemplate(selectedCalibrationPhone, selectedCalibrationTemplate)}>Annulla modifiche non salvate</button>
+            </div>
+          </details>
           {message && <div className="notice top-gap">{message}</div>}
           <details className="top-gap">
             <summary>⚙️ Impostazioni avanzate OCR</summary>
             <div className="grid grid-2 top-gap">
               <div className="field"><label>Usa calibrazione</label><select className="select" value={useCalibrationTemplate ? 'yes' : 'no'} onChange={(e) => setUseCalibrationTemplate(e.target.value === 'yes')}><option value="yes">Sì, usa template salvato</option><option value="no">No, layout automatico</option></select></div>
-              <div className="field"><label>Template telefono</label><select className="select" value={selectedCalibrationPhone} onChange={(e) => refreshCalibrationTemplate(e.target.value)} disabled={!useCalibrationTemplate}>{calibrationProfiles.map((p) => <option key={p} value={p}>{p}</option>)}</select></div>
+              <div className="field"><label>Tipologia telefono</label><select className="select" value={selectedCalibrationPhone} onChange={(e) => refreshCalibrationTemplate(e.target.value, 'default')} disabled={!useCalibrationTemplate}>{calibrationPhoneOptions.map((p) => <option key={p} value={p}>{p}</option>)}</select></div><div className="field"><label>Nome template</label><select className="select" value={selectedCalibrationTemplate} onChange={(e) => refreshCalibrationTemplate(selectedCalibrationPhone, e.target.value)} disabled={!useCalibrationTemplate}>{calibrationTemplateOptions.map((p) => <option key={p} value={p}>{p}</option>)}</select><small className="muted">Esempio: CED, Postazione, Dominio.</small></div>
               <div className="field"><label>Modo template</label><select className="select" value={calibrationMode} onChange={(e) => setCalibrationMode(e.target.value as 'table_lock' | 'content_frame' | 'strict_image')} disabled={!useCalibrationTemplate}><option value="content_frame">Content frame consigliato</option><option value="table_lock">Table-lock fallback</option><option value="strict_image">Coordinate immagine esatta</option></select><small className="muted">V4.6 invia anche il frame calcolato dal frontend: {applyFrameNudge(imageContentFrame, frameNudge).reason} ({Math.round(applyFrameNudge(imageContentFrame, frameNudge).x * 100)}%, {Math.round(applyFrameNudge(imageContentFrame, frameNudge).y * 100)}%, {Math.round(applyFrameNudge(imageContentFrame, frameNudge).w * 100)}% x {Math.round(applyFrameNudge(imageContentFrame, frameNudge).h * 100)}%).</small></div>
               <div className="field"><label>Conferma nostro team</label><select className="select" value={ourTeam} onChange={(e) => setOurTeam(e.target.value as 'blue' | 'red')}><option value="blue">Blu / sinistra</option><option value="red">Rosso / destra</option></select></div>
             </div>
@@ -838,7 +892,7 @@ function ImportMatchEditor() {
           <h2>Dati partita</h2>
           <div className="form">
             <div className="grid grid-2"><div className="field"><label>Tipo partita</label><select className="select" value={matchType} onChange={(e) => setMatchType(e.target.value as MatchType)}>{types.map((m) => <option key={m}>{m}</option>)}</select></div><div className="field"><label>Modalità</label><select className="select" value={mode} onChange={(e) => setMode(e.target.value as GameMode)}>{modes.map((m) => <option key={m} value={m}>{modeLabel(m)}</option>)}</select></div></div>
-            <div className="grid grid-2"><div className="field"><label>Mappa</label><input className="input" value={mapName} onChange={(e) => setMapName(e.target.value)} /></div><div className="field"><label>Data/ora partita</label><input className="input" value={matchDateText} onChange={(e) => setMatchDateText(e.target.value)} placeholder="23:09:36 26-07-01" /></div></div>
+            <div className="grid grid-2"><div className="field"><label>Mappa</label><input className="input" value={mapName} onChange={(e) => setMapName(e.target.value)} /></div><div className="field"><label>Data/ora partita</label><input className="input" type="datetime-local" value={matchDateLocal} onChange={(e) => setMatchDateLocal(e.target.value)} /><small className="muted">Testo OCR: {matchDateText || 'non letto'} </small></div></div>
             <div className="ak-import-mode-card"><div className="field"><label>Nostro team nello screenshot</label><select className="select" value={ourTeam} onChange={(e) => setOurTeam(e.target.value as 'blue' | 'red')}><option value="blue">Noi siamo BLU / sinistra</option><option value="red">Noi siamo ROSSI / destra</option></select></div><p className="muted">L'OCR importerà solo la squadra scelta. Puoi cambiare BLU/ROSSO anche dopo una lettura e premere di nuovo Importa risultati per ricalcolare.</p></div><div className="grid grid-2"><div className="field"><label>Clan avversario</label><input className="input" value={opponent} onChange={(e) => { setOpponent(e.target.value); setRows((current) => current.map((r) => r.teamSide === 'ENEMY' && (!r.playerClanName || r.playerClanName === 'Avversari') ? { ...r, playerClanName: e.target.value } : r)); }} placeholder="AP / clan avversario" /></div><div className="field"><label>Squadra vincente</label><select className="select" value={winningTeam} onChange={(e) => setWinningTeam(e.target.value as 'blue' | 'red' | 'draw' | '')}><option value="">Da verificare</option><option value="blue">Blu / sinistra</option><option value="red">Rosso / destra</option><option value="draw">Pareggio</option></select></div></div>
             <div className="grid grid-3"><div className="field"><label>Esito nostro team</label><select className="select" value={result} onChange={(e) => setResult(e.target.value as MatchResult)}><option>WIN</option><option>LOSE</option><option>DRAW</option></select></div><div className="field"><label>Score blu</label><input className="input" value={teamScore} onChange={(e) => setTeamScore(e.target.value)} /></div><div className="field"><label>Score rosso</label><input className="input" value={enemyScore} onChange={(e) => setEnemyScore(e.target.value)} /></div></div>
             <div className="field"><label>Note partita</label><textarea className="input" rows={4} value={matchNotes} onChange={(e) => setMatchNotes(e.target.value)} placeholder="Note scrim, correzioni OCR, contestazioni, strategia, ecc." /></div>

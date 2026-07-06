@@ -12,6 +12,10 @@ import {
   getActivePhoneProfile,
   importCalibration,
   listCalibrationPhoneProfiles,
+  listCalibrationPhones,
+  listCalibrationTemplatesForPhone,
+  makeCalibrationProfileKey,
+  splitCalibrationProfileKey,
   loadCalibrationBundle,
   resetCalibration,
   saveCalibration,
@@ -44,9 +48,13 @@ export default function CalibrationPage() {
 function CalibrationEditor() {
   const [kind, setKind] = useState<CalibrationKind>('scoreboard_ced');
   const [phoneProfile, setPhoneProfile] = useState('default');
+  const [phoneDevice, setPhoneDevice] = useState('default');
+  const [templateSlot, setTemplateSlot] = useState('default');
   const [templateName, setTemplateName] = useState('Scoreboard CED');
   const [ownerName, setOwnerName] = useState('');
   const [profiles, setProfiles] = useState<string[]>(['default']);
+  const [phoneOptions, setPhoneOptions] = useState<string[]>(['default']);
+  const [templateOptions, setTemplateOptions] = useState<string[]>(['default']);
   const [regions, setRegions] = useState<CalibratedRegion[]>(() => loadCalibrationBundle('scoreboard_ced').regions);
   const [selectedName, setSelectedName] = useState('SCOREBOARD_SCORE_BLUE');
   const [imageUrl, setImageUrl] = useState('');
@@ -66,40 +74,64 @@ function CalibrationEditor() {
       setOwnerName(String(name || ''));
       setActiveUserContext(user?.id || 'anonymous', String(name || ''));
       const activePhone = getActivePhoneProfile(kind);
+      const split = splitCalibrationProfileKey(activePhone);
       setPhoneProfile(activePhone);
+      setPhoneDevice(split.phone);
+      setTemplateSlot(split.template);
       const bundle = loadCalibrationBundle(kind, activePhone);
       setRegions(bundle.regions);
       setTemplateName(bundle.meta.templateName);
       setProfiles(listCalibrationPhoneProfiles(kind));
+      setPhoneOptions(listCalibrationPhones(kind));
+      setTemplateOptions(listCalibrationTemplatesForPhone(kind, split.phone));
     });
   }, []);
 
   function loadTemplate(nextKind: CalibrationKind, nextPhone = getActivePhoneProfile(nextKind)) {
     setKind(nextKind);
+    const split = splitCalibrationProfileKey(nextPhone);
     setPhoneProfile(nextPhone);
+    setPhoneDevice(split.phone);
+    setTemplateSlot(split.template);
     setActivePhoneProfile(nextKind, nextPhone);
     const bundle = loadCalibrationBundle(nextKind, nextPhone);
     setRegions(bundle.regions);
     setTemplateName(bundle.meta.templateName);
     setSelectedName(bundle.regions[0]?.name || '');
     setProfiles(listCalibrationPhoneProfiles(nextKind));
-    setMessage(`Template ${nextKind} / telefono ${nextPhone} caricato. Puoi trascinare i riquadri o ridimensionarli dagli angoli.`);
+    setPhoneOptions(listCalibrationPhones(nextKind));
+    setTemplateOptions(listCalibrationTemplatesForPhone(nextKind, split.phone));
+    setMessage(`Template ${nextKind} / telefono ${split.phone} / template ${split.template} caricato. Puoi trascinare i riquadri o ridimensionarli dagli angoli.`);
   }
 
   function changeKind(nextKind: CalibrationKind) { loadTemplate(nextKind, getActivePhoneProfile(nextKind)); }
   function changePhone(nextPhoneRaw: string) { loadTemplate(kind, slug(nextPhoneRaw)); }
+  function changePhoneDevice(nextPhoneRaw: string) {
+    const nextPhone = slug(nextPhoneRaw);
+    const templates = listCalibrationTemplatesForPhone(kind, nextPhone);
+    const nextTemplate = templates.includes(templateSlot) ? templateSlot : 'default';
+    loadTemplate(kind, makeCalibrationProfileKey(nextPhone, nextTemplate));
+  }
+  function changeTemplateSlot(nextTemplateRaw: string) {
+    loadTemplate(kind, makeCalibrationProfileKey(phoneDevice, nextTemplateRaw));
+  }
   function newPhoneProfile() {
     const phoneValue = window.prompt('Nome telefono? Esempio: iphone_17px, samsung_s23, ipad');
     if (!phoneValue) return;
     const templateValue = window.prompt('Nome template? Esempio: ced, postazione, dominio, profilo_base') || 'default';
-    const next = templateValue && slug(templateValue) !== 'default' ? `${slug(phoneValue)}__${slug(templateValue)}` : slug(phoneValue);
+    const next = makeCalibrationProfileKey(phoneValue, templateValue);
+    const split = splitCalibrationProfileKey(next);
     setPhoneProfile(next);
+    setPhoneDevice(split.phone);
+    setTemplateSlot(split.template);
     setActivePhoneProfile(kind, next);
     const defaults = defaultCalibration(kind);
     setRegions(defaults);
     setSelectedName(defaults[0]?.name || '');
     setTemplateName(`${kind === 'profile_base' ? 'Profilo base' : 'Scoreboard CED'} ${next}`);
     setProfiles(Array.from(new Set([...profiles, next])).sort());
+    setPhoneOptions(listCalibrationPhones(kind));
+    setTemplateOptions(Array.from(new Set([...listCalibrationTemplatesForPhone(kind, split.phone), split.template])).sort());
     saveCalibration(kind, defaults, next, `${kind === 'profile_base' ? 'Profilo base' : 'Scoreboard CED'} ${next}`, ownerName);
     setMessage(`Nuovo template ${next}. Formato: telefono__template. Regola i riquadri e premi Salva template.`);
   }
@@ -184,7 +216,7 @@ function CalibrationEditor() {
   function save() {
     saveCalibration(kind, regions, phoneProfile, templateName, ownerName);
     setProfiles(listCalibrationPhoneProfiles(kind));
-    setMessage(`Template salvato per login ${ownerName || 'utente locale'} / telefono ${phoneProfile}. Import Partita e Import Profilo useranno questi riquadri.`);
+    setMessage(`Template salvato per login ${ownerName || 'utente locale'} / telefono ${phoneDevice} / template ${templateSlot}. Import Partita e Import Profilo useranno questi riquadri.`);
   }
   function reset() {
     resetCalibration(kind, phoneProfile);
@@ -203,13 +235,18 @@ function CalibrationEditor() {
     try {
       const imported = importCalibration(jsonBox);
       const nextPhone = slug(imported.meta?.phoneProfile || phoneProfile);
+      const split = splitCalibrationProfileKey(nextPhone);
       setKind(imported.kind);
       setPhoneProfile(nextPhone);
+      setPhoneDevice(split.phone);
+      setTemplateSlot(split.template);
       setRegions(imported.regions);
       setTemplateName(imported.meta?.templateName || templateName);
       setSelectedName(imported.regions[0]?.name || '');
       saveCalibration(imported.kind, imported.regions, nextPhone, imported.meta?.templateName || templateName, ownerName);
       setProfiles(listCalibrationPhoneProfiles(imported.kind));
+      setPhoneOptions(listCalibrationPhones(imported.kind));
+      setTemplateOptions(listCalibrationTemplatesForPhone(imported.kind, split.phone));
       setMessage('Template importato e salvato.');
     } catch (error) {
       setMessage(error instanceof Error ? error.message : 'Template JSON non valido.');
@@ -225,9 +262,9 @@ function CalibrationEditor() {
         </p>
         <div className="grid grid-4">
           <div className="field"><label>Tipo template</label><select className="select" value={kind} onChange={(e) => changeKind(e.target.value as CalibrationKind)}>{kinds.map((entry) => <option key={entry.value} value={entry.value}>{entry.label}</option>)}</select><small className="muted">{kinds.find((e) => e.value === kind)?.help}</small></div>
-          <div className="field"><label>Telefono / template</label><div className="cal-phone-row"><select className="select" value={phoneProfile} onChange={(e) => changePhone(e.target.value)}>{profiles.map((p) => <option key={p} value={p}>{p}</option>)}</select><button className="btn small secondary" type="button" onClick={newPhoneProfile}>Nuovo</button></div></div>
-          <div className="field"><label>Nome template</label><input className="input" value={templateName} onChange={(e) => setTemplateName(e.target.value)} /></div>
-          <div className="field"><label>Login/profilo collegato</label><input className="input" value={ownerName} onChange={(e) => setOwnerName(e.target.value)} placeholder="Nome login" /><small className="muted">Il template resta separato per utente.</small></div>
+          <div className="field"><label>Tipologia telefono</label><div className="cal-phone-row"><select className="select" value={phoneDevice} onChange={(e) => changePhoneDevice(e.target.value)}>{phoneOptions.map((p) => <option key={p} value={p}>{p}</option>)}</select><button className="btn small secondary" type="button" onClick={newPhoneProfile}>Nuovo</button></div><small className="muted">Esempio: iphone_17px</small></div>
+          <div className="field"><label>Nome template</label><select className="select" value={templateSlot} onChange={(e) => changeTemplateSlot(e.target.value)}>{templateOptions.map((p) => <option key={p} value={p}>{p}</option>)}</select><input className="input top-gap" value={templateName} onChange={(e) => setTemplateName(e.target.value)} placeholder="Descrizione template" /><small className="muted">Esempio: ced, postazione, dominio, profilo_base</small></div>
+          <div className="field"><label>Login/profilo collegato</label><input className="input" value={ownerName} onChange={(e) => setOwnerName(e.target.value)} placeholder="Nome login" /><small className="muted">Chiave attiva: {phoneProfile}</small></div>
         </div>
         <div className="grid grid-3 top-gap">
           <div className="field"><label>Screenshot campione</label><input className="input" type="file" accept="image/*" onChange={(event) => onFile(event.target.files?.[0] || null)} /></div>

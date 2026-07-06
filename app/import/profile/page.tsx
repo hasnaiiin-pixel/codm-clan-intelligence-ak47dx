@@ -3,10 +3,13 @@
 import { useEffect, useMemo, useState } from 'react';
 import { supabase } from '@/lib/supabaseClient';
 import { parseCodmProfileText, type ParsedProfileStats } from '@/lib/ocrParsers';
+import { recognizeCodmImage } from '@/lib/codmOcrEngine';
 import {
+  clampRegion,
   getActivePhoneProfile,
   listCalibrationPhoneProfiles,
   loadCalibrationBundle,
+  saveCalibration,
   setActivePhoneProfile,
   type CalibratedRegion,
 } from '@/lib/calibration';
@@ -140,6 +143,7 @@ export default function ImportProfilePage() {
   const [phone, setPhone] = useState('default');
   const [template, setTemplate] = useState('default');
   const [templateRegions, setTemplateRegions] = useState<CalibratedRegion[]>([]);
+  const [selectedProfileRegionName, setSelectedProfileRegionName] = useState('PROFILE_LEGENDARY_MG_COUNT');
   const [templateSummary, setTemplateSummary] = useState('Template non caricato');
   const [imageFrame, setImageFrame] = useState<ImageContentFrame>(FULL_IMAGE_FRAME);
   const [frameNudge, setFrameNudge] = useState<FrameNudge>({ x: 0, y: 0, w: 0, h: 0 });
@@ -162,8 +166,49 @@ export default function ImportProfilePage() {
     setActivePhoneProfile('profile_base', key);
     const bundle = loadCalibrationBundle('profile_base', key);
     setTemplateRegions(bundle.regions || []);
+    if (!selectedProfileRegionName && bundle.regions?.[0]?.name) setSelectedProfileRegionName(bundle.regions[0].name);
     setTemplateSummary(`${chosenPhone} / ${chosenTemplate} · ${bundle.meta?.templateName || 'Profilo'} · ${bundle.regions?.length || 0} riquadri`);
     return { key, bundle };
+  }
+
+  function updateProfileRegion(name: string, patch: Partial<CalibratedRegion>) {
+    setTemplateRegions((current) => current.map((region) => region.name === name ? clampRegion({ ...region, ...patch }) : region));
+  }
+
+  function nudgeProfileRegion(name: string, dx = 0, dy = 0, dw = 0, dh = 0) {
+    const region = templateRegions.find((r) => r.name === name);
+    if (!region) return;
+    updateProfileRegion(name, { x: region.x + dx, y: region.y + dy, w: region.w + dw, h: region.h + dh });
+  }
+
+  function saveProfileTemplateFromImport() {
+    const key = joinPhoneTemplate(phone, template);
+    saveCalibration('profile_base', templateRegions, key, `Profilo ${template}`, 'import-profile');
+    refreshTemplateLists(phone, template);
+    setMessage(`Template profilo salvato da Import: telefono ${phone}, template ${template}.`);
+  }
+
+  async function runBrowserProfileFallback() {
+    if (!file) return false;
+    setOcrProgressPct(90);
+    setOcrProgress('Backend profilo lento: provo fallback OCR locale nel browser senza resettare immagine...');
+    try {
+      const result = await recognizeCodmImage(file, 'profile', (progress) => {
+        const base = progress.total ? progress.current || 1 : 1;
+        const total = progress.total || 1;
+        const localPct = 90 + Math.min(9, Math.round(((base - 1 + (progress.progress || 0)) / total) * 9));
+        setOcrProgressPct(localPct);
+        setOcrProgress(`Fallback profilo browser: ${progress.variantName || progress.stage}`);
+      }, templateRegions);
+      setRawText(result.rawText);
+      const parsed = parseCodmProfileText(result.rawText, importType);
+      applyParsed(parsed);
+      setMessage('Profilo: backend lento o lettura debole. Ho applicato fallback OCR locale; controlla i campi e salva manualmente.');
+      return true;
+    } catch (fallbackError) {
+      setMessage(`Profilo non letto dal backend e fallback browser fallito: ${fallbackError instanceof Error ? fallbackError.message : 'errore sconosciuto'}. L’immagine resta caricata: puoi correggere i campi o regolare i riquadri.`);
+      return false;
+    }
   }
 
   useEffect(() => {
@@ -246,13 +291,13 @@ export default function ImportProfilePage() {
       const xhr = new XMLHttpRequest();
       xhr.open('POST', `${backendUrl}/ocr/profile`);
       xhr.responseType = 'text';
-      xhr.timeout = 150000;
+      xhr.timeout = 90000;
       let fakePct = 45;
       let timer: number | null = null;
       const startFake = () => {
         if (timer !== null) return;
         timer = window.setInterval(() => {
-          fakePct = Math.min(88, fakePct + 4);
+          fakePct = Math.min(96, fakePct + 4);
           setOcrProgressPct(fakePct);
           setOcrProgress('Profilo in lettura OCR. Se Render è freddo può richiedere più tempo, ma non blocca /health.');
         }, 2500);
@@ -275,7 +320,7 @@ export default function ImportProfilePage() {
         reject(new Error(`Backend profilo HTTP ${xhr.status}: ${xhr.responseText || xhr.statusText}`));
       };
       xhr.onerror = () => { clearFake(); reject(new Error('Errore rete verso backend profilo.')); };
-      xhr.ontimeout = () => { clearFake(); reject(new Error('Timeout profilo dopo 150 secondi. Render free non ha completato OCR profilo.')); };
+      xhr.ontimeout = () => { clearFake(); reject(new Error('Timeout profilo dopo 90 secondi. Avvio fallback browser se disponibile.')); };
       setOcrProgressPct(5);
       setOcrProgress('Preparazione import profilo...');
       xhr.send(formData);
@@ -308,14 +353,18 @@ export default function ImportProfilePage() {
       setBackendBoxes(parsed.boxes || []);
       setRawText(parsed.raw_text || JSON.stringify(parsed, null, 2));
       applyBackend(parsed);
+      if (!hasUsefulProfile(parsed)) {
+        await runBrowserProfileFallback();
+      }
       const warnings = parsed.warnings?.length ? ` Warning: ${parsed.warnings.join(' | ')}` : '';
       setOcrProgressPct(100);
       setOcrProgress('Profilo completato. Controlla campi prima di salvare.');
       setMessage(`OCR profilo V5.9 completato. Layout=${Math.round((parsed.layout_confidence || 0) * 100)}%, OCR=${Math.round((parsed.ocr_confidence || 0) * 100)}%. Template=${phone}/${template}. ${hasUsefulProfile(parsed) ? 'Campi applicati.' : 'Nessun numero sicuro letto: correggi manualmente o regola i riquadri.'}${warnings}`);
     } catch (error) {
+      const fallbackOk = await runBrowserProfileFallback();
       setOcrProgressPct(100);
-      setOcrProgress('Import profilo fermato.');
-      setMessage(error instanceof Error ? error.message : 'Errore OCR profilo.');
+      setOcrProgress(fallbackOk ? 'Fallback profilo completato. Controlla campi.' : 'Import profilo fermato.');
+      if (!fallbackOk) setMessage(error instanceof Error ? error.message : 'Errore OCR profilo.');
     } finally {
       setWorking(false);
     }
@@ -457,6 +506,22 @@ export default function ImportProfilePage() {
               <a className="btn small secondary" href="/calibration">Modifica riquadri template</a>
             </div>
             <small className="muted">Questa centratura sposta il frame inviato al backend senza modificare il template salvato.</small>
+          </details>
+          <details className="top-gap">
+            <summary>🧩 Regola riquadri direttamente in Import profilo</summary>
+            <div className="grid grid-2 top-gap">
+              <div className="field"><label>Riquadro profilo</label><select className="select" value={selectedProfileRegionName} onChange={(e) => setSelectedProfileRegionName(e.target.value)}>{templateRegions.map((r) => <option key={r.name} value={r.name}>{r.label || r.name}</option>)}</select></div>
+              <div className="field"><label>Salvataggio template</label><button className="btn small" type="button" onClick={saveProfileTemplateFromImport}>💾 Salva riquadri profilo</button><small className="muted">Salva per telefono + tipologia template scelti sopra.</small></div>
+            </div>
+            <div className="cal-buttons top-gap">
+              <button className="btn small secondary" type="button" onClick={() => nudgeProfileRegion(selectedProfileRegionName, 0, -0.003)}>Riquadro ↑</button>
+              <button className="btn small secondary" type="button" onClick={() => nudgeProfileRegion(selectedProfileRegionName, 0, 0.003)}>Riquadro ↓</button>
+              <button className="btn small secondary" type="button" onClick={() => nudgeProfileRegion(selectedProfileRegionName, -0.003, 0)}>Riquadro ←</button>
+              <button className="btn small secondary" type="button" onClick={() => nudgeProfileRegion(selectedProfileRegionName, 0.003, 0)}>Riquadro →</button>
+              <button className="btn small secondary" type="button" onClick={() => nudgeProfileRegion(selectedProfileRegionName, 0, 0, 0.004, 0.004)}>Allarga cella</button>
+              <button className="btn small secondary" type="button" onClick={() => nudgeProfileRegion(selectedProfileRegionName, 0, 0, -0.004, -0.004)}>Stringi cella</button>
+              <button className="btn small secondary" type="button" onClick={() => refreshTemplateLists(phone, template)}>Annulla modifiche non salvate</button>
+            </div>
           </details>
           {message && <div className="notice top-gap">{message}</div>}
           {rawText && <details><summary>Testo OCR grezzo</summary><div className="raw-box">{rawText}</div></details>}
