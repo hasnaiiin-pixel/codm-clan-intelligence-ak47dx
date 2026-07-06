@@ -1,6 +1,15 @@
-const CODM_CACHE = 'codm-ak47dx-pwa-v7-3-events-cloud-notifications-icon-final';
+const CODM_CACHE = 'codm-ak47dx-pwa-v7-4-mobile-form-sync-cache-reset';
 const CODM_OFFLINE_URL = '/offline.html';
-const CORE_ASSETS = ['/', CODM_OFFLINE_URL, '/manifest.webmanifest'];
+const CORE_ASSETS = [CODM_OFFLINE_URL, '/manifest.webmanifest', '/icons/icon-192.png', '/icons/icon-512.png', '/icons/icon-maskable-512.png'];
+
+async function deleteOldCodmCaches() {
+  const keys = await caches.keys();
+  await Promise.all(
+    keys
+      .filter((key) => key.startsWith('codm-') && key !== CODM_CACHE)
+      .map((key) => caches.delete(key))
+  );
+}
 
 self.addEventListener('install', (event) => {
   event.waitUntil(
@@ -12,34 +21,80 @@ self.addEventListener('install', (event) => {
 
 self.addEventListener('activate', (event) => {
   event.waitUntil(
-    caches.keys()
-      .then((keys) => Promise.all(keys.filter((key) => key !== CODM_CACHE).map((key) => caches.delete(key))))
+    deleteOldCodmCaches()
       .then(() => self.clients.claim())
+      .then(async () => {
+        const clientsList = await self.clients.matchAll({ type: 'window', includeUncontrolled: true });
+        for (const client of clientsList) client.postMessage({ type: 'CODM_SW_UPDATED', version: CODM_CACHE });
+      })
   );
 });
+
+async function networkFirst(request, fallbackUrl) {
+  try {
+    const response = await fetch(request, { cache: 'no-store' });
+    if (response && response.ok && request.method === 'GET') {
+      const origin = new URL(request.url).origin;
+      if (origin === self.location.origin && !new URL(request.url).pathname.startsWith('/api/')) {
+        const copy = response.clone();
+        caches.open(CODM_CACHE).then((cache) => cache.put(request, copy)).catch(() => undefined);
+      }
+    }
+    return response;
+  } catch (_) {
+    return (await caches.match(request)) || (fallbackUrl ? caches.match(fallbackUrl) : undefined) || Response.error();
+  }
+}
+
+async function cacheFirstStatic(request) {
+  const cached = await caches.match(request);
+  if (cached) {
+    fetch(request).then((response) => {
+      if (response && response.ok) caches.open(CODM_CACHE).then((cache) => cache.put(request, response.clone())).catch(() => undefined);
+    }).catch(() => undefined);
+    return cached;
+  }
+  const response = await fetch(request);
+  if (response && response.ok) {
+    const copy = response.clone();
+    caches.open(CODM_CACHE).then((cache) => cache.put(request, copy)).catch(() => undefined);
+  }
+  return response;
+}
 
 self.addEventListener('fetch', (event) => {
   const request = event.request;
   if (request.method !== 'GET') return;
 
-  if (request.mode === 'navigate') {
-    event.respondWith(fetch(request).catch(() => caches.match(CODM_OFFLINE_URL)));
+  const url = new URL(request.url);
+  if (url.origin !== self.location.origin) return;
+
+  // API e dati dinamici: mai cache. Serve soprattutto per PWA installata, eventi e notifiche.
+  if (url.pathname.startsWith('/api/')) {
+    event.respondWith(fetch(request, { cache: 'no-store' }));
     return;
   }
 
-  event.respondWith(
-    caches.match(request).then((cached) => {
-      if (cached) return cached;
-      return fetch(request).then((response) => {
-        const origin = new URL(request.url).origin;
-        if (response.ok && origin === self.location.origin) {
-          const copy = response.clone();
-          caches.open(CODM_CACHE).then((cache) => cache.put(request, copy));
-        }
-        return response;
-      });
-    })
-  );
+  // Pagine e chunk Next.js: network-first per evitare differenze desktop/PWA dopo deploy.
+  if (request.mode === 'navigate' || url.pathname.startsWith('/_next/')) {
+    event.respondWith(networkFirst(request, CODM_OFFLINE_URL));
+    return;
+  }
+
+  // Icone e asset statici: cache-first con aggiornamento in background.
+  if (url.pathname.startsWith('/icons/') || url.pathname.startsWith('/assets/') || url.pathname === '/manifest.webmanifest' || url.pathname === CODM_OFFLINE_URL) {
+    event.respondWith(cacheFirstStatic(request));
+    return;
+  }
+
+  event.respondWith(networkFirst(request, CODM_OFFLINE_URL));
+});
+
+self.addEventListener('message', (event) => {
+  if (event.data && event.data.type === 'SKIP_WAITING') self.skipWaiting();
+  if (event.data && event.data.type === 'CLEAR_CODM_CACHES') {
+    event.waitUntil(deleteOldCodmCaches());
+  }
 });
 
 self.addEventListener('push', (event) => {

@@ -5,8 +5,8 @@ export default function VersionPage() {
         <div className="ak-login-card">
           <div className="ak-pill">CLAN MANAGER DEPLOY CHECK</div>
           <h1 className="ak-title">Clan Manager</h1>
-          <p className="ak-lead">Versione V7.0 Full PWA Mobile: service worker registrato, offline page, installazione iOS/Android, badge notifiche su icona, bottom navigation mobile e fix Crea Evento telefono con salvataggio locale di sicurezza.</p>
-          <div className="notice top-gap"><strong>Marker:</strong> V7_0_FULL_PWA_MOBILE_NOTIFICATIONS_OK</div>
+          <p className="ak-lead">Versione V7.4 PWA Mobile Event Form Sync: service worker network-first, cache PWA vecchia eliminata, form evento mobile stabile, Team A/Team B salvati correttamente e sync eventi condivisi via API server.</p>
+          <div className="notice top-gap"><strong>Marker:</strong> V7_4_PWA_MOBILE_EVENT_FORM_SYNC_OK</div>
           <div className="notice top-gap"><strong>Admin principale:</strong> hasnaiiin@gmail.com</div>
           <div className="notice top-gap"><strong>Icona telefono:</strong> MIRZA · manifest PWA completo · badge notifiche</div>
           <div className="ak-quick-links">

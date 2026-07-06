@@ -1,6 +1,6 @@
 {
   "name": "codm-clan-intelligence-ak47dx",
-  "version": "7.3.0-events-cloud-notifications-icon-final",
+  "version": "7.4.0-pwa-mobile-event-form-sync-final",
   "private": true,
   "scripts": {
     "dev": "next dev",
@@ -9,7 +9,7 @@
     "lint": "next lint"
   },
   "engines": {
-    "node": "24.x"
+    "node": ">=22.0.0 <25"
   },
   "packageManager": "npm@10.8.2",
   "dependencies": {

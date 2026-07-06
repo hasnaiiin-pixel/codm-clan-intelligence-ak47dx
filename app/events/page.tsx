@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { supabase, isSupabaseConfigured } from "@/lib/supabaseClient";
 import { useCodmAuth } from "@/lib/authRoles";
 import { buildGoogleCalendarUrl } from "@/lib/googleCalendar";
@@ -95,12 +95,32 @@ const OLD_PLAN_MARKERS = [
 const DRAFT_KEY = "clan_manager_event_editor_draft_v7_0";
 const EVENTS_CACHE_KEY = "clan_manager_events_cache_v7_0";
 const LOCAL_EVENTS_KEY = "codm_local_events_v7_0";
+const EVENTS_FORM_VERSION_KEY = "codm_events_form_version";
+const EVENTS_FORM_VERSION = "V7_4_PWA_FORM_SYNC_STABLE";
+const MAX_LOCAL_IMAGE_DATA_URL_CHARS = 240_000;
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{12}$/i;
 function isUuid(value: unknown): value is string {
   return typeof value === "string" && UUID_RE.test(value);
 }
 function sortEvents(rows: CodmEvent[]) {
   return dedupeEvents(rows).sort((a, b) => new Date(a.starts_at).getTime() - new Date(b.starts_at).getTime());
+}
+function compactDataUrlForLocal(value: unknown) {
+  if (typeof value !== "string") return value;
+  if (!value.startsWith("data:image/")) return value;
+  return value.length > MAX_LOCAL_IMAGE_DATA_URL_CHARS ? "" : value;
+}
+function compactPlanForLocalStorage(plan: MatchPlan | null | undefined) {
+  if (!plan || typeof plan !== "object") return plan;
+  return {
+    ...plan,
+    teamALogo: compactDataUrlForLocal(plan.teamALogo) as string,
+    teamBLogo: compactDataUrlForLocal(plan.teamBLogo) as string,
+    coverImage: compactDataUrlForLocal(plan.coverImage) as string,
+  };
+}
+function compactEventForLocalStorage(event: CodmEvent) {
+  return { ...event, event_plan: compactPlanForLocalStorage(event.event_plan || null) } as CodmEvent;
 }
 const matchStatuses = ["Da giocare", "Giocata", "Risultato caricato"];
 const resultLabels = ["Vinto", "Perso", "Pareggiato"];
@@ -528,8 +548,29 @@ export default function EventsPage() {
   const [selectedPlayers, setSelectedPlayers] = useState<string[]>([]);
   const [reservePlayers, setReservePlayers] = useState<string[]>([]);
   const [plan, setPlan] = useState<MatchPlan>(() => emptyPlan("AK47DX"));
+  const planRef = useRef<MatchPlan>(plan);
+  const titleRef = useRef(title);
+  const descriptionRef = useRef(description);
+  const locationRef = useRef(location);
+
+  function commitPlan(next: MatchPlan | ((current: MatchPlan) => MatchPlan)) {
+    setPlan((current) => {
+      const source = planRef.current || current;
+      const resolved = typeof next === "function" ? (next as (current: MatchPlan) => MatchPlan)(source) : next;
+      planRef.current = resolved;
+      return resolved;
+    });
+  }
+  function commitTitle(value: string) { titleRef.current = value; setTitle(value); }
+  function commitDescription(value: string) { descriptionRef.current = value; setDescription(value); }
+  function commitLocation(value: string) { locationRef.current = value; setLocation(value); }
 
   const canWrite = auth.canWrite;
+
+  useEffect(() => { planRef.current = plan; }, [plan]);
+  useEffect(() => { titleRef.current = title; }, [title]);
+  useEffect(() => { descriptionRef.current = description; }, [description]);
+  useEffect(() => { locationRef.current = location; }, [location]);
 
   useEffect(() => {
     void loadEvents();
@@ -537,13 +578,19 @@ export default function EventsPage() {
   }, []);
   useEffect(() => {
     if (auth.clanName)
-      setPlan((p) => ({
+      commitPlan((p) => ({
         ...p,
         teamAName: p.teamAName === "AK47DX" ? auth.clanName : p.teamAName,
       }));
   }, [auth.clanName]);
   useEffect(() => {
     try {
+      const appliedFormVersion = localStorage.getItem(EVENTS_FORM_VERSION_KEY);
+      if (appliedFormVersion !== EVENTS_FORM_VERSION) {
+        localStorage.removeItem(DRAFT_KEY);
+        localStorage.removeItem(EVENTS_CACHE_KEY);
+        localStorage.setItem(EVENTS_FORM_VERSION_KEY, EVENTS_FORM_VERSION);
+      }
       const cachedEvents =
         localStorage.getItem(EVENTS_CACHE_KEY) ||
         localStorage.getItem("clan_manager_events_cache_v6_7");
@@ -581,7 +628,7 @@ export default function EventsPage() {
           Array.isArray(draft.reservePlayers) ? draft.reservePlayers : [],
         );
         if (draft.plan)
-          setPlan(
+          commitPlan(
             normalizePlan({
               ...emptyPlan(auth.clanName || "AK47DX"),
               ...draft.plan,
@@ -663,12 +710,22 @@ export default function EventsPage() {
     try {
       localStorage.setItem(LOCAL_EVENTS_KEY, JSON.stringify(normalized));
       window.dispatchEvent(new CustomEvent("codm-events-changed"));
-    } catch {}
+    } catch {
+      try {
+        const compacted = normalized.map(compactEventForLocalStorage);
+        localStorage.setItem(LOCAL_EVENTS_KEY, JSON.stringify(compacted));
+        window.dispatchEvent(new CustomEvent("codm-events-changed"));
+      } catch {}
+    }
   }
   function saveEventsCache(rows: CodmEvent[]) {
     try {
       localStorage.setItem(EVENTS_CACHE_KEY, JSON.stringify(sortEvents(rows).slice(0, 300)));
-    } catch {}
+    } catch {
+      try {
+        localStorage.setItem(EVENTS_CACHE_KEY, JSON.stringify(sortEvents(rows).slice(0, 300).map(compactEventForLocalStorage)));
+      } catch {}
+    }
   }
   function mergeWithLocalEvents(remoteRows: CodmEvent[]) {
     return sortEvents([...getLocalEvents(), ...remoteRows]);
@@ -791,7 +848,7 @@ export default function EventsPage() {
     );
   }
   function updateRound(index: number, patch: Partial<MatchRound>) {
-    setPlan((current) => ({
+    commitPlan((current) => ({
       ...current,
       rounds: current.rounds.map((round, i) =>
         i === index ? { ...round, ...patch } : round,
@@ -799,7 +856,7 @@ export default function EventsPage() {
     }));
   }
   function addRound() {
-    setPlan((current) => {
+    commitPlan((current) => {
       const n = current.rounds.length + 1;
       return {
         ...current,
@@ -809,7 +866,7 @@ export default function EventsPage() {
     });
   }
   function removeRound(index: number) {
-    setPlan((current) => {
+    commitPlan((current) => {
       const next = current.rounds
         .filter((_, i) => i !== index)
         .map((r, i) => ({
@@ -829,7 +886,7 @@ export default function EventsPage() {
     field: "players" | "reserves",
     nickname: string,
   ) {
-    setPlan((current) => ({
+    commitPlan((current) => ({
       ...current,
       rounds: current.rounds.map((round, i) => {
         if (i !== index) return round;
@@ -852,7 +909,31 @@ export default function EventsPage() {
   function readImage(file: File | null | undefined, cb: (url: string) => void) {
     if (!file) return;
     const reader = new FileReader();
-    reader.onload = () => cb(String(reader.result || ""));
+    reader.onload = () => {
+      const original = String(reader.result || "");
+      try {
+        const img = new Image();
+        img.onload = () => {
+          try {
+            const maxSide = 1024;
+            const ratio = Math.min(1, maxSide / Math.max(img.width || maxSide, img.height || maxSide));
+            const canvas = document.createElement("canvas");
+            canvas.width = Math.max(1, Math.round((img.width || maxSide) * ratio));
+            canvas.height = Math.max(1, Math.round((img.height || maxSide) * ratio));
+            const ctx = canvas.getContext("2d");
+            if (!ctx) return cb(original);
+            ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+            cb(canvas.toDataURL("image/jpeg", 0.78));
+          } catch {
+            cb(original);
+          }
+        };
+        img.onerror = () => cb(original);
+        img.src = original;
+      } catch {
+        cb(original);
+      }
+    };
     reader.readAsDataURL(file);
   }
   function resetEditor(clearDraft = false) {
@@ -869,7 +950,7 @@ export default function EventsPage() {
     setEventNotes("");
     setSelectedPlayers([]);
     setReservePlayers([]);
-    setPlan(emptyPlan(auth.clanName || "AK47DX"));
+    commitPlan(emptyPlan(auth.clanName || "AK47DX"));
     if (clearDraft) {
       try {
         localStorage.removeItem(DRAFT_KEY);
@@ -896,7 +977,7 @@ export default function EventsPage() {
       event.telegram_message_template || DEFAULT_TELEGRAM_TEMPLATE,
     );
     setEventNotes(stripOldPlan(event.event_notes || ""));
-    setPlan(normalizePlan(eventPlan));
+    commitPlan(normalizePlan(eventPlan));
     const starters = eventPlayers
       .filter((r) => r.event_id === event.id && r.status === "titolare")
       .map((r) => r.player_id)
@@ -929,7 +1010,11 @@ export default function EventsPage() {
         setMessage("Solo owner, coach o staff possono creare eventi.");
         return;
       }
-      if (!title.trim()) {
+      const currentTitle = (titleRef.current || title).trim();
+      const currentDescription = descriptionRef.current ?? description;
+      const currentLocation = locationRef.current ?? location;
+      const currentPlan = planRef.current || plan;
+      if (!currentTitle) {
         setMessage("Inserisci il titolo evento prima di salvare.");
         return;
       }
@@ -948,18 +1033,18 @@ export default function EventsPage() {
       const endIso = endDate ? endDate.toISOString() : null;
       const convocati = players.filter((p) => selectedPlayers.includes(p.id));
       const reserves = players.filter((p) => reservePlayers.includes(p.id));
-      const effectivePlan = normalizePlan(plan);
+      const effectivePlan = normalizePlan(currentPlan);
       const matchDetailsText = buildMatchDetails(effectivePlan).replace(/<[^>]*>/g, "");
       const convocationsText = [
         convocati.length ? `Titolari evento:\n${convocati.map((p) => `• ${p.nickname}`).join("\n")}` : "",
         reserves.length ? `Riserve evento:\n${reserves.map((p) => `• ${p.nickname}`).join("\n")}` : "",
         matchDetailsText ? `Dettaglio partite:\n${matchDetailsText}` : "",
       ].filter(Boolean).join("\n\n");
-      const fullDescription = [description, convocationsText].filter(Boolean).join("\n\n");
+      const fullDescription = [currentDescription, convocationsText].filter(Boolean).join("\n\n");
       const googleUrl = buildGoogleCalendarUrl({
-        title,
+        title: currentTitle,
         description: fullDescription,
-        location,
+        location: currentLocation,
         startsAt: startIso,
         endsAt: endIso,
       });
@@ -974,9 +1059,9 @@ export default function EventsPage() {
 
       const basePayload: Record<string, any> = {
         ...(effectiveClanId ? { clan_id: effectiveClanId } : {}),
-        title: title.trim(),
+        title: currentTitle,
         description: fullDescription || null,
-        location: location || null,
+        location: currentLocation || null,
         event_type: eventType,
         starts_at: startIso,
         ends_at: endIso,
@@ -1031,13 +1116,18 @@ export default function EventsPage() {
       } else {
         try {
           const { data: sessionData } = await supabase.auth.getSession();
-          const token = sessionData.session?.access_token;
+          let token = sessionData.session?.access_token;
           if (!token) {
-            throw new Error("Login richiesto: accedi prima di creare eventi condivisi con il clan.");
+            const { data: refreshed } = await supabase.auth.refreshSession();
+            token = refreshed.session?.access_token;
+          }
+          if (!token) {
+            throw new Error("Login richiesto: accedi prima di creare eventi condivisi con il clan. Nella PWA fai logout/login una volta dopo il reset cache.");
           }
 
           const response = await fetch("/api/events/save", {
             method: "POST",
+            cache: "no-store",
             headers: {
               "Content-Type": "application/json",
               Authorization: `Bearer ${token}`,
@@ -1106,6 +1196,7 @@ export default function EventsPage() {
         });
         await saveEventNotification(savedEvent, editingEventId ? "updated" : "created");
         if (typeof window !== "undefined") window.dispatchEvent(new CustomEvent("codm-server-notifications-changed"));
+        void loadEvents();
       }
 
       setMessage(
@@ -1358,7 +1449,7 @@ export default function EventsPage() {
                 <input
                   className="input"
                   value={title}
-                  onChange={(e) => setTitle(e.target.value)}
+                  onChange={(e) => commitTitle(e.target.value)}
                 />
               </div>
               <div className="grid grid-4">
@@ -1399,7 +1490,7 @@ export default function EventsPage() {
                   <input
                     className="input"
                     value={location}
-                    onChange={(e) => setLocation(e.target.value)}
+                    onChange={(e) => commitLocation(e.target.value)}
                   />
                 </div>
               </div>
@@ -1410,7 +1501,7 @@ export default function EventsPage() {
                     className="input"
                     value={plan.teamAName}
                     onChange={(e) =>
-                      setPlan((p) => ({ ...p, teamAName: e.target.value }))
+                      commitPlan((p) => ({ ...p, teamAName: e.target.value }))
                     }
                   />
                 </div>
@@ -1420,7 +1511,7 @@ export default function EventsPage() {
                     className="input"
                     value={plan.teamBName}
                     onChange={(e) =>
-                      setPlan((p) => ({ ...p, teamBName: e.target.value }))
+                      commitPlan((p) => ({ ...p, teamBName: e.target.value }))
                     }
                   />
                 </div>
@@ -1434,7 +1525,7 @@ export default function EventsPage() {
                     accept="image/*"
                     onChange={(e) =>
                       readImage(e.target.files?.[0], (url) =>
-                        setPlan((p) => ({ ...p, teamALogo: url })),
+                        commitPlan((p) => ({ ...p, teamALogo: url })),
                       )
                     }
                   />
@@ -1448,7 +1539,7 @@ export default function EventsPage() {
                     accept="image/*"
                     onChange={(e) =>
                       readImage(e.target.files?.[0], (url) =>
-                        setPlan((p) => ({ ...p, teamBLogo: url })),
+                        commitPlan((p) => ({ ...p, teamBLogo: url })),
                       )
                     }
                   />
@@ -1462,7 +1553,7 @@ export default function EventsPage() {
                     accept="image/*"
                     onChange={(e) =>
                       readImage(e.target.files?.[0], (url) =>
-                        setPlan((p) => ({ ...p, coverImage: url })),
+                        commitPlan((p) => ({ ...p, coverImage: url })),
                       )
                     }
                   />
@@ -1476,7 +1567,7 @@ export default function EventsPage() {
                     className="input"
                     value={plan.lobbyTime}
                     onChange={(e) =>
-                      setPlan((p) => ({ ...p, lobbyTime: e.target.value }))
+                      commitPlan((p) => ({ ...p, lobbyTime: e.target.value }))
                     }
                     placeholder="es. 21:45"
                   />
@@ -1487,7 +1578,7 @@ export default function EventsPage() {
                     className="input"
                     value={plan.roomNumber}
                     onChange={(e) =>
-                      setPlan((p) => ({ ...p, roomNumber: e.target.value }))
+                      commitPlan((p) => ({ ...p, roomNumber: e.target.value }))
                     }
                   />
                 </div>
@@ -1497,7 +1588,7 @@ export default function EventsPage() {
                     className="input"
                     value={plan.discordLink}
                     onChange={(e) =>
-                      setPlan((p) => ({ ...p, discordLink: e.target.value }))
+                      commitPlan((p) => ({ ...p, discordLink: e.target.value }))
                     }
                   />
                 </div>
@@ -1507,7 +1598,7 @@ export default function EventsPage() {
                     className="input"
                     value={plan.lobbyLink}
                     onChange={(e) =>
-                      setPlan((p) => ({ ...p, lobbyLink: e.target.value }))
+                      commitPlan((p) => ({ ...p, lobbyLink: e.target.value }))
                     }
                   />
                 </div>
@@ -1535,7 +1626,7 @@ export default function EventsPage() {
                   className="input"
                   rows={3}
                   value={description}
-                  onChange={(e) => setDescription(e.target.value)}
+                  onChange={(e) => commitDescription(e.target.value)}
                 />
               </div>
               <div className="grid grid-2">

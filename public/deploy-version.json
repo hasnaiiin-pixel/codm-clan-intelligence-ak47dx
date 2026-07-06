@@ -1,7 +1,7 @@
 {
   "app": "Clan Manager by MIRZA",
-  "version": "V7.3_EVENTS_CLOUD_NOTIFICATIONS_ICON_FINAL",
-  "marker": "V7_2_EVENTS_SERVER_SYNC_NOTIFICATIONS_OK",
+  "version": "V7.4_PWA_MOBILE_EVENT_FORM_SYNC_FINAL",
+  "marker": "V7_4_PWA_MOBILE_EVENT_FORM_SYNC_OK",
   "backend_ocr": "2.0.10-v5-4-fastlane-import-stabile-ak47dx",
   "routes": [
     "/version",
@@ -14,7 +14,7 @@
     "/ocr-status",
     "/notifications"
   ],
-  "notes": "Eventi condivisi Supabase via API server, notifiche in alto, preferenze in basso, icona PWA MIRZA ritagliata e ingrandita.",
-  "build": "CODM_AK47DX_V7_3_EVENTS_CLOUD_NOTIFICATIONS_ICON_FINAL",
+  "notes": "PWA corretta: service worker network-first, cache vecchia eliminata, form evento mobile stabile, team names e immagini compressi, eventi condivisi via API server.",
+  "build": "CODM_AK47DX_V7_4_PWA_MOBILE_EVENT_FORM_SYNC_FINAL",
   "date": "2026-07-06"
 }
