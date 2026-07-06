@@ -64,9 +64,9 @@ type EventPlayerRow = { event_id: string; player_id: string | null; nickname: st
 type ModeOption = { value: string; label: string; icon: string; help: string };
 type ScoreTypeOption = { value: string; label: string; target: string; help: string };
 
-const PLAN_MARKER = 'AK_EVENT_PLAN_V6_7::';
-const OLD_PLAN_MARKERS = ['AK_EVENT_PLAN_V6_6::', 'AK_EVENT_PLAN_V6_5::', 'AK_EVENT_PLAN_V6_4::', 'AK_EVENT_PLAN_V6_3::', 'AK_EVENT_PLAN_V6_2::'];
-const DRAFT_KEY = 'clan_manager_event_editor_draft_v6_7';
+const PLAN_MARKER = 'AK_EVENT_PLAN_V6_9::';
+const OLD_PLAN_MARKERS = ['AK_EVENT_PLAN_V6_7::', 'AK_EVENT_PLAN_V6_6::', 'AK_EVENT_PLAN_V6_5::', 'AK_EVENT_PLAN_V6_4::', 'AK_EVENT_PLAN_V6_3::', 'AK_EVENT_PLAN_V6_2::'];
+const DRAFT_KEY = 'clan_manager_event_editor_draft_v6_9';
 const matchStatuses = ['Da giocare', 'Giocata', 'Risultato caricato'];
 const resultLabels = ['Vinto', 'Perso', 'Pareggiato'];
 
@@ -218,7 +218,12 @@ export default function EventsPage() {
   }, []);
   useEffect(() => {
     if (!draftReady || !canWrite) return;
-    try { localStorage.setItem(DRAFT_KEY, draftPayload({ title, description, location, eventType, startsAt, endsAt, telegramEnabled, reminderMinutes, telegramTemplate, eventNotes, selectedPlayers, reservePlayers, plan, editingEventId })); } catch {}
+    const timer = window.setTimeout(() => {
+      try {
+        localStorage.setItem(DRAFT_KEY, draftPayload({ title, description, location, eventType, startsAt, endsAt, telegramEnabled, reminderMinutes, telegramTemplate, eventNotes, selectedPlayers, reservePlayers, plan, editingEventId }));
+      } catch {}
+    }, 850);
+    return () => window.clearTimeout(timer);
   }, [draftReady, canWrite, title, description, location, eventType, startsAt, endsAt, telegramEnabled, reminderMinutes, telegramTemplate, eventNotes, selectedPlayers, reservePlayers, plan, editingEventId]);
   useEffect(() => { try { if (events.length) localStorage.setItem('clan_manager_events_cache_v6_7', JSON.stringify(events)); } catch {} }, [events]);
 

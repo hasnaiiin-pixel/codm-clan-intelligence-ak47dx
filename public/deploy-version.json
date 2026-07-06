@@ -1,16 +1,17 @@
 {
-  "app": "Clan Manager",
-  "version": "CODM_AK47DX_V6_7_CLAN_HQ_RULES_MAP_BAN_FLOW",
-  "marker": "V6_7_CLAN_HQ_RULES_MAP_BAN_FLOW_OK",
+  "app": "Clan Manager by MIRZA",
+  "version": "CODM_AK47DX_V6_9_OFFICIAL_STABLE_USERS_PERFORMANCE_MIRZA_PWA",
+  "marker": "V6_9_OFFICIAL_STABLE_USERS_PERFORMANCE_MIRZA_PWA_OK",
   "backend_ocr": "2.0.10-v5-4-fastlane-import-stabile-ak47dx",
   "routes": [
     "/version",
     "/cache-reset",
+    "/admin/users",
+    "/events",
     "/import/match",
     "/calibration",
-    "/events",
+    "/rules",
     "/ocr-status",
-    "/notifications",
-    "/rules"
+    "/notifications"
   ]
 }

@@ -13,10 +13,13 @@ export default function AuthCallbackPage() {
         const params = new URLSearchParams(window.location.search);
         const code = params.get('code');
         if (code) {
-          const { error } = await supabase.auth.exchangeCodeForSession(code);
+          const { data, error } = await supabase.auth.exchangeCodeForSession(code);
           if (error) throw error;
+          try {
+            await fetch('/api/auth/sync-roster', { method: 'POST', headers: { Authorization: `Bearer ${data.session?.access_token || ''}` } });
+          } catch {}
         }
-        setMessage('Account confermato. Ti porto alla pagina profilo.');
+        setMessage('Account confermato. Profilo e roster sincronizzati. Ti porto alla pagina profilo.');
         setTimeout(() => {
           window.location.href = params.get('next') || '/profile-import';
         }, 900);

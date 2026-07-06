@@ -47,7 +47,7 @@ type MatchPlan = {
   rounds?: MatchRound[];
 };
 
-const PLAN_MARKERS = ['AK_EVENT_PLAN_V6_7::', 'AK_EVENT_PLAN_V6_6::', 'AK_EVENT_PLAN_V6_5::', 'AK_EVENT_PLAN_V6_4::', 'AK_EVENT_PLAN_V6_3::', 'AK_EVENT_PLAN_V6_2::'];
+const PLAN_MARKERS = ['AK_EVENT_PLAN_V6_9::', 'AK_EVENT_PLAN_V6_7::', 'AK_EVENT_PLAN_V6_6::', 'AK_EVENT_PLAN_V6_5::', 'AK_EVENT_PLAN_V6_4::', 'AK_EVENT_PLAN_V6_3::', 'AK_EVENT_PLAN_V6_2::'];
 const resultLabels = ['Vinto', 'Perso', 'Pareggiato'];
 const statusLabels = ['Da giocare', 'Giocata', 'Risultato caricato'];
 const modeLabels: Record<string, string> = {

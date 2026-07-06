@@ -1,6 +1,6 @@
 {
   "name": "codm-clan-intelligence-ak47dx",
-  "version": "6.8.0-main-admin-owner-fix",
+  "version": "6.9.0-official-stable-performance-users-pwa",
   "private": true,
   "scripts": {
     "dev": "next dev",

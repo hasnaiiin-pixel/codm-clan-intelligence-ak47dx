@@ -1,3 +1,40 @@
+# Clan Manager CODM AK47DX - V6.9 Official Stable
+
+Build ufficiale stabile con gestione utenti reale, sync roster e icona PWA MIRZA.
+
+## Prima esecuzione
+
+```powershell
+npm ci --legacy-peer-deps
+npm run build
+npm run dev
+```
+
+## Supabase obbligatorio
+
+Esegui in Supabase SQL Editor:
+
+```text
+supabase/08_V6_9_OFFICIAL_STABLE_USERS_ROSTER_PERFORMANCE.sql
+```
+
+Su Vercel devono essere configurate:
+
+```text
+NEXT_PUBLIC_SUPABASE_URL
+NEXT_PUBLIC_SUPABASE_ANON_KEY
+SUPABASE_SERVICE_ROLE_KEY
+```
+
+## Verifica rilascio
+
+- `/version` deve mostrare marker V6_9.
+- `/admin/users` deve mostrare gli utenti registrati.
+- Premere `Sincronizza Auth → Roster` per allineare Auth, profili, roster e ruoli.
+- Sul telefono l'icona installata deve essere MIRZA.
+
+---
+
 # Clan Manager — CODM AK47DX V6.8
 
 Build preparata partendo da `CODM_AK47DX_V6_7_CLAN_HQ_RULES_MAP_BAN_FLOW_BUILD.zip`.

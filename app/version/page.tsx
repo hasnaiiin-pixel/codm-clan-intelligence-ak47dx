@@ -5,9 +5,10 @@ export default function VersionPage() {
         <div className="ak-login-card">
           <div className="ak-pill">CLAN MANAGER DEPLOY CHECK</div>
           <h1 className="ak-title">Clan Manager</h1>
-          <p className="ak-lead">Versione V6.8: admin principale impostato su hasnaiiin@gmail.com, ruolo Owner/Admin automatico, endpoint di conferma owner nel database, SQL Supabase per permessi RLS permanenti e clan AK47DX confermato.</p>
-          <div className="notice top-gap"><strong>Marker:</strong> V6_8_MAIN_ADMIN_OWNER_FIX_OK</div>
+          <p className="ak-lead">Versione V6.9 ufficiale stabile: gestione utenti reale da Supabase Auth, sync automatico registrati → profili → roster, ruoli Owner/Admin, ottimizzazione bozza Eventi con debounce e icona PWA MIRZA per telefono.</p>
+          <div className="notice top-gap"><strong>Marker:</strong> V6_9_OFFICIAL_STABLE_USERS_PERFORMANCE_MIRZA_PWA_OK</div>
           <div className="notice top-gap"><strong>Admin principale:</strong> hasnaiiin@gmail.com</div>
+          <div className="notice top-gap"><strong>Icona telefono:</strong> MIRZA · manifest PWA aggiornato</div>
           <div className="ak-quick-links">
             <a href="/cache-reset">Reset cache sicuro</a>
             <a href="/clan">Clan HQ</a>

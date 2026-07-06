@@ -21,6 +21,17 @@ function getAppUrl() {
   return '';
 }
 
+
+async function syncRosterAfterLogin(accessToken?: string | null) {
+  if (!accessToken) return;
+  try {
+    await fetch('/api/auth/sync-roster', {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${accessToken}` }
+    });
+  } catch {}
+}
+
 async function ensureMainAdminOwnerAfterLogin(accessToken?: string | null) {
   if (!accessToken) return;
   try {
@@ -76,8 +87,9 @@ export default function LoginPage() {
         password
       });
       if (error) throw error;
+      await syncRosterAfterLogin(data.session?.access_token);
       await ensureMainAdminOwnerAfterLogin(data.session?.access_token);
-      setMessage('Login riuscito. Permessi admin verificati. Apertura dashboard...');
+      setMessage('Login riuscito. Profilo, roster e permessi sincronizzati. Apertura dashboard...');
       window.location.href = '/dashboard';
     } catch (error) {
       setMessage(error instanceof Error ? error.message : 'Errore login. Controlla email e password.');
@@ -115,6 +127,7 @@ export default function LoginPage() {
       await ensureRosterPlayer(clan, nickname, uid, data.user?.id || null, email.trim());
 
       if (data.session) {
+        await syncRosterAfterLogin(data.session.access_token);
         await ensureMainAdminOwnerAfterLogin(data.session.access_token);
         setMessage('Registrazione completata. Player inserito automaticamente nel roster. Ti porto al profilo.');
         window.location.href = '/profile';

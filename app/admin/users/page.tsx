@@ -1,318 +1,243 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { supabase } from '@/lib/supabaseClient';
 import { useCodmAuth, roleLabel, type CodmRole } from '@/lib/authRoles';
 import { WriteAccessBlock } from '@/components/WriteAccessBlock';
 
-type Member = {
+type AdminUserRow = {
   id: string;
-  user_id: string;
-  role: CodmRole;
-  created_at: string;
-  display_name?: string | null;
-  email?: string | null;
-  codm_uid?: string | null;
-  player_nickname?: string | null;
-  linked_player_id?: string | null;
-};
-
-type RequestRow = {
-  id: string;
-  clan_id: string;
-  user_id: string | null;
-  nickname: string;
-  uid_codm: string | null;
-  social_contact: string | null;
-  status: string;
-  linked_player_id: string | null;
-  created_at: string;
-};
-
-type PlayerOption = { id: string; nickname: string; clan_name?: string | null; user_id?: string | null };
-
-type ProfileRow = {
-  id: string;
-  display_name: string | null;
-  player_nickname: string | null;
-  codm_uid: string | null;
   email?: string | null;
   created_at?: string | null;
+  last_sign_in_at?: string | null;
+  display_name?: string | null;
+  player_nickname?: string | null;
+  codm_uid?: string | null;
+  member_id?: string | null;
+  role: CodmRole | 'registered';
+  player_id?: string | null;
+  roster_status?: string | null;
+  clan_name?: string | null;
+  pending_request_id?: string | null;
+  pending_status?: string | null;
+};
+
+type Diagnostics = {
+  auth_users: number;
+  profiles: number;
+  clan_members: number;
+  roster_players: number;
+  pending_requests: number;
+  synced: number;
+  service_role: boolean;
+  requester?: string | null;
+};
+
+type ApiResponse = {
+  ok: boolean;
+  error?: string;
+  message?: string;
+  users?: AdminUserRow[];
+  diagnostics?: Diagnostics;
+  clan?: { id: string; name?: string | null; tag?: string | null };
 };
 
 const roleOptions: CodmRole[] = ['viewer', 'player', 'staff', 'coach', 'owner'];
+const statusOptions = ['active', 'tryout', 'bench', 'inactive'];
+
+function dateLabel(value?: string | null) {
+  if (!value) return '-';
+  try { return new Date(value).toLocaleString('it-IT'); } catch { return '-'; }
+}
+
+function roleBadgeClass(role: string) {
+  if (role === 'owner') return 'loaded';
+  if (role === 'coach' || role === 'staff') return 'played';
+  return '';
+}
 
 export default function AdminUsersPage() {
   const auth = useCodmAuth();
-  const [members, setMembers] = useState<Member[]>([]);
-  const [requests, setRequests] = useState<RequestRow[]>([]);
-  const [profiles, setProfiles] = useState<ProfileRow[]>([]);
-  const [players, setPlayers] = useState<PlayerOption[]>([]);
+  const [users, setUsers] = useState<AdminUserRow[]>([]);
+  const [diagnostics, setDiagnostics] = useState<Diagnostics | null>(null);
+  const [clanLabel, setClanLabel] = useState('AK47DX');
+  const [query, setQuery] = useState('');
   const [message, setMessage] = useState('');
   const [loading, setLoading] = useState(false);
+  const [syncing, setSyncing] = useState(false);
 
-  const pendingRequests = useMemo(() => requests.filter((row) => row.status === 'pending'), [requests]);
-  const memberIds = useMemo(() => new Set(members.map((m) => m.user_id)), [members]);
-  const pendingUserIds = useMemo(() => new Set(requests.map((r) => r.user_id).filter(Boolean) as string[]), [requests]);
-  const registeredWithoutRequest = useMemo(
-    () => profiles.filter((p) => !memberIds.has(p.id) && !pendingUserIds.has(p.id)),
-    [profiles, memberIds, pendingUserIds]
-  );
+  const token = auth.session?.access_token || '';
 
-  const load = useCallback(async () => {
-    if (!auth.clanId) return;
+  const apiFetch = useCallback(async (url: string, init?: RequestInit) => {
+    const response = await fetch(url, {
+      ...init,
+      headers: {
+        'content-type': 'application/json',
+        Authorization: `Bearer ${token}`,
+        ...(init?.headers || {}),
+      },
+    });
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok || data?.ok === false) throw new Error(data?.error || `HTTP ${response.status}`);
+    return data as ApiResponse;
+  }, [token]);
+
+  const load = useCallback(async (sync = false) => {
+    if (!token) return;
     setLoading(true);
-    setMessage('');
+    setMessage(sync ? 'Sincronizzo utenti registrati con roster e ruoli...' : '');
     try {
-      const { data: memberData, error: memberError } = await supabase
-        .from('clan_members')
-        .select('id,user_id,role,created_at')
-        .eq('clan_id', auth.clanId)
-        .order('created_at', { ascending: false });
-      if (memberError) throw memberError;
-
-      const rawMembers = (memberData || []) as Array<Omit<Member, 'display_name' | 'codm_uid' | 'player_nickname'>>;
-      const userIds = rawMembers.map((m) => m.user_id).filter(Boolean);
-      let profileMap = new Map<string, ProfileRow>();
-      if (userIds.length) {
-        const { data: profileData } = await supabase
-          .from('profiles')
-          .select('id,email,display_name,player_nickname,codm_uid,created_at')
-          .in('id', userIds);
-        profileMap = new Map((profileData || []).map((p: any) => [p.id, p as ProfileRow]));
-      }
-      const { data: playerRows } = await supabase
-        .from('players')
-        .select('id,nickname,clan_name,user_id')
-        .eq('clan_id', auth.clanId)
-        .order('nickname');
-      const playerOptions = (playerRows || []) as PlayerOption[];
-      setPlayers(playerOptions);
-      const playerByUser = new Map(playerOptions.filter((p) => p.user_id).map((p) => [p.user_id as string, p]));
-      setMembers(rawMembers.map((m) => ({ ...m, ...(profileMap.get(m.user_id) || {}), linked_player_id: playerByUser.get(m.user_id)?.id || null })) as Member[]);
-
-      const { data: requestData, error: requestError } = await supabase
-        .from('clan_invite_requests')
-        .select('id,clan_id,user_id,nickname,uid_codm,social_contact,status,linked_player_id,created_at')
-        .eq('clan_id', auth.clanId)
-        .order('created_at', { ascending: false })
-        .limit(300);
-      if (requestError) throw requestError;
-      setRequests((requestData || []) as RequestRow[]);
-
-      const { data: profileRows } = await supabase
-        .from('profiles')
-        .select('id,email,display_name,player_nickname,codm_uid,created_at')
-        .order('created_at', { ascending: false })
-        .limit(300);
-      setProfiles((profileRows || []) as ProfileRow[]);
+      const data = await apiFetch(`/api/admin/users${sync ? '?sync=1' : ''}`);
+      setUsers(data.users || []);
+      setDiagnostics(data.diagnostics || null);
+      setClanLabel(`${data.clan?.tag || data.clan?.name || 'AK47DX'}`);
+      if (sync || data.diagnostics?.synced) setMessage(`Lista aggiornata. Sync completato: ${data.diagnostics?.synced || 0} utenti.`);
     } catch (error) {
       setMessage(error instanceof Error ? error.message : 'Errore caricamento utenti.');
     } finally {
       setLoading(false);
     }
-  }, [auth.clanId]);
+  }, [apiFetch, token]);
 
   useEffect(() => {
-    if (auth.canManageUsers && auth.clanId) void load();
-  }, [auth.canManageUsers, auth.clanId, load]);
+    if (auth.canManageUsers && token) void load(false);
+  }, [auth.canManageUsers, token, load]);
 
-  async function changeRole(memberId: string, role: CodmRole) {
-    const { error } = await supabase.from('clan_members').update({ role }).eq('id', memberId);
-    setMessage(error ? error.message : 'Ruolo aggiornato.');
-    await load();
-  }
+  const filteredUsers = useMemo(() => {
+    const clean = query.trim().toLowerCase();
+    if (!clean) return users;
+    return users.filter((row) => [row.email, row.display_name, row.player_nickname, row.codm_uid, row.role, row.clan_name]
+      .some((value) => String(value || '').toLowerCase().includes(clean)));
+  }, [users, query]);
 
-  async function approveRequest(row: RequestRow, role: CodmRole = 'player') {
-    if (!auth.clanId) return;
-    setMessage('');
+  const needsSync = useMemo(() => users.filter((user) => !user.player_id || !user.member_id).length, [users]);
+
+  async function syncAll() {
+    if (!token) return;
+    setSyncing(true);
+    setMessage('Sync completo in corso: Auth → Profili → Roster → Ruoli...');
     try {
-      const finalNickname = row.nickname || row.social_contact || 'Player registrato';
-      const { data: existingPlayer } = await supabase
-        .from('players')
-        .select('id')
-        .eq('clan_id', auth.clanId)
-        .eq('nickname', finalNickname)
-        .maybeSingle();
-
-      let playerId = existingPlayer?.id as string | undefined;
-      if (playerId && row.user_id) {
-        await supabase.from('players').update({ user_id: row.user_id }).eq('id', playerId);
-      }
-      if (!playerId) {
-        const { data: createdPlayer, error: playerError } = await supabase
-          .from('players')
-          .insert({
-            clan_id: auth.clanId,
-            user_id: row.user_id || null,
-            nickname: finalNickname,
-            uid_codm: row.uid_codm,
-            clan_name: auth.clanName,
-            status: 'active',
-            notes: `Creato da registrazione player. Contatto: ${row.social_contact || '-'}`,
-          })
-          .select('id')
-          .single();
-        if (playerError) throw playerError;
-        playerId = createdPlayer?.id as string | undefined;
-      }
-
-      if (row.user_id) {
-        const { error: memberError } = await supabase.from('clan_members').upsert(
-          { clan_id: auth.clanId, user_id: row.user_id, role },
-          { onConflict: 'clan_id,user_id' }
-        );
-        if (memberError) throw memberError;
-      }
-
-      const { error } = await supabase
-        .from('clan_invite_requests')
-        .update({
-          status: 'approved',
-          linked_player_id: playerId || null,
-          approved_at: new Date().toISOString(),
-          approved_by: auth.user?.id,
-          updated_at: new Date().toISOString(),
-        })
-        .eq('id', row.id);
-      if (error) throw error;
-      setMessage(`Richiesta approvata come ${roleLabel(role)}.`);
-      await load();
+      const result = await apiFetch('/api/admin/users', { method: 'POST', body: JSON.stringify({ action: 'syncAll' }) });
+      setMessage(result.message || 'Sync completato.');
+      await load(false);
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : 'Errore approvazione richiesta.');
+      setMessage(error instanceof Error ? error.message : 'Errore sync utenti.');
+    } finally {
+      setSyncing(false);
     }
   }
 
-  async function approveProfile(profile: ProfileRow, role: CodmRole = 'player') {
-    if (!auth.clanId) return;
-    const nickname = profile.player_nickname || profile.display_name || 'Player registrato';
-    const { error } = await supabase.from('clan_invite_requests').insert({
-      clan_id: auth.clanId,
-      user_id: profile.id,
-      nickname,
-      uid_codm: profile.codm_uid,
-      social_contact: profile.email || null,
-      status: 'pending',
-      updated_at: new Date().toISOString(),
-    });
-    if (error) {
-      setMessage(error.message);
-      return;
+  async function updateRole(row: AdminUserRow, role: CodmRole) {
+    setMessage('Aggiorno ruolo...');
+    try {
+      const result = await apiFetch('/api/admin/users', { method: 'POST', body: JSON.stringify({ action: 'updateRole', userId: row.id, role, email: row.email }) });
+      setMessage(result.message || 'Ruolo aggiornato.');
+      await load(false);
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : 'Errore aggiornamento ruolo.');
     }
-    await load();
-    const created = await supabase
-      .from('clan_invite_requests')
-      .select('id,clan_id,user_id,nickname,uid_codm,social_contact,status,linked_player_id,created_at')
-      .eq('clan_id', auth.clanId)
-      .eq('user_id', profile.id)
-      .order('created_at', { ascending: false })
-      .limit(1)
-      .maybeSingle();
-    if (created.data) await approveRequest(created.data as RequestRow, role);
   }
 
-  async function linkMemberToPlayer(member: Member, playerId: string) {
-    setMessage('');
+  async function updateRosterStatus(row: AdminUserRow, status: string) {
+    if (!row.player_id) return setMessage('Prima sincronizza il player nel roster.');
+    setMessage('Aggiorno stato roster...');
     try {
-      if (!playerId) {
-        const current = players.find((p) => p.user_id === member.user_id);
-        if (current) await supabase.from('players').update({ user_id: null }).eq('id', current.id);
-        setMessage('Player scollegato dall’utente.');
-        await load();
-        return;
-      }
-      const { error } = await supabase.from('players').update({ user_id: member.user_id }).eq('id', playerId);
-      if (error) throw error;
-      setMessage('Giocatore collegato all’utente. Le convocazioni e le notifiche useranno questo collegamento.');
-      await load();
+      const result = await apiFetch('/api/admin/users', { method: 'POST', body: JSON.stringify({ action: 'setRosterStatus', playerId: row.player_id, status }) });
+      setMessage(result.message || 'Stato roster aggiornato.');
+      await load(false);
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : 'Errore collegamento giocatore.');
+      setMessage(error instanceof Error ? error.message : 'Errore aggiornamento stato roster.');
     }
   }
 
   if (auth.loading) return <WriteAccessBlock loading />;
   if (!auth.canManageUsers) {
-    return <WriteAccessBlock role={auth.role} title="Solo Owner può gestire utenti" description="Staff e Coach possono caricare risultati, ma solo Owner assegna ruoli e permessi." />;
+    return <WriteAccessBlock role={auth.role} title="Solo Owner può gestire utenti" description="L’admin principale è hasnaiiin@gmail.com. Da questa pagina si vedono utenti registrati, roster e ruoli solo con permesso Owner." />;
   }
 
   return (
-    <main className="min-h-screen bg-slate-950 px-4 py-8 text-white">
-      <section className="mx-auto max-w-7xl space-y-6">
-        <div className="rounded-[2rem] border border-cyan-400/20 bg-slate-900/80 p-6">
-          <div className="text-sm font-black uppercase tracking-[0.25em] text-cyan-200">Owner panel</div>
-          <h1 className="mt-2 text-3xl font-black">Utenti, registrazioni e permessi</h1>
-          <p className="mt-2 text-slate-300">Approva nuovi player registrati con email e assegna accesso: viewer, player, staff, coach, owner.</p>
-          <button onClick={() => void load()} className="mt-4 rounded-2xl bg-cyan-400 px-4 py-2 font-black text-slate-950">Aggiorna lista</button>
-          {message && <div className="mt-4 rounded-2xl border border-amber-300/30 bg-amber-300/10 p-3 text-amber-100">{message}</div>}
+    <main className="container wide admin-users-stable">
+      <section className="card ak-section-head">
+        <p className="eyebrow">🔐 Clan Manager Owner Center</p>
+        <h1>Gestione utenti, ruoli e roster</h1>
+        <p className="muted">Lista reale da Supabase Auth tramite API sicura server. Qui vedi utenti registrati, profili, membri clan e roster collegato.</p>
+        <div className="top-gap admin-toolbar-v69">
+          <button className="btn small" onClick={() => void load(false)} disabled={loading}>{loading ? 'Carico...' : 'Aggiorna lista'}</button>
+          <button className="btn small secondary" onClick={() => void syncAll()} disabled={syncing}>{syncing ? 'Sync...' : 'Sincronizza Auth → Roster'}</button>
+          <input className="input admin-search-v69" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Cerca email, nome, nickname, UID, ruolo..." />
+        </div>
+        {message && <div className="notice top-gap">{message}</div>}
+      </section>
+
+      <section className="grid grid-4 top-gap admin-diagnostic-grid-v69">
+        <div className="card"><p className="eyebrow">Clan</p><h2>{clanLabel}</h2><p className="muted">TAG ufficiale assegnato ai player.</p></div>
+        <div className="card"><p className="eyebrow">Auth users</p><h2>{diagnostics?.auth_users ?? '-'}</h2><p className="muted">Account registrati reali.</p></div>
+        <div className="card"><p className="eyebrow">Roster</p><h2>{diagnostics?.roster_players ?? '-'}</h2><p className="muted">Giocatori presenti nel roster.</p></div>
+        <div className="card"><p className="eyebrow">Da sincronizzare</p><h2>{needsSync}</h2><p className="muted">Account senza membro o player collegato.</p></div>
+      </section>
+
+      <section className="card top-gap">
+        <div className="section-title">
+          <div>
+            <h2>Utenti registrati</h2>
+            <p className="muted">Cambia ruolo e stato roster. hasnaiiin@gmail.com resta sempre Owner.</p>
+          </div>
+          <span className="match-status-pill loaded">{filteredUsers.length} utenti</span>
         </div>
 
-        <section className="rounded-[2rem] border border-white/10 bg-white/[0.04] p-5">
-          <h2 className="text-2xl font-black">Da approvare</h2>
-          <p className="text-sm text-slate-400">Utenti registrati da email, login o import profilo.</p>
-          {loading && <p className="mt-4 text-slate-300">Caricamento...</p>}
-          {!loading && pendingRequests.length === 0 && <p className="mt-4 rounded-2xl border border-white/10 p-4 text-slate-300">Nessuna richiesta pending.</p>}
-          <div className="mt-4 grid gap-3">
-            {pendingRequests.map((row) => (
-              <div key={row.id} className="grid gap-3 rounded-2xl border border-white/10 bg-slate-900 p-4 md:grid-cols-[1fr_1fr_1fr_auto] md:items-center">
-                <div><div className="text-xs text-slate-500">Nickname</div><div className="font-black">{row.nickname}</div></div>
-                <div><div className="text-xs text-slate-500">UID</div><div>{row.uid_codm || '-'}</div></div>
-                <div><div className="text-xs text-slate-500">Contatto</div><div>{row.social_contact || '-'}</div></div>
-                <div className="flex flex-wrap gap-2">
-                  <button onClick={() => void approveRequest(row, 'player')} className="rounded-xl bg-emerald-400 px-3 py-2 font-black text-slate-950">Player</button>
-                  <button onClick={() => void approveRequest(row, 'staff')} className="rounded-xl bg-cyan-400 px-3 py-2 font-black text-slate-950">Staff</button>
-                  <button onClick={() => void approveRequest(row, 'coach')} className="rounded-xl bg-violet-400 px-3 py-2 font-black text-slate-950">Coach</button>
+        {loading && <p className="notice top-gap">Caricamento lista utenti...</p>}
+        {!loading && !filteredUsers.length && <p className="empty-state">Nessun utente visibile. Controlla SUPABASE_SERVICE_ROLE_KEY in Vercel e premi Sincronizza.</p>}
+
+        <div className="admin-users-list-v69 top-gap">
+          {filteredUsers.map((row) => (
+            <article key={row.id} className="admin-user-card-v69">
+              <div className="admin-user-main-v69">
+                <div>
+                  <div className="eyebrow">Account</div>
+                  <h3>{row.player_nickname || row.display_name || row.email || 'Utente registrato'}</h3>
+                  <p className="muted">{row.email || '-'} · UID {row.codm_uid || '-'}</p>
+                </div>
+                <div className="admin-user-badges-v69">
+                  <span className={`match-status-pill ${roleBadgeClass(row.role)}`}>{row.role === 'registered' ? 'Registrato' : roleLabel(row.role as CodmRole)}</span>
+                  <span className={`match-status-pill ${row.player_id ? 'loaded' : ''}`}>{row.player_id ? 'Nel roster' : 'No roster'}</span>
+                  <span className={`match-status-pill ${row.member_id ? 'played' : ''}`}>{row.member_id ? 'Membro clan' : 'No membro'}</span>
                 </div>
               </div>
-            ))}
-          </div>
-        </section>
 
-        {registeredWithoutRequest.length > 0 && (
-          <section className="rounded-[2rem] border border-yellow-300/20 bg-yellow-300/5 p-5">
-            <h2 className="text-2xl font-black">Registrati senza richiesta</h2>
-            <p className="text-sm text-slate-400">Questi account hanno profilo, ma non sono ancora in clan_members né pending.</p>
-            <div className="mt-4 grid gap-3">
-              {registeredWithoutRequest.map((profile) => (
-                <div key={profile.id} className="grid gap-3 rounded-2xl border border-white/10 bg-slate-900 p-4 md:grid-cols-[1fr_1fr_auto] md:items-center">
-                  <div><div className="text-xs text-slate-500">Nome registrazione</div><div className="font-black">{profile.display_name || profile.id}</div><div className="text-xs text-slate-400">{profile.email || '-'}</div></div>
-                  <div><div className="text-xs text-slate-500">Nome giocatore / UID</div><div>{profile.player_nickname || '-'} / {profile.codm_uid || '-'}</div></div>
-                  <button onClick={() => void approveProfile(profile, 'player')} className="rounded-xl bg-emerald-400 px-3 py-2 font-black text-slate-950">Approva come player</button>
+              <div className="grid grid-4 top-gap">
+                <div className="field"><label>Nome registrato</label><input className="input" value={row.display_name || '-'} disabled /></div>
+                <div className="field"><label>Nome in gioco</label><input className="input" value={row.player_nickname || '-'} disabled /></div>
+                <div className="field"><label>Data registrazione</label><input className="input" value={dateLabel(row.created_at)} disabled /></div>
+                <div className="field"><label>Ultimo accesso</label><input className="input" value={dateLabel(row.last_sign_in_at)} disabled /></div>
+              </div>
+
+              <div className="grid grid-3 top-gap">
+                <div className="field">
+                  <label>Ruolo app</label>
+                  <select className="select" value={row.role === 'registered' ? 'player' : row.role} disabled={row.email?.toLowerCase() === 'hasnaiiin@gmail.com'} onChange={(event) => void updateRole(row, event.target.value as CodmRole)}>
+                    {roleOptions.map((role) => <option key={role} value={role}>{roleLabel(role)}</option>)}
+                  </select>
+                  {row.email?.toLowerCase() === 'hasnaiiin@gmail.com' && <small className="muted">Admin principale bloccato come Owner.</small>}
                 </div>
-              ))}
-            </div>
-          </section>
-        )}
+                <div className="field">
+                  <label>Stato roster</label>
+                  <select className="select" value={row.roster_status || 'active'} onChange={(event) => void updateRosterStatus(row, event.target.value)}>
+                    {statusOptions.map((status) => <option key={status} value={status}>{status}</option>)}
+                  </select>
+                </div>
+                <div className="field">
+                  <label>TAG clan</label>
+                  <input className="input" value={row.clan_name || clanLabel} disabled />
+                </div>
+              </div>
+            </article>
+          ))}
+        </div>
+      </section>
 
-        <section className="rounded-[2rem] border border-white/10 bg-white/[0.04] p-5">
-          <h2 className="text-2xl font-black">Membri clan</h2>
-          <div className="mt-4 overflow-x-auto">
-            <table className="w-full min-w-[780px] border-separate border-spacing-y-2 text-left text-sm">
-              <thead className="text-slate-400"><tr><th>Email</th><th>Nome registrato</th><th>Nome giocatore</th><th>UID</th><th>Player collegato</th><th>Ruolo</th><th>Permesso</th></tr></thead>
-              <tbody>
-                {members.map((member) => (
-                  <tr key={member.id} className="bg-slate-900">
-                    <td className="rounded-l-2xl p-3 text-sm">{member.email || '-'}</td>
-                    <td className="p-3 font-bold">{member.display_name || 'Utente registrato'}</td>
-                    <td className="p-3">{member.player_nickname || '-'}</td>
-                    <td className="p-3">{member.codm_uid || '-'}</td>
-                    <td className="p-3">
-                      <select value={member.linked_player_id || ''} onChange={(event) => void linkMemberToPlayer(member, event.target.value)} className="rounded-xl border border-white/10 bg-slate-950 px-3 py-2 text-white">
-                        <option value="">Non collegato</option>
-                        {players.map((player) => <option key={player.id} value={player.id}>{player.nickname}{player.clan_name ? ` · ${player.clan_name}` : ''}</option>)}
-                      </select>
-                    </td>
-                    <td className="p-3">
-                      <select value={member.role} onChange={(event) => void changeRole(member.id, event.target.value as CodmRole)} className="rounded-xl border border-white/10 bg-slate-950 px-3 py-2 text-white">
-                        {roleOptions.map((role) => <option key={role} value={role}>{roleLabel(role)}</option>)}
-                      </select>
-                    </td>
-                    <td className="rounded-r-2xl p-3">{['owner', 'coach', 'staff'].includes(member.role) ? 'Può modificare/caricare' : 'Sola lettura / profilo'}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </section>
+      <section className="card top-gap">
+        <h2>Diagnostica rilascio stabile</h2>
+        <p className="muted">Se la lista resta vuota, quasi sempre manca <b>SUPABASE_SERVICE_ROLE_KEY</b> su Vercel o non è stato eseguito lo SQL V6.9.</p>
+        <pre className="diagnostic-pre-v69">{JSON.stringify(diagnostics || {}, null, 2)}</pre>
       </section>
     </main>
   );

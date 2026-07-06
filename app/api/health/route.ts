@@ -4,7 +4,7 @@ export async function GET() {
   return NextResponse.json({
     ok: true,
     app: 'Clan Manager',
-    version: 'CODM_AK47DX_V6_7_CLAN_HQ_RULES_MAP_BAN_FLOW',
+    version: 'CODM_AK47DX_V6_9_OFFICIAL_STABLE_USERS_PERFORMANCE_MIRZA_PWA',
     routes: [
       '/version',
       '/cache-reset',
@@ -13,6 +13,8 @@ export async function GET() {
       '/api/telegram/reminders',
       '/api/telegram/status',
       '/api/telegram/test',
+      '/api/admin/users',
+      '/api/auth/sync-roster',
     ],
   });
 }
