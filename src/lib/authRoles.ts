@@ -24,6 +24,7 @@ export type CodmAuthState = {
 
 const WRITE_ROLES: CodmRole[] = ['owner', 'coach', 'staff'];
 const USER_MANAGEMENT_ROLES: CodmRole[] = ['owner'];
+export const CODM_MAIN_ADMIN_EMAIL = 'hasnaiiin@gmail.com';
 
 export function canWriteRole(role: CodmRole) {
   return WRITE_ROLES.includes(role);
@@ -31,6 +32,10 @@ export function canWriteRole(role: CodmRole) {
 
 export function canManageUsersRole(role: CodmRole) {
   return USER_MANAGEMENT_ROLES.includes(role);
+}
+
+export function isCodmMainAdminEmail(email?: string | null) {
+  return String(email || '').trim().toLowerCase() === CODM_MAIN_ADMIN_EMAIL;
 }
 
 export function roleLabel(role: CodmRole) {
@@ -54,7 +59,22 @@ async function getFirstClan() {
   };
 }
 
-async function getRoleForUser(userId: string, clanId: string | null): Promise<CodmRole> {
+async function ensureMainAdminOwner(session: Session | null) {
+  if (!session?.access_token || !isCodmMainAdminEmail(session.user?.email)) return null;
+  try {
+    const response = await fetch('/api/admin/ensure-main-owner', {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${session.access_token}` }
+    });
+    if (!response.ok) return null;
+    return await response.json().catch(() => null);
+  } catch {
+    return null;
+  }
+}
+
+async function getRoleForUser(userId: string, clanId: string | null, email?: string | null): Promise<CodmRole> {
+  if (isCodmMainAdminEmail(email)) return 'owner';
   if (!clanId) return 'registered';
 
   const { data, error } = await supabase
@@ -89,7 +109,8 @@ export function useCodmAuth(): CodmAuthState {
       if (!activeSession?.user?.id) {
         setRole('anon');
       } else {
-        setRole(await getRoleForUser(activeSession.user.id, clan.clanId));
+        await ensureMainAdminOwner(activeSession);
+        setRole(await getRoleForUser(activeSession.user.id, clan.clanId, activeSession.user.email));
       }
     } finally {
       setLoading(false);

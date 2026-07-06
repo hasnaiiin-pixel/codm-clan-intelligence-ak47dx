@@ -4,7 +4,7 @@
 
 DO $$
 DECLARE
-  v_admin_email text := hasnaiiin@gmail.com; -- esempio: admin@ak47dx.it
+  v_admin_email text := 'hasnaiiin@gmail.com'; -- admin principale Clan Manager
   v_user_id uuid;
   v_clan_id uuid;
 BEGIN
@@ -21,19 +21,19 @@ BEGIN
   from public.clans
   where owner_user_id = v_user_id
      or lower(name) = lower('AK47DX')
-     or lower(coalesce(tag,'')) = lower('AK')
+     or lower(coalesce(tag,'')) in (lower('AK47DX'), lower('AK'))
   order by created_at asc
   limit 1;
 
   if v_clan_id is null then
     insert into public.clans (name, tag, owner_user_id)
-    values ('AK47DX', 'AK', v_user_id)
+    values ('AK47DX', 'AK47DX', v_user_id)
     returning id into v_clan_id;
   else
     update public.clans
     set owner_user_id = v_user_id,
         name = coalesce(nullif(name,''), 'AK47DX'),
-        tag = coalesce(nullif(tag,''), 'AK')
+        tag = case when lower(coalesce(tag,'')) in ('', 'ak', 'akঐ', 'ѧҝ', 'ѧҝঐ', 'senza clan', 'default') then 'AK47DX' else tag end
     where id = v_clan_id;
   end if;
 

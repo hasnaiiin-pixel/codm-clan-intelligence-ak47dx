@@ -21,6 +21,16 @@ function getAppUrl() {
   return '';
 }
 
+async function ensureMainAdminOwnerAfterLogin(accessToken?: string | null) {
+  if (!accessToken) return;
+  try {
+    await fetch('/api/admin/ensure-main-owner', {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${accessToken}` }
+    });
+  } catch {}
+}
+
 async function ensureRosterPlayer(clan: ClanRow | null, nickname: string, uid: string, userId?: string | null, email?: string) {
   if (!clan?.id || !nickname.trim()) return;
   try {
@@ -61,12 +71,13 @@ export default function LoginPage() {
     setLoading(true);
     setMessage('');
     try {
-      const { error } = await supabase.auth.signInWithPassword({
+      const { data, error } = await supabase.auth.signInWithPassword({
         email: email.trim(),
         password
       });
       if (error) throw error;
-      setMessage('Login riuscito. Apertura dashboard...');
+      await ensureMainAdminOwnerAfterLogin(data.session?.access_token);
+      setMessage('Login riuscito. Permessi admin verificati. Apertura dashboard...');
       window.location.href = '/dashboard';
     } catch (error) {
       setMessage(error instanceof Error ? error.message : 'Errore login. Controlla email e password.');
@@ -104,6 +115,7 @@ export default function LoginPage() {
       await ensureRosterPlayer(clan, nickname, uid, data.user?.id || null, email.trim());
 
       if (data.session) {
+        await ensureMainAdminOwnerAfterLogin(data.session.access_token);
         setMessage('Registrazione completata. Player inserito automaticamente nel roster. Ti porto al profilo.');
         window.location.href = '/profile';
         return;
