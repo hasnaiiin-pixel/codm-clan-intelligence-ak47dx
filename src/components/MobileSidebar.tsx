@@ -15,11 +15,11 @@ const navItems: NavItem[] = [
   { href: '/players', label: 'Roster', emoji: '👥', group: 'Pubblico', audience: 'public' },
   { href: '/analytics', label: 'Statistiche', emoji: '📈', group: 'Pubblico', audience: 'public' },
   { href: '/clan', label: 'Clan HQ', emoji: '🛡️', group: 'Pubblico', audience: 'public' },
+  { href: '/rules', label: 'Regolamento', emoji: '📜', group: 'Pubblico', audience: 'public' },
   { href: '/events', label: 'Eventi', emoji: '📅', group: 'Pubblico', audience: 'public' },
   { href: '/loadouts', label: 'Loadout', emoji: '🔫', group: 'Pubblico', audience: 'public' },
   { href: '/notifications', label: 'Notifiche', emoji: '🔔', group: 'Player', audience: 'player' },
   { href: '/profile', label: 'Mio profilo', emoji: '🪪', group: 'Player', audience: 'player' },
-  { href: '/profile-import', label: 'Profilo player', emoji: '📇', group: 'Player', audience: 'player' },
   { href: '/import/profile', label: 'Importa profilo', emoji: '🖼️', group: 'Player', audience: 'player' },
   { href: '/import/match', label: 'Carica risultato', emoji: '🏆', group: 'Staff / Coach', audience: 'write' },
   { href: '/invite', label: 'Inviti', emoji: '📨', group: 'Staff / Coach', audience: 'write' },
@@ -84,8 +84,8 @@ export function MobileSidebar() {
       <aside className={`ak-sidebar ${open ? 'open' : ''}`} aria-hidden={!open}>
         <div className="ak-sidebar-brand">
           <div>
-            <div className="ak-sidebar-title">AK47DX</div>
-            <div className="ak-sidebar-subtitle">CODM Intelligence</div>
+            <div className="ak-sidebar-title">Clan Manager</div>
+            <div className="ak-sidebar-subtitle">CODM AK47DX</div>
           </div>
         </div>
 

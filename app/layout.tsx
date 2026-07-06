@@ -4,10 +4,10 @@ import { MobileSidebar } from '@/components/MobileSidebar';
 import { PwaInstaller } from '@/components/PwaInstaller';
 
 export const metadata: Metadata = {
-  title: 'CODM Clan Intelligence',
-  description: 'AK47DX Clan Intelligence: dashboard pubblica, login player, ruoli admin/staff e import risultati CODM.',
+  title: 'Clan Manager',
+  description: 'Clan Manager: eventi, roster, risultati, regolamento e statistiche CODM.',
   manifest: '/manifest.webmanifest',
-  appleWebApp: { capable: true, title: 'AK47DX', statusBarStyle: 'black-translucent' }
+  appleWebApp: { capable: true, title: 'Clan Manager', statusBarStyle: 'black-translucent' }
 };
 
 export const viewport: Viewport = {
@@ -30,7 +30,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <footer className="mirza-dev-footer">
           <div className="mirza-dev-footer-inner">
             <img src="/assets/mirza-developer-logo.png" alt="MIRZA developer logo" />
-            <span>AK47DX Clan Intelligence · sviluppato da <strong>MIRZA</strong></span>
+            <span>Clan Manager · sviluppato da <strong>MIRZA</strong></span>
           </div>
         </footer>
         <PwaInstaller />

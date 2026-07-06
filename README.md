@@ -1,26 +1,28 @@
-# CODM AK47DX V6.4 - Eventi ordinati + Calibrazione template flow
+# Clan Manager — CODM AK47DX V6.6
 
-Build preparata partendo da `CODM_AK47DX_V6_3_EVENT_PLANNER_TEMPLATE_FIX_READY.zip`.
+Build preparata partendo da `CODM_AK47DX_V6_5_EVENTS_IMPORT_BAN_PERSIST_FLOW_BUILD.zip`.
 
 ## Controllo eseguito
 - `npm ci --legacy-peer-deps` OK.
-- `npm run build` ha compilato correttamente e generato 32/32 pagine. Nel sandbox il processo è rimasto appeso dopo la stampa finale di Next, quindi l'ho considerato compilato ma da verificare anche su Vercel/PC reale.
+- `npm run build` OK fino a `Compiled successfully` e `Generating static pages (33/33)`.
+- Nel sandbox Next resta lungo su `Collecting build traces`, comportamento già visto nelle build precedenti. Su PC/Vercel verificare con Node 24.x.
 
-## Cambi principali V6.4
-- Pagina Eventi riorganizzata: **Eventi da fare** in alto, calendario sotto, editor evento/partite in basso.
-- Sezione partite rifatta: ogni partita è una card verticale ordinata, non più compressa in una riga.
-- Pulsanti chiari: `+ Aggiungi partita` e `- Togli ultima partita`; ogni card ha anche `Elimina`.
-- Stato partita separato dall'esito:
-  - stato: `Da giocare`, `Giocata`, `Risultato caricato`;
-  - esito automatico: `Vinto`, `Perso`, `Pareggiato` calcolato dagli score.
-- Formazione titolare e riserve per ogni partita selezionabili dai giocatori registrati nell'app, con chip/badge.
-- Tipologia partita con simboli stile CODM: CED, Postazione, Dominio, Control, Death Match, Prima Linea, TDM, BR, Scrim.
-- Telegram: aggiunto placeholder `{match_details}` e generazione dettagliata di Partita 1, Partita 2, Partita 3 ecc. con modalità, mappa, orari, roster, BAN, stato, esito e MVP.
-- API Telegram aggiornata per leggere il piano evento salvato in `event_notes` e renderizzare `{match_details}`.
-- Calibrazione: `Tipologia telefono` non riscrive più `default` quando viene cancellata.
-- Calibrazione: rimosso campo `Descrizione opzionale`.
-- Calibrazione: aggiunta scelta esplicita `Origine template`: default generale, tipologia telefono, template salvato per nome.
-- Flusso template reso più chiaro per salvataggio/caricamento/import.
+## Cambi principali V6.6
+- Nome app aggiornato a **Clan Manager** in metadata, manifest PWA, sidebar e footer.
+- Pagina Eventi: editor partite in griglia con **2 partite sulla stessa riga** su desktop.
+- Ogni partita ha **numero/codice univoco** visibile in editor, riepilogo, import e messaggio Telegram.
+- Messaggio Telegram ordinato per:
+  - Partita 1 dettagli;
+  - titolari e riserve della Partita 1;
+  - Partita 2 dettagli;
+  - titolari e riserve della Partita 2;
+  - successive partite.
+- Pagina **Regolamento clan** aggiunta a menu pubblico.
+- Import risultato da Eventi: bozza persistente in localStorage fino a salvataggio; se cambi tab Chrome o apri una cartella, i dati non vengono svuotati.
+- Registrazione player: nome, email e nome in gioco; il **nome in gioco viene inserito automaticamente nel roster**.
+- Join invito: crea/aggiorna player in roster automaticamente.
+- Mio profilo e profilo player unificati in `/profile`; rimane solo **Importa profilo** per screenshot/profilo CODM.
+- Menu pulito: rimossa voce separata “Profilo player”.
 
 ## Comandi consigliati
 ```bash
@@ -32,22 +34,6 @@ npm run dev
 ## Commit suggerito
 ```bash
 git add -A
-git commit -m "feat: CODM v6.4 events ordered calibration template flow"
+git commit -m "fix: CODM v6.6 clan manager events persist roster rules"
 git push origin main
 ```
-
-
-## CODM AK47DX V6.5 — Events Import BAN Persist Flow
-
-Questa release migliora la pagina Eventi e il collegamento con Import partita:
-
-- mappe CODM già disponibili in lista;
-- tipologia round/punteggio con preset;
-- BAN selezionabili da lista + inserimento manuale;
-- score/MVP/esito compilati automaticamente dal carico partita;
-- import da evento con modalità già selezionata;
-- modifica, copia e duplicazione evento;
-- apertura evento dal calendario;
-- riepilogo partite ordinato con dettagli, orari e convocati;
-- badge stato partita;
-- bozza editor persistente quando si cambia tab/finestra.

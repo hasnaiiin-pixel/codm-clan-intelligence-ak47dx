@@ -1632,3 +1632,24 @@ main.container.wide > section.card {
 .linked-event-grid span { border:1px solid rgba(34,211,238,.2); border-radius: 14px; padding:.65rem; background:rgba(2,6,23,.35); color:#dbeafe; }
 @media (max-width: 900px) { .linked-event-grid, .events-v65 .event-meta-grid { grid-template-columns: 1fr 1fr; } .ban-custom-row { grid-template-columns: 1fr; } }
 @media (max-width: 680px) { .linked-event-grid, .events-v65 .event-meta-grid, .event-versus { grid-template-columns: 1fr; } }
+
+/* CODM V6.6 - Clan Manager, 2 partite per riga, codice partita, regolamento, import persistente */
+.events-v65 .round-plan-grid { display:grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; align-items:start; }
+.events-v65 .round-plan-grid .match-card-v64 { min-width:0; }
+.events-v65 .round-plan-grid .match-card-v64 .grid-4 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.events-v65 .round-plan-grid .match-card-v64 .grid-3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.events-v65 .round-plan-grid .match-card-v64 .grid-2 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.event-summary-v65 { grid-template-columns: repeat(2, minmax(0, 1fr)); align-items:start; }
+.match-code-pill, .match-code-mini { display:inline-flex; align-items:center; gap:4px; width:max-content; border:1px solid rgba(34,211,238,.35); background:rgba(8,47,73,.45); color:#a5f3fc; border-radius:999px; padding:5px 9px; font-size:11px; font-weight:950; letter-spacing:.04em; text-transform:uppercase; margin-top:6px; }
+.match-code-mini { margin-top:0; padding:4px 8px; }
+.events-v65 .events-compact-hero { padding: .8rem 1rem; }
+.events-v65 .events-compact-hero h1 { font-size: clamp(1.45rem, 2.4vw, 2.2rem); }
+.events-v65 .compact-events-first .event-presentation-card-v65 { padding: .7rem; }
+.import-linked-event-banner .match-code-pill { margin-bottom: .65rem; }
+.rules-hero h1 { font-size: clamp(2rem, 5vw, 4rem); margin: .2rem 0; }
+.rules-textarea { min-height: 420px; font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; line-height: 1.55; }
+.rules-render { display:grid; gap:.55rem; }
+.rules-render h2 { color:#e0f2fe; margin-bottom:.4rem; }
+.rules-render p { margin:0; color:#dbeafe; font-weight:700; border:1px solid rgba(148,163,184,.14); background:rgba(15,23,42,.45); border-radius:14px; padding:.75rem .9rem; }
+@media (max-width: 1180px) { .events-v65 .round-plan-grid, .event-summary-v65 { grid-template-columns: 1fr; } }
+@media (max-width: 760px) { .events-v65 .round-plan-grid .match-card-v64 .grid-4, .events-v65 .round-plan-grid .match-card-v64 .grid-3, .events-v65 .round-plan-grid .match-card-v64 .grid-2 { grid-template-columns: 1fr; } }

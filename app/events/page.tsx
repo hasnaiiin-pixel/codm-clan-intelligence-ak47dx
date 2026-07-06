@@ -7,6 +7,7 @@ import { buildGoogleCalendarUrl } from '@/lib/googleCalendar';
 
 type MatchRound = {
   n: number;
+  matchCode: string;
   mode: string;
   map: string;
   scoreType: string;
@@ -63,9 +64,9 @@ type EventPlayerRow = { event_id: string; player_id: string | null; nickname: st
 type ModeOption = { value: string; label: string; icon: string; help: string };
 type ScoreTypeOption = { value: string; label: string; target: string; help: string };
 
-const PLAN_MARKER = 'AK_EVENT_PLAN_V6_5::';
-const OLD_PLAN_MARKERS = ['AK_EVENT_PLAN_V6_4::', 'AK_EVENT_PLAN_V6_3::', 'AK_EVENT_PLAN_V6_2::'];
-const DRAFT_KEY = 'ak47dx_event_editor_draft_v6_5';
+const PLAN_MARKER = 'AK_EVENT_PLAN_V6_6::';
+const OLD_PLAN_MARKERS = ['AK_EVENT_PLAN_V6_5::', 'AK_EVENT_PLAN_V6_4::', 'AK_EVENT_PLAN_V6_3::', 'AK_EVENT_PLAN_V6_2::'];
+const DRAFT_KEY = 'clan_manager_event_editor_draft_v6_6';
 const matchStatuses = ['Da giocare', 'Giocata', 'Risultato caricato'];
 const resultLabels = ['Vinto', 'Perso', 'Pareggiato'];
 
@@ -106,7 +107,7 @@ const eventTypes = [
   { value: 'ranked', label: '💎 Ranked' },
 ];
 
-const DEFAULT_TELEGRAM_TEMPLATE = '🎮 <b>AK47DX Evento</b>\n\n<b>{title}</b>\n⏱️ Mancano {minutes} minuti\n🕒 {date}\n📍 {location}\n\n<b>Dettaglio partite:</b>\n{match_details}\n\n<b>Convocati:</b>\n{convocati}\n\n{description}';
+const DEFAULT_TELEGRAM_TEMPLATE = '🎮 <b>Clan Manager Evento</b>\n\n<b>{title}</b>\n⏱️ Mancano {minutes} minuti\n🕒 {date}\n📍 {location}\n\n<b>Dettaglio partite:</b>\n{match_details}\n\n<b>Convocati:</b>\n{convocati}\n\n{description}';
 
 function toLocalInputValue(date = new Date(Date.now() + 24 * 60 * 60 * 1000)) {
   const tzOffset = date.getTimezoneOffset() * 60000;
@@ -115,9 +116,10 @@ function toLocalInputValue(date = new Date(Date.now() + 24 * 60 * 60 * 1000)) {
 function monthKey(date: Date) { return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`; }
 function modeMeta(value: string) { return modeOptions.find((mode) => mode.value === value) || modeOptions[0]; }
 function scoreMeta(value: string) { return scoreTypeOptions.find((item) => item.value === value) || scoreTypeOptions[0]; }
-function emptyRound(n = 1): MatchRound { return { n, mode: 'CED', map: 'Standoff', scoreType: 'Punteggio round', target: '6 round', players: '', reserves: '', lobbyOpen: '', meetingTime: '', startTime: '', bans: '', status: 'Da giocare', result: '', ourScore: '', opponentScore: '', mvp: '' }; }
+function makeMatchCode(n = 1) { return `CM-${new Date().toISOString().slice(2,10).replace(/-/g, '')}-${String(n).padStart(2, '0')}-${Math.random().toString(36).slice(2, 6).toUpperCase()}`; }
+function emptyRound(n = 1): MatchRound { return { n, matchCode: makeMatchCode(n), mode: 'CED', map: 'Standoff', scoreType: 'Punteggio round', target: '6 round', players: '', reserves: '', lobbyOpen: '', meetingTime: '', startTime: '', bans: '', status: 'Da giocare', result: '', ourScore: '', opponentScore: '', mvp: '' }; }
 function emptyPlan(clanName = 'AK47DX'): MatchPlan { return { teamAName: clanName, teamBName: 'Clan avversario', teamALogo: '/assets/ak47dx-logo.jpeg', teamBLogo: '', coverImage: '', totalMatches: 1, lobbyTime: '', discordLink: '', lobbyLink: '', roomNumber: '', rounds: [emptyRound(1)] }; }
-function sanitizeRound(raw: Partial<MatchRound>, index: number): MatchRound { const base = emptyRound(index + 1); return { ...base, ...raw, n: index + 1, status: getMatchStatus({ ...base, ...raw, n: index + 1 } as MatchRound) }; }
+function sanitizeRound(raw: Partial<MatchRound>, index: number): MatchRound { const base = emptyRound(index + 1); const merged = { ...base, ...raw, n: index + 1, matchCode: raw.matchCode || base.matchCode } as MatchRound; return { ...merged, status: getMatchStatus(merged) }; }
 function readPlan(event: CodmEvent): MatchPlan {
   if (event.event_plan && typeof event.event_plan === 'object') {
     const plan = event.event_plan as MatchPlan;
@@ -138,8 +140,24 @@ function textFromList(values: string[]) { return Array.from(new Set(values.map((
 function scoreNumber(value: string) { if (value === null || value === undefined || value === '') return null; const parsed = Number(String(value).replace(',', '.')); return Number.isFinite(parsed) ? parsed : null; }
 function getMatchOutcome(round: MatchRound) { const our = scoreNumber(round.ourScore); const opponent = scoreNumber(round.opponentScore); if (our !== null && opponent !== null) { if (our > opponent) return 'Vinto'; if (our < opponent) return 'Perso'; return 'Pareggiato'; } if (resultLabels.includes(round.result)) return round.result; return ''; }
 function getMatchStatus(round: MatchRound) { if (scoreNumber(round.ourScore) !== null && scoreNumber(round.opponentScore) !== null) return 'Risultato caricato'; if (round.result && resultLabels.includes(round.result)) return 'Risultato caricato'; if (round.status && matchStatuses.includes(round.status)) return round.status; if (round.result && matchStatuses.includes(round.result)) return round.result; return 'Da giocare'; }
-function normalizePlan(plan: MatchPlan) { const total = Math.max(1, Number(plan.totalMatches || plan.rounds.length || 1)); const rounds = plan.rounds.slice(0, total).map((round, index) => { const normalized = sanitizeRound(round, index); const outcome = getMatchOutcome(normalized); return { ...normalized, status: getMatchStatus(normalized), result: outcome }; }); return { ...plan, totalMatches: rounds.length, rounds }; }
-function buildMatchDetails(plan: MatchPlan) { const normalized = normalizePlan(plan); return normalized.rounds.map((round) => { const mode = modeMeta(round.mode); const outcome = getMatchOutcome(round); return [`<b>Partita ${round.n}</b> ${mode.icon} ${mode.label.replace(/^\S+\s/, '')}`, `Mappa: ${round.map || 'Da decidere'}`, `Tipologia round: ${round.scoreType || 'Punteggio round'} · Target: ${round.target || '-'}`, `Orari: ritrovo ${round.meetingTime || '-'} · lobby ${round.lobbyOpen || normalized.lobbyTime || '-'} · start ${round.startTime || '-'}`, `Stato: ${getMatchStatus(round)}${outcome ? ` · Esito: ${outcome}` : ''}${round.ourScore || round.opponentScore ? ` · Score ${round.ourScore || '-'}-${round.opponentScore || '-'}` : ''}`, round.players ? `Convocati titolari: ${round.players}` : '', round.reserves ? `Riserve: ${round.reserves}` : '', round.bans ? `🚫 BAN: ${round.bans}` : '', round.mvp ? `MVP: ${round.mvp}` : ''].filter(Boolean).join('\n'); }).join('\n\n'); }
+function normalizePlan(plan: MatchPlan) { const total = Math.max(1, Number(plan.totalMatches || plan.rounds.length || 1)); const rounds = plan.rounds.slice(0, total).map((round, index) => { const normalized = sanitizeRound(round, index); const outcome = getMatchOutcome(normalized); return { ...normalized, matchCode: normalized.matchCode || makeMatchCode(index + 1), status: getMatchStatus(normalized), result: outcome }; }); return { ...plan, totalMatches: rounds.length, rounds }; }
+function buildMatchDetails(plan: MatchPlan) {
+  const normalized = normalizePlan(plan);
+  return normalized.rounds.map((round) => {
+    const mode = modeMeta(round.mode);
+    const outcome = getMatchOutcome(round);
+    return [
+      `<b>Partita ${round.n}</b> · Codice ${round.matchCode || 'auto'} · ${mode.icon} ${mode.label.replace(/^\S+\s/, '')}`,
+      `Dettagli: mappa ${round.map || 'Da decidere'} · ${round.scoreType || 'Punteggio round'} · target ${round.target || '-'}`,
+      `Orari: ritrovo ${round.meetingTime || '-'} · lobby ${round.lobbyOpen || normalized.lobbyTime || '-'} · start ${round.startTime || '-'}`,
+      `Stato: ${getMatchStatus(round)}${outcome ? ` · Esito: ${outcome}` : ''}${round.ourScore || round.opponentScore ? ` · Score ${round.ourScore || '-'}-${round.opponentScore || '-'}` : ''}`,
+      round.players ? `Titolari: ${round.players}` : 'Titolari: da scegliere',
+      round.reserves ? `Riserve: ${round.reserves}` : 'Riserve: da scegliere',
+      round.bans ? `🚫 BAN: ${round.bans}` : '',
+      round.mvp ? `MVP: ${round.mvp}` : ''
+    ].filter(Boolean).join('\n');
+  }).join('\n\n');
+}
 function draftPayload(args: Record<string, unknown>) { return JSON.stringify({ savedAt: new Date().toISOString(), ...args }); }
 
 export default function EventsPage() {
@@ -174,7 +192,7 @@ export default function EventsPage() {
   useEffect(() => { if (auth.clanName) setPlan((p) => ({ ...p, teamAName: p.teamAName === 'AK47DX' ? auth.clanName : p.teamAName })); }, [auth.clanName]);
   useEffect(() => {
     try {
-      const cachedEvents = localStorage.getItem('ak47dx_events_cache_v6_5');
+      const cachedEvents = localStorage.getItem('clan_manager_events_cache_v6_6');
       if (cachedEvents) setEvents(JSON.parse(cachedEvents) as CodmEvent[]);
       const raw = localStorage.getItem(DRAFT_KEY);
       if (raw) {
@@ -194,7 +212,7 @@ export default function EventsPage() {
     if (!draftReady || !canWrite) return;
     try { localStorage.setItem(DRAFT_KEY, draftPayload({ title, description, location, eventType, startsAt, endsAt, telegramEnabled, reminderMinutes, telegramTemplate, eventNotes, selectedPlayers, reservePlayers, plan, editingEventId })); } catch {}
   }, [draftReady, canWrite, title, description, location, eventType, startsAt, endsAt, telegramEnabled, reminderMinutes, telegramTemplate, eventNotes, selectedPlayers, reservePlayers, plan, editingEventId]);
-  useEffect(() => { try { if (events.length) localStorage.setItem('ak47dx_events_cache_v6_5', JSON.stringify(events)); } catch {} }, [events]);
+  useEffect(() => { try { if (events.length) localStorage.setItem('clan_manager_events_cache_v6_6', JSON.stringify(events)); } catch {} }, [events]);
 
   async function loadPlayers() { const { data } = await supabase.from('players').select('id,nickname,clan_name,status').order('nickname'); setPlayers((data || []) as PlayerRow[]); }
   async function loadEvents() {
@@ -211,7 +229,7 @@ export default function EventsPage() {
   function toggle(setter: (fn: (current: string[]) => string[]) => void, id: string) { setter((current) => current.includes(id) ? current.filter((x) => x !== id) : [...current, id]); }
   function updateRound(index: number, patch: Partial<MatchRound>) { setPlan((current) => ({ ...current, rounds: current.rounds.map((round, i) => i === index ? { ...round, ...patch } : round) })); }
   function addRound() { setPlan((current) => { const n = current.rounds.length + 1; return { ...current, totalMatches: n, rounds: [...current.rounds, emptyRound(n)] }; }); }
-  function removeRound(index: number) { setPlan((current) => { const next = current.rounds.filter((_, i) => i !== index).map((r, i) => ({ ...r, n: i + 1 })); return { ...current, totalMatches: Math.max(1, next.length), rounds: next.length ? next : [emptyRound(1)] }; }); }
+  function removeRound(index: number) { setPlan((current) => { const next = current.rounds.filter((_, i) => i !== index).map((r, i) => ({ ...r, n: i + 1, matchCode: r.matchCode || makeMatchCode(i + 1) })); return { ...current, totalMatches: Math.max(1, next.length), rounds: next.length ? next : [emptyRound(1)] }; }); }
   function toggleRoundRoster(index: number, field: 'players' | 'reserves', nickname: string) { setPlan((current) => ({ ...current, rounds: current.rounds.map((round, i) => { if (i !== index) return round; const selected = new Set(listFromText(round[field])); const otherField = field === 'players' ? 'reserves' : 'players'; const other = new Set(listFromText(round[otherField])); if (selected.has(nickname)) selected.delete(nickname); else { selected.add(nickname); other.delete(nickname); } return { ...round, [field]: textFromList(Array.from(selected)), [otherField]: textFromList(Array.from(other)) }; }) })); }
   function readImage(file: File | null | undefined, cb: (url: string) => void) { if (!file) return; const reader = new FileReader(); reader.onload = () => cb(String(reader.result || '')); reader.readAsDataURL(file); }
   function resetEditor(clearDraft = false) { setEditingEventId(null); setTitle('Scrim AK47DX vs Clan avversario'); setDescription(''); setLocation('CODM room'); setEventType('scrim'); setStartsAt(toLocalInputValue(new Date(Date.now() + 60 * 60 * 1000))); setEndsAt(toLocalInputValue(new Date(Date.now() + 3 * 60 * 60 * 1000))); setTelegramEnabled(true); setReminderMinutes('120,60,30,10'); setTelegramTemplate(DEFAULT_TELEGRAM_TEMPLATE); setEventNotes(''); setSelectedPlayers([]); setReservePlayers([]); setPlan(emptyPlan(auth.clanName || 'AK47DX')); if (clearDraft) { try { localStorage.removeItem(DRAFT_KEY); } catch {} } setMessage(clearDraft ? 'Editor pulito e bozza locale cancellata.' : 'Editor pronto per nuovo evento.'); }
@@ -263,7 +281,7 @@ export default function EventsPage() {
   return (
     <main className="container wide ak-page-compact events-v64 events-v65">
       <section className="card ak-section-head events-compact-hero">
-        <p className="eyebrow">📅 AK47DX Event Center</p>
+        <p className="eyebrow">📅 Clan Manager Event Center</p>
         <h1>Eventi, calendario e partite CODM</h1>
         <p className="muted">Lista mappe CODM, BAN selezionabili, badge stato, modifica/duplica evento e import risultato collegato all’evento.</p>
         {message && <div className="notice top-gap">{message}</div>}
@@ -293,7 +311,7 @@ export default function EventsPage() {
             <div className="grid grid-4"><div className="field"><label>Tempo lobby generale</label><input className="input" value={plan.lobbyTime} onChange={(e) => setPlan((p) => ({ ...p, lobbyTime: e.target.value }))} placeholder="es. 21:45" /></div><div className="field"><label>Numero stanza</label><input className="input" value={plan.roomNumber} onChange={(e) => setPlan((p) => ({ ...p, roomNumber: e.target.value }))} /></div><div className="field"><label>Link Discord</label><input className="input" value={plan.discordLink} onChange={(e) => setPlan((p) => ({ ...p, discordLink: e.target.value }))} /></div><div className="field"><label>Link lobby</label><input className="input" value={plan.lobbyLink} onChange={(e) => setPlan((p) => ({ ...p, lobbyLink: e.target.value }))} /></div></div>
           </div>
 
-          <div className="round-plan-list top-gap">{plan.rounds.map((round, index) => <MatchRoundEditor key={`${round.n}-${index}`} round={round} index={index} players={players} updateRound={updateRound} removeRound={removeRound} toggleRoundRoster={toggleRoundRoster} />)}</div>
+          <div className="round-plan-grid top-gap">{plan.rounds.map((round, index) => <MatchRoundEditor key={`${round.n}-${index}`} round={round} index={index} players={players} updateRound={updateRound} removeRound={removeRound} toggleRoundRoster={toggleRoundRoster} />)}</div>
 
           <div className="form top-gap">
             <div className="field"><label>Descrizione pubblica</label><textarea className="input" rows={3} value={description} onChange={(e) => setDescription(e.target.value)} /></div>
@@ -327,12 +345,12 @@ function BanPicker({ value, onChange }: { value: string; onChange: (value: strin
 function MatchRoundEditor({ round, index, players, updateRound, removeRound, toggleRoundRoster }: { round: MatchRound; index: number; players: PlayerRow[]; updateRound: (index: number, patch: Partial<MatchRound>) => void; removeRound: (index: number) => void; toggleRoundRoster: (index: number, field: 'players' | 'reserves', nickname: string) => void }) {
   const meta = modeMeta(round.mode); const starters = listFromText(round.players); const reserves = listFromText(round.reserves); const outcome = getMatchOutcome(round); const status = getMatchStatus(round);
   return <article className="match-card-v64">
-    <div className="match-card-head"><div><p className="eyebrow">{meta.icon} {meta.help}</p><h3>Partita {round.n}</h3></div><div className="match-head-actions"><span className={`match-status-pill ${status === 'Risultato caricato' ? 'loaded' : status === 'Giocata' ? 'played' : ''}`}>{status}</span>{outcome && <span className={`match-result-pill ${outcome.toLowerCase()}`}>{outcome}</span>}<button className="btn small secondary" type="button" onClick={() => removeRound(index)}>Elimina</button></div></div>
+    <div className="match-card-head"><div><p className="eyebrow">{meta.icon} {meta.help}</p><h3>Partita {round.n}</h3><span className="match-code-pill">ID {round.matchCode}</span></div><div className="match-head-actions"><span className={`match-status-pill ${status === 'Risultato caricato' ? 'loaded' : status === 'Giocata' ? 'played' : ''}`}>{status}</span>{outcome && <span className={`match-result-pill ${outcome.toLowerCase()}`}>{outcome}</span>}<button className="btn small secondary" type="button" onClick={() => removeRound(index)}>Elimina</button></div></div>
     <div className="grid grid-4"><div className="field"><label>Tipologia partita</label><select className="select codm-mode-select" value={round.mode} onChange={(e) => updateRound(index, { mode: e.target.value })}>{modeOptions.map((mode) => <option key={mode.value} value={mode.value}>{mode.label}</option>)}</select></div><div className="field"><label>Mappa CODM</label><input className="input" list="codm-map-list" value={round.map} onChange={(e) => updateRound(index, { map: e.target.value })} placeholder="Scegli mappa" /><datalist id="codm-map-list">{codmMaps.map((map) => <option key={map} value={map} />)}</datalist></div><div className="field"><label>Tipologia round / punteggio</label><select className="select" value={round.scoreType} onChange={(e) => { const metaScore = scoreMeta(e.target.value); updateRound(index, { scoreType: e.target.value, target: round.target || metaScore.target }); }}>{scoreTypeOptions.map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}</select><small className="muted">{scoreMeta(round.scoreType).help}</small></div><div className="field"><label>Punteggio / target</label><input className="input" value={round.target} onChange={(e) => updateRound(index, { target: e.target.value })} placeholder={scoreMeta(round.scoreType).target} /></div></div>
     <div className="grid grid-3 top-gap"><div className="field"><label>Orario ritrovo</label><input className="input" value={round.meetingTime} onChange={(e) => updateRound(index, { meetingTime: e.target.value })} placeholder="21:30" /></div><div className="field"><label>Apertura lobby</label><input className="input" value={round.lobbyOpen} onChange={(e) => updateRound(index, { lobbyOpen: e.target.value })} placeholder="21:45" /></div><div className="field"><label>Orario partita</label><input className="input" value={round.startTime} onChange={(e) => updateRound(index, { startTime: e.target.value })} placeholder="22:00" /></div></div>
     <div className="grid grid-2 top-gap"><RoundRosterPicker title="Formazione titolare da roster app" players={players} selected={starters} opposite={reserves} onToggle={(nickname) => toggleRoundRoster(index, 'players', nickname)} /><RoundRosterPicker title="Riserve da roster app" players={players} selected={reserves} opposite={starters} onToggle={(nickname) => toggleRoundRoster(index, 'reserves', nickname)} /></div>
     <div className="field top-gap"><label>🚫 BAN partita da lista</label><BanPicker value={round.bans} onChange={(value) => updateRound(index, { bans: value })} /></div>
-    <div className="grid grid-4 top-gap"><div className="field"><label>Stato partita</label><select className="select" value={status} onChange={(e) => updateRound(index, { status: e.target.value })}>{matchStatuses.map((entry) => <option key={entry}>{entry}</option>)}</select><small className="muted">Badge visibile anche nel riepilogo.</small></div><div className="field"><label>Score AK47DX</label><input className="input" value={round.ourScore} disabled placeholder="Automatico da Importa partita" /></div><div className="field"><label>Score avversario</label><input className="input" value={round.opponentScore} disabled placeholder="Automatico da Importa partita" /></div><div className="field"><label>MVP partita</label><input className="input" value={round.mvp} disabled placeholder="Automatico da Importa partita" /></div></div>
+    <div className="grid grid-4 top-gap"><div className="field"><label>Stato partita</label><select className="select" value={status} onChange={(e) => updateRound(index, { status: e.target.value })}>{matchStatuses.map((entry) => <option key={entry}>{entry}</option>)}</select><small className="muted">Badge visibile anche nel riepilogo.</small></div><div className="field"><label>Score nostro clan</label><input className="input" value={round.ourScore} disabled placeholder="Automatico da Importa partita" /></div><div className="field"><label>Score avversario</label><input className="input" value={round.opponentScore} disabled placeholder="Automatico da Importa partita" /></div><div className="field"><label>MVP partita</label><input className="input" value={round.mvp} disabled placeholder="Automatico da Importa partita" /></div></div>
     <div className="notice"><strong>Risultato:</strong> {outcome || 'verrà compilato da Carico/Import partita.'}</div>
   </article>;
 }
@@ -342,7 +360,7 @@ function EventPresentation({ event, plan, starters, reserves, canWrite, onDelete
     {normalizedPlan.coverImage && <img className="event-cover-image" src={normalizedPlan.coverImage} alt={`Cover ${event.title}`} />}
     <div className="event-versus compact-versus"><TeamLogo name={normalizedPlan.teamAName} logo={normalizedPlan.teamALogo} /><div className="vs-block"><span>VS</span><strong>{new Date(event.starts_at).toLocaleString('it-IT')}</strong><small>{normalizedPlan.lobbyTime ? `Lobby ${normalizedPlan.lobbyTime}` : event.location || 'CODM'}</small></div><TeamLogo name={normalizedPlan.teamBName} logo={normalizedPlan.teamBLogo} /></div>
     <div className="event-meta-grid"><span>🎮 Partite: <b>{rounds.length}</b></span><span>🏠 Stanza: <b>{normalizedPlan.roomNumber || '-'}</b></span><span>💬 Discord: <b>{normalizedPlan.discordLink ? 'presente' : '-'}</b></span><span>🔗 Lobby: <b>{normalizedPlan.lobbyLink ? 'presente' : '-'}</b></span></div>
-    <div className="event-summary-v65">{rounds.map((round) => { const meta = modeMeta(round.mode); const outcome = getMatchOutcome(round); const status = getMatchStatus(round); return <div key={round.n} className="event-match-summary"><div className="event-match-summary-head"><b>Partita {round.n}</b><span className={`match-status-pill ${status === 'Risultato caricato' ? 'loaded' : status === 'Giocata' ? 'played' : ''}`}>{status}</span>{outcome && <span className={`match-result-pill ${outcome.toLowerCase()}`}>{outcome}</span>}</div><div className="summary-lines"><p><strong>Dettagli:</strong> {meta.icon} {meta.label.replace(/^\S+\s/, '')} · {round.map || 'Mappa da decidere'} · {round.scoreType || 'Punteggio round'} {round.target ? `(${round.target})` : ''}</p><p><strong>Orari:</strong> ritrovo {round.meetingTime || '-'} · lobby {round.lobbyOpen || normalizedPlan.lobbyTime || '-'} · partita {round.startTime || '-'}</p><p><strong>Convocati:</strong> {round.players || starters.join(', ') || 'Da scegliere'}</p>{round.reserves && <p><strong>Riserve:</strong> {round.reserves}</p>}{round.bans && <p className="ban-line"><strong>BAN:</strong> {round.bans}</p>}<p><strong>Risultato:</strong> {round.ourScore || round.opponentScore ? `${round.ourScore || '-'} - ${round.opponentScore || '-'}` : 'Da importare'} {round.mvp ? `· MVP ${round.mvp}` : ''}</p></div><a className="btn small secondary" href={`/import/match?event=${event.id}&round=${round.n}`}>Importa partita {round.n}</a></div>; })}</div>
+    <div className="event-summary-v65">{rounds.map((round) => { const meta = modeMeta(round.mode); const outcome = getMatchOutcome(round); const status = getMatchStatus(round); return <div key={round.n} className="event-match-summary"><div className="event-match-summary-head"><b>Partita {round.n}</b><span className="match-code-mini">ID {round.matchCode || '-'}</span><span className={`match-status-pill ${status === 'Risultato caricato' ? 'loaded' : status === 'Giocata' ? 'played' : ''}`}>{status}</span>{outcome && <span className={`match-result-pill ${outcome.toLowerCase()}`}>{outcome}</span>}</div><div className="summary-lines"><p><strong>Dettagli:</strong> {meta.icon} {meta.label.replace(/^\S+\s/, '')} · {round.map || 'Mappa da decidere'} · {round.scoreType || 'Punteggio round'} {round.target ? `(${round.target})` : ''}</p><p><strong>Orari:</strong> ritrovo {round.meetingTime || '-'} · lobby {round.lobbyOpen || normalizedPlan.lobbyTime || '-'} · partita {round.startTime || '-'}</p><p><strong>Convocati:</strong> {round.players || starters.join(', ') || 'Da scegliere'}</p>{round.reserves && <p><strong>Riserve:</strong> {round.reserves}</p>}{round.bans && <p className="ban-line"><strong>BAN:</strong> {round.bans}</p>}<p><strong>Risultato:</strong> {round.ourScore || round.opponentScore ? `${round.ourScore || '-'} - ${round.opponentScore || '-'}` : 'Da importare'} {round.mvp ? `· MVP ${round.mvp}` : ''}</p></div><a className="btn small secondary" href={`/import/match?event=${event.id}&round=${round.n}&matchCode=${encodeURIComponent(round.matchCode || '')}`}>Importa partita {round.n}</a></div>; })}</div>
     <div className="grid grid-2 top-gap"><div className="notice"><b>Titolari evento</b><br />{starters.length ? starters.join(', ') : 'Da scegliere'}</div><div className="notice"><b>Riserve evento</b><br />{reserves.length ? reserves.join(', ') : 'Da scegliere'}</div></div>
     {canWrite && <div className="event-card-actions-v65"><button className="btn small secondary" onClick={onEdit}>Modifica</button><button className="btn small secondary" onClick={onDuplicate}>Duplica</button><button className="btn danger secondary small" onClick={() => void onDelete(event.id)}>Cancella</button></div>}
   </article>;

@@ -6,9 +6,15 @@ import { supabase } from '@/lib/supabaseClient';
 
 type NameHistoryEntry = { at: string; oldName: string; newName: string; source: string };
 type PlayerLite = { id: string; nickname: string; avatar_url?: string | null; uid_codm?: string | null };
+type ClanLite = { id: string; name?: string | null; tag?: string | null };
 
 function historyKey(userId?: string) {
   return `codm_name_history_${userId || 'anonymous'}`;
+}
+
+async function getFirstClan(): Promise<ClanLite | null> {
+  const { data } = await supabase.from('clans').select('id,name,tag').order('created_at', { ascending: true }).limit(1);
+  return (data?.[0] as ClanLite | undefined) || null;
 }
 
 export default function ProfilePage() {
@@ -126,9 +132,18 @@ export default function ProfilePage() {
       });
       addHistory(oldCodm, codmNickname, 'profilo_utente');
       if (linkedPlayerId) {
-        await supabase.from('players').update({ nickname: codmNickname || null, uid_codm: uidCodm || null, avatar_url: avatarUrl || null }).eq('id', linkedPlayerId);
+        await supabase.from('players').update({ nickname: codmNickname || null, uid_codm: uidCodm || null, avatar_url: avatarUrl || null, user_id: auth.user.id }).eq('id', linkedPlayerId);
+      } else if (codmNickname.trim()) {
+        const clan = await getFirstClan();
+        if (clan?.id) {
+          const { data: existing } = await supabase.from('players').select('id').eq('clan_id', clan.id).eq('nickname', codmNickname.trim()).limit(1);
+          const payload = { clan_id: clan.id, nickname: codmNickname.trim(), uid_codm: uidCodm || null, avatar_url: avatarUrl || null, user_id: auth.user.id, clan_name: clan.tag || clan.name || 'AK47DX', status: 'active', notes: `Creato automaticamente da Mio profilo Clan Manager · email=${auth.user.email || '-'}` };
+          if (existing?.[0]?.id) { await supabase.from('players').update(payload).eq('id', existing[0].id); setLinkedPlayerId(existing[0].id as string); }
+          else { const { data: created } = await supabase.from('players').insert(payload).select('id').single(); if (created?.id) setLinkedPlayerId(created.id as string); }
+          await loadLinkedPlayer();
+        }
       }
-      setMessage('Profilo salvato.');
+      setMessage('Profilo salvato. Il profilo player e il mio profilo sono unificati; il nome in gioco resta nel roster.');
     } catch (error) {
       setMessage(error instanceof Error ? error.message : 'Errore salvataggio profilo.');
     } finally {
@@ -170,8 +185,8 @@ export default function ProfilePage() {
       <section className="card ak-section-head profile-page-hero">
         <div>
           <p className="eyebrow">🪪 Profilo account</p>
-          <h1>Profilo, foto e storico nome gioco</h1>
-          <p className="muted">Gestisci account, nickname CODM, foto profilo, password e collegamento al roster.</p>
+          <h1>Mio profilo player unificato</h1>
+          <p className="muted">Gestisci account, nickname CODM, foto, password, statistiche e collegamento automatico al roster.</p>
         </div>
         <div className="profile-avatar-card">
           {avatarUrl ? <img src={avatarUrl} alt="Foto profilo" /> : <div className="profile-avatar-placeholder">AK</div>}
@@ -193,7 +208,7 @@ export default function ProfilePage() {
               <div className="field"><label>Nome gioco CODM</label><input className="input" value={codmNickname} onChange={(e) => setCodmNickname(e.target.value)} /></div>
               <div className="field"><label>UID CODM</label><input className="input" value={uidCodm} onChange={(e) => setUidCodm(e.target.value)} /></div>
             </div>
-            <div className="field"><label>Collega giocatore roster</label><select className="select" value={linkedPlayerId} onChange={(e) => setLinkedPlayerId(e.target.value)}><option value="">Nessun collegamento</option>{players.map((player) => <option key={player.id} value={player.id}>{player.nickname}</option>)}</select></div>
+            <div className="field"><label>Collegamento roster automatico</label><select className="select" value={linkedPlayerId} onChange={(e) => setLinkedPlayerId(e.target.value)}><option value="">Nessun collegamento</option>{players.map((player) => <option key={player.id} value={player.id}>{player.nickname}</option>)}</select></div>
             <div className="field"><label>Descrizione profilo</label><textarea className="input" rows={3} value={description} onChange={(e) => setDescription(e.target.value)} placeholder="Ruolo, stile di gioco, orari, specialità..." /></div>
             <div className="profile-social-grid">
               <div className="field"><label>📸 Instagram</label><input className="input" value={socialInstagram} onChange={(e) => setSocialInstagram(e.target.value)} placeholder="link o username" /></div>

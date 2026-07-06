@@ -14,12 +14,14 @@ type EventRow = {
   sent_reminders?: Record<string, string> | null;
   telegram_message_template?: string | null;
   event_notes?: string | null;
+  event_plan?: MatchPlan | null;
   reminder_2h_sent_at?: string | null;
   reminder_10m_sent_at?: string | null;
 };
 
 type MatchRound = {
   n?: number;
+  matchCode?: string;
   mode?: string;
   map?: string;
   scoreType?: string;
@@ -45,7 +47,7 @@ type MatchPlan = {
   rounds?: MatchRound[];
 };
 
-const PLAN_MARKERS = ['AK_EVENT_PLAN_V6_4::', 'AK_EVENT_PLAN_V6_3::', 'AK_EVENT_PLAN_V6_2::'];
+const PLAN_MARKERS = ['AK_EVENT_PLAN_V6_6::', 'AK_EVENT_PLAN_V6_5::', 'AK_EVENT_PLAN_V6_4::', 'AK_EVENT_PLAN_V6_3::', 'AK_EVENT_PLAN_V6_2::'];
 const resultLabels = ['Vinto', 'Perso', 'Pareggiato'];
 const statusLabels = ['Da giocare', 'Giocata', 'Risultato caricato'];
 const modeLabels: Record<string, string> = {
@@ -121,7 +123,7 @@ function extractPlanFromNotes(notes?: string | null): MatchPlan | null {
   }
 }
 function buildMatchDetailsHtml(event: EventRow) {
-  const plan = extractPlanFromNotes(event.event_notes);
+  const plan = event.event_plan || extractPlanFromNotes(event.event_notes);
   const rounds = plan?.rounds || [];
   if (!rounds.length) return 'Partite da confermare.';
   return rounds.map((round, index) => {
@@ -129,7 +131,7 @@ function buildMatchDetailsHtml(event: EventRow) {
     const mode = modeLabels[round.mode || ''] || safeHtml(round.mode || 'Modalità da decidere');
     const outcome = matchOutcome(round);
     const lines = [
-      `<b>Partita ${n}</b> ${mode}`,
+      `<b>Partita ${n}</b> · ID ${safeHtml(round.matchCode || '-')} · ${mode}`,
       `Mappa: ${safeHtml(round.map || 'Da decidere')}`,
       `Ritrovo: ${safeHtml(round.meetingTime || '-')} · Lobby: ${safeHtml(round.lobbyOpen || plan?.lobbyTime || '-')} · Start: ${safeHtml(round.startTime || '-')}`,
       `Stato: ${safeHtml(matchStatus(round))}${outcome ? ` · Esito: ${safeHtml(outcome)}` : ''}`,
@@ -147,7 +149,7 @@ function renderReminderText(event: EventRow, minutes: number) {
   const when = new Date(event.starts_at).toLocaleString('it-IT', { timeZone: 'Europe/Rome' });
   const convocati = event.convocations_text?.trim() || 'Da confermare';
   const matchDetails = buildMatchDetailsHtml(event);
-  const template = event.telegram_message_template || '🎮 <b>AK47DX Evento</b>\n\n<b>{title}</b>\n⏱️ Mancano {minutes} minuti\n🕒 {date}\n📍 {location}\n\n<b>Dettaglio partite:</b>\n{match_details}\n\n<b>Convocati:</b>\n{convocati}\n\n{description}';
+  const template = event.telegram_message_template || '🎮 <b>Clan Manager Evento</b>\n\n<b>{title}</b>\n⏱️ Mancano {minutes} minuti\n🕒 {date}\n📍 {location}\n\n<b>Dettaglio partite:</b>\n{match_details}\n\n<b>Convocati:</b>\n{convocati}\n\n{description}';
   return template
     .replaceAll('{title}', safeHtml(event.title))
     .replaceAll('{minutes}', String(minutes))
@@ -232,7 +234,7 @@ async function processReminders() {
 
   const { data, error } = await supabase
     .from('codm_events')
-    .select('id,clan_id,title,description,starts_at,location,telegram_enabled,convocations_text,reminder_minutes,sent_reminders,telegram_message_template,event_notes,reminder_2h_sent_at,reminder_10m_sent_at')
+    .select('id,clan_id,title,description,starts_at,location,telegram_enabled,convocations_text,reminder_minutes,sent_reminders,telegram_message_template,event_notes,event_plan,reminder_2h_sent_at,reminder_10m_sent_at')
     .eq('telegram_enabled', true)
     .gte('starts_at', now.toISOString())
     .lte('starts_at', until)

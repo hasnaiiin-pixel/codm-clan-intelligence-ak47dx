@@ -1,7 +1,7 @@
 {
-  "app": "AK47DX CODM Clan Intelligence",
-  "version": "CODM_AK47DX_V5_5_1_CLEAN_START_LOGO_MEDALS_BUILD_FIX",
-  "marker": "V5_5_1_CLEAN_START_LOGO_MEDALS_BUILD_FIX_OK",
+  "app": "Clan Manager",
+  "version": "CODM_AK47DX_V6_6_CLAN_MANAGER_EVENTS_PERSIST_ROSTER_RULES",
+  "marker": "V6_6_CLAN_MANAGER_EVENTS_PERSIST_ROSTER_RULES_OK",
   "backend_ocr": "2.0.10-v5-4-fastlane-import-stabile-ak47dx",
   "routes": [
     "/version",
@@ -10,6 +10,7 @@
     "/calibration",
     "/events",
     "/ocr-status",
-    "/notifications"
+    "/notifications",
+    "/rules"
   ]
 }

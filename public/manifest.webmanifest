@@ -1,14 +1,18 @@
 {
-  "name": "AK47DX Clan Intelligence",
-  "short_name": "AK47DX",
-  "description": "CODM Clan Intelligence 2.0 - piattaforma clan, OCR risultati, statistiche e inviti giocatori.",
+  "name": "Clan Manager",
+  "short_name": "Clan Manager",
+  "description": "Clan Manager - piattaforma CODM per clan, eventi, roster, risultati OCR, regolamento e statistiche.",
   "start_url": "/dashboard",
   "scope": "/",
   "display": "standalone",
   "background_color": "#05070d",
   "theme_color": "#ff2a2a",
   "orientation": "any",
-  "categories": ["games", "sports", "productivity"],
+  "categories": [
+    "games",
+    "sports",
+    "productivity"
+  ],
   "icons": [
     {
       "src": "/assets/ak47dx-logo.jpeg",

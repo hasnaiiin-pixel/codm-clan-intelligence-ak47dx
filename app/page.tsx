@@ -72,7 +72,7 @@ export default function HomePage() {
     <main className="container wide home-v62">
       <section className="card gaming-panel home-clan-hero">
         <div className="home-clan-left">
-          <p className="eyebrow">🐺 CODM Clan Intelligence</p>
+          <p className="eyebrow">🐺 Clan Manager</p>
           <h1>{clanName}</h1>
           <p className="clan-motto">{clan?.description || 'Dashboard ufficiale clan: risultati, statistiche, eventi, convocazioni e storico partite.'}</p>
           {message && <div className="notice top-gap">{message}</div>}

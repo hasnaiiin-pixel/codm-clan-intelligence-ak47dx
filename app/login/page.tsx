@@ -25,6 +25,24 @@ function getAppUrl() {
   return '';
 }
 
+async function ensureRosterPlayer(clan: ClanRow | null, nickname: string, uid: string, userId?: string | null, email?: string) {
+  if (!clan?.id || !nickname.trim()) return;
+  try {
+    const cleanNickname = nickname.trim();
+    const { data: existing } = await supabase.from('players').select('id').eq('clan_id', clan.id).eq('nickname', cleanNickname).limit(1);
+    const payload = {
+      clan_id: clan.id,
+      nickname: cleanNickname,
+      uid_codm: uid.trim() || null,
+      clan_name: clan.tag || clan.name || 'AK47DX',
+      status: 'active',
+      notes: `Creato automaticamente da registrazione app Clan Manager${email ? ` · email=${email}` : ''}${userId ? ` · user_id=${userId}` : ''}`
+    };
+    if (existing?.[0]?.id) await supabase.from('players').update(payload).eq('id', existing[0].id);
+    else await supabase.from('players').insert(payload);
+  } catch {}
+}
+
 export default function LoginPage() {
   const [mode, setMode] = useState<Mode>('login');
   const [email, setEmail] = useState('');
@@ -67,7 +85,7 @@ export default function LoginPage() {
     setMessage('');
     try {
       const appUrl = getAppUrl();
-      const emailRedirectTo = `${appUrl}/auth/callback?next=/profile-import`;
+      const emailRedirectTo = `${appUrl}/auth/callback?next=/profile`;
       const clan = await getFirstClan().catch(() => null);
 
       const { data, error } = await supabase.auth.signUp({
@@ -87,13 +105,15 @@ export default function LoginPage() {
 
       if (error) throw error;
 
+      await ensureRosterPlayer(clan, nickname, uid, data.user?.id || null, email.trim());
+
       if (data.session) {
-        setMessage('Registrazione completata. Ti porto al profilo CODM.');
-        window.location.href = '/profile-import';
+        setMessage('Registrazione completata. Player inserito automaticamente nel roster. Ti porto al profilo.');
+        window.location.href = '/profile';
         return;
       }
 
-      setMessage('Registrazione inviata. Controlla la tua email, conferma account e poi torna nella app. Il tuo profilo sarà visibile in Gestione utenti.');
+      setMessage('Registrazione inviata. Il nome in gioco viene inserito nel roster automaticamente; conferma la tua email e poi entra nella app.');
     } catch (error) {
       setMessage(error instanceof Error ? error.message : 'Errore registrazione. Riprova.');
     } finally {
@@ -105,10 +125,10 @@ export default function LoginPage() {
     <main className="ak-login-page">
       <section className="ak-login-wrap">
         <div className="ak-login-card">
-          <div className="ak-pill">AK47DX Clan Intelligence</div>
+          <div className="ak-pill">Clan Manager</div>
           <h1 className="ak-title">Accesso player e staff</h1>
           <p className="ak-lead">
-            La dashboard resta pubblica in sola lettura. Registrazione, profilo CODM, eventi, upload risultati e modifiche sono gestiti con ruoli approvati da admin.
+            La dashboard resta pubblica in sola lettura. Registrazione con nome, email e nome in gioco: il player entra subito nel roster.
           </p>
 
           <div className="ak-mode-switch" role="tablist" aria-label="Selezione modalità accesso">
@@ -161,9 +181,9 @@ export default function LoginPage() {
           <h2>Flusso corretto</h2>
           <ol className="ak-flow">
             <li><b>1.</b> Il player si registra con email, nome e nickname CODM.</li>
-            <li><b>2.</b> Dopo conferma email, viene aperta la app su <b>/profile-import</b>.</li>
-            <li><b>3.</b> Il player è subito visibile in <b>/admin/users</b> come pending.</li>
-            <li><b>4.</b> Tu assegni ruolo: viewer, player, staff, coach oppure owner.</li>
+            <li><b>2.</b> Dopo conferma email, viene aperta la app su <b>/profile</b>.</li>
+            <li><b>3.</b> Il nome in gioco viene creato automaticamente nel <b>Roster</b>.</li>
+            <li><b>4.</b> Admin può comunque assegnare ruolo: viewer, player, staff, coach oppure owner.</li>
           </ol>
           <div className="ak-warning">
             Se la grafica sembra ancora vecchia, apri <b>/cache-reset</b>, premi reset cache e ricarica la pagina.
