@@ -55,34 +55,40 @@ function normalizeDate(value) {
   return value;
 }
 
+function firstValue(source, keys, fallback = null) {
+  for (const key of keys) {
+    if (source[key] !== undefined && source[key] !== null && source[key] !== '') return source[key];
+  }
+  return fallback;
+}
+
 export function toSupabaseEventPayload(event) {
   const localEvent = buildLocalEvent(event);
 
+  // Payload DB stabile: inviamo solo colonne esistenti nella tabella public.events.
+  // Tutti i dati extra del form evento rimangono dentro payload JSONB.
   const payload = {
-    ...localEvent,
     local_id: localEvent.local_id,
     device_id: localEvent.device_id,
+    title: firstValue(localEvent, ['title', 'name', 'event_name', 'nome', 'nome_evento'], 'Evento CODM'),
+    event_type: firstValue(localEvent, ['event_type', 'type', 'tipo'], 'event'),
+    status: firstValue(localEvent, ['status', 'stato'], 'scheduled'),
+    event_date: normalizeDate(firstValue(localEvent, ['event_date', 'date', 'data', 'match_date'])),
+    start_at: normalizeDate(firstValue(localEvent, ['start_at', 'startTime', 'orario', 'match_time', 'game_time'])),
+    lobby_open_at: normalizeDate(firstValue(localEvent, ['lobby_open_at', 'lobbyTime', 'orario_lobby', 'lobby_open_time'])),
+    description: firstValue(localEvent, ['description', 'desc', 'note', 'notes'], null),
+    cover_url: firstValue(localEvent, ['cover_url', 'cover', 'coverImage', 'cover_image'], null),
+    payload: localEvent,
     sync_status: 'synced',
     sync_error: null,
     updated_at: nowIso()
   };
 
   // Fix definitivo: se id è local-ak47dx o qualunque valore non UUID, NON inviarlo a Supabase.
-  // Supabase/Postgres deve generare id uuid con gen_random_uuid().
-  if (!payload.id || !UUID_RE.test(String(payload.id))) {
-    delete payload.id;
+  // Supabase/Postgres genera id uuid con gen_random_uuid().
+  if (localEvent.id && UUID_RE.test(String(localEvent.id))) {
+    payload.id = localEvent.id;
   }
-
-  // Normalizzazione campi data più comuni, senza obbligare nomi specifici del progetto.
-  ['date', 'event_date', 'start_at', 'end_at', 'created_at', 'updated_at'].forEach((key) => {
-    if (key in payload) payload[key] = normalizeDate(payload[key]);
-  });
-
-  // Questi campi sono solo UI/locali e non devono andare al DB se non esistono.
-  delete payload.client_id;
-  delete payload._localOnly;
-  delete payload._uiState;
-  delete payload.temp_id;
 
   return payload;
 }

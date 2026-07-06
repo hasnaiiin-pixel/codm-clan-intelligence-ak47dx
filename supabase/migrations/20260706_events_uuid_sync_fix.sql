@@ -1,31 +1,64 @@
--- CODM PWA FULL STABLE - Fix UUID + sync locale/PWA
+-- CODM PWA FULL STABLE - FIX2
+-- Crea la tabella public.events se non esiste e sistema UUID + sync locale/PWA.
 -- Eseguire nel SQL Editor di Supabase.
 
 create extension if not exists pgcrypto;
 
--- La tabella si chiama probabilmente events. Se nel tuo progetto ha un nome diverso,
--- cambia public.events con il nome corretto.
+-- Tabella eventi standard per CODM PWA.
+-- Serve anche quando il progetto non aveva ancora creato public.events.
+create table if not exists public.events (
+  id uuid primary key default gen_random_uuid(),
+  local_id text,
+  device_id text,
+  title text not null default 'Evento CODM',
+  event_type text default 'event',
+  status text default 'scheduled',
+  event_date timestamptz,
+  start_at timestamptz,
+  lobby_open_at timestamptz,
+  description text,
+  cover_url text,
+  payload jsonb not null default '{}'::jsonb,
+  sync_status text not null default 'synced',
+  sync_error text,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
 
-alter table if exists public.events
+-- Se la tabella esisteva già, aggiunge solo ciò che manca.
+alter table public.events
   alter column id set default gen_random_uuid();
 
-alter table if exists public.events
+alter table public.events
   add column if not exists local_id text,
   add column if not exists device_id text,
-  add column if not exists sync_status text default 'synced',
+  add column if not exists title text default 'Evento CODM',
+  add column if not exists event_type text default 'event',
+  add column if not exists status text default 'scheduled',
+  add column if not exists event_date timestamptz,
+  add column if not exists start_at timestamptz,
+  add column if not exists lobby_open_at timestamptz,
+  add column if not exists description text,
+  add column if not exists cover_url text,
+  add column if not exists payload jsonb not null default '{}'::jsonb,
+  add column if not exists sync_status text not null default 'synced',
   add column if not exists sync_error text,
-  add column if not exists updated_at timestamptz default now();
+  add column if not exists created_at timestamptz not null default now(),
+  add column if not exists updated_at timestamptz not null default now();
 
--- Serve per upsert/retry dalla PWA. Permette 1 evento locale per device.
+-- Permette retry/upsert dalla PWA: un evento locale per local_id.
 create unique index if not exists events_local_id_unique
   on public.events(local_id)
   where local_id is not null;
 
--- Valori sync ammessi.
+-- Vincolo sync_status, aggiunto solo se manca.
 do $$
 begin
   if not exists (
-    select 1 from pg_constraint where conname = 'events_sync_status_check'
+    select 1
+    from pg_constraint
+    where conname = 'events_sync_status_check'
+      and conrelid = 'public.events'::regclass
   ) then
     alter table public.events
       add constraint events_sync_status_check
@@ -33,7 +66,7 @@ begin
   end if;
 end $$;
 
--- Trigger aggiornamento updated_at, se non esiste già.
+-- Trigger updated_at.
 create or replace function public.codm_set_updated_at()
 returns trigger
 language plpgsql
@@ -49,3 +82,6 @@ create trigger codm_events_set_updated_at
 before update on public.events
 for each row
 execute function public.codm_set_updated_at();
+
+-- Verifica finale.
+select 'public.events pronta per CODM PWA' as risultato;

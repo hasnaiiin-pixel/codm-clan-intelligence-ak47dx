@@ -141,6 +141,15 @@ Esegui questo file nel SQL editor di Supabase:
 supabase/migrations/20260706_events_uuid_sync_fix.sql
 ```
 
+Questa versione FIX2 crea anche `public.events` se la tabella non esiste.
+Quindi corregge l'errore:
+
+```text
+ERROR: 42P01: relation "public.events" does not exist
+```
+
+La tabella usa `id uuid default gen_random_uuid()` e salva i campi extra dell'evento dentro `payload jsonb`, così il form mobile può evolvere senza rompere Supabase.
+
 ## 8. Manifest
 
 Verifica in `index.html` che ci sia:
