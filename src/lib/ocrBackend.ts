@@ -1,7 +1,5 @@
-export const EXPECTED_OCR_BACKEND_VERSION = '2.0.12-v5-7-profile-template-frame-ocr-ak47dx';
+export const EXPECTED_OCR_BACKEND_VERSION = '2.0.10-v5-4-fastlane-import-stabile-ak47dx';
 export const ACCEPTED_OCR_BACKEND_VERSIONS = [
-  '2.0.12-v5-7-profile-template-frame-ocr-ak47dx',
-  '2.0.11-v5-6-profile-fastlane-stabile-ak47dx',
   '2.0.10-v5-4-fastlane-import-stabile-ak47dx',
   '2.0.9-v5-2-template-kda-table-definitivo-ak47dx',
   '2.0.8-v5-0-import-score-kda-definitivo-ak47dx',

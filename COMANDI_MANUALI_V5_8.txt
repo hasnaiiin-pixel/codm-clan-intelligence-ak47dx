@@ -1,0 +1,6 @@
+cd C:\Users\spea4060_tmv331ef\Documents\PROGETTI\COD\CODM_CLAN_INTELLIGENCE_2_0_DEPLOYABLE_PWA_YOLO_AK47DX
+npm ci --legacy-peer-deps
+npm run build
+git add -A
+git commit -m "fix: CODM v5.8 rollback import stabile"
+git push origin main

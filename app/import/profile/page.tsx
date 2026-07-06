@@ -6,7 +6,6 @@ import { parseCodmProfileText, type ParsedProfileStats } from '@/lib/ocrParsers'
 import { recognizeCodmImage, type CodmOcrProgress } from '@/lib/codmOcrEngine';
 import { getActivePhoneProfile, listCalibrationPhoneProfiles, loadCalibration, loadCalibrationBundle, setActivePhoneProfile } from '@/lib/calibration';
 import { ACCEPTED_OCR_BACKEND_VERSIONS, EXPECTED_OCR_BACKEND_VERSION, getOcrBackendCandidates } from '@/lib/ocrBackend';
-import { detectImageContentFrameFromUrl } from '@/lib/imageFrame';
 import type { Player, ProfileImportType } from '@/lib/types';
 
 const importTypes: Array<{ value: ProfileImportType; label: string; hint: string }> = [
@@ -89,7 +88,6 @@ export default function ImportProfilePage() {
   const [legendaryZombie, setLegendaryZombie] = useState('');
   const [message, setMessage] = useState('');
   const [ocrProgress, setOcrProgress] = useState('');
-  const [ocrProgressPct, setOcrProgressPct] = useState(0);
   const [debugImages, setDebugImages] = useState<Array<{ name: string; dataUrl: string; notes: string }>>([]);
   const [backendRawJson, setBackendRawJson] = useState('');
   const [calibrationProfiles, setCalibrationProfiles] = useState<string[]>(['default']);
@@ -144,70 +142,8 @@ export default function ImportProfilePage() {
     setDebugImages([]);
     setBackendRawJson('');
     setOcrProgress('');
-    setOcrProgressPct(0);
     if (!selected) return setImageUrl('');
     setImageUrl(URL.createObjectURL(selected));
-  }
-
-  function postProfileFormDataWithProgress(
-    url: string,
-    formData: FormData,
-    timeoutMs: number,
-    onProgress: (percent: number, label: string) => void
-  ): Promise<BackendProfileResult> {
-    return new Promise((resolve, reject) => {
-      const xhr = new XMLHttpRequest();
-      xhr.open('POST', url);
-      xhr.timeout = timeoutMs;
-      xhr.responseType = 'text';
-
-      let fakeProgress = 58;
-      let serverTimer: number | null = null;
-      const startServerTimer = () => {
-        if (serverTimer !== null) return;
-        serverTimer = window.setInterval(() => {
-          fakeProgress = Math.min(88, fakeProgress + 4);
-          onProgress(fakeProgress, 'Profile FastLane: Render sta leggendo i riquadri profilo. Attendi, non chiudere.');
-        }, 1800);
-      };
-      const clearServerTimer = () => {
-        if (serverTimer !== null) window.clearInterval(serverTimer);
-        serverTimer = null;
-      };
-
-      xhr.upload.onprogress = (event) => {
-        if (event.lengthComputable && event.total > 0) {
-          const uploadPct = 30 + Math.round((event.loaded / event.total) * 28);
-          onProgress(Math.min(58, uploadPct), 'Caricamento screenshot profilo verso OCR Render...');
-        } else {
-          onProgress(42, 'Caricamento screenshot profilo verso OCR Render...');
-        }
-      };
-      xhr.upload.onload = () => {
-        onProgress(58, 'Upload completato. OCR profilo in lavorazione...');
-        startServerTimer();
-      };
-
-      xhr.onload = () => {
-        clearServerTimer();
-        if (xhr.status >= 200 && xhr.status < 300) {
-          try {
-            onProgress(92, 'Risposta profilo OCR ricevuta. Applico dati ai campi...');
-            resolve(JSON.parse(xhr.responseText || '{}') as BackendProfileResult);
-          } catch (error) {
-            reject(new Error(`Risposta OCR profilo non valida: ${error instanceof Error ? error.message : 'JSON non leggibile'}`));
-          }
-          return;
-        }
-        reject(new Error(`Backend OCR profilo non risponde correttamente (${xhr.status}): ${xhr.responseText || xhr.statusText}`));
-      };
-
-      xhr.onerror = () => { clearServerTimer(); reject(new Error('Errore rete verso Backend OCR Render per profilo. Controlla NEXT_PUBLIC_OCR_BACKEND_URL e CORS.')); };
-      xhr.ontimeout = () => { clearServerTimer(); reject(new DOMException('OCR profilo timeout', 'AbortError')); };
-
-      onProgress(30, 'Invio screenshot profilo al backend OCR...');
-      xhr.send(formData);
-    });
   }
 
   async function runBackendProfileOcr() {
@@ -215,60 +151,43 @@ export default function ImportProfilePage() {
     setWorking(true);
     setDebugImages([]);
     setBackendRawJson('');
-    setOcrProgressPct(4);
-    setOcrProgress('Preparazione profilo FastLane V5.7 con frame calibrazione frontend...');
-    setMessage('OCR profilo V5.7: usa lo stesso frame della calibrazione frontend, poi fallback backend/full-frame se non legge i numeri.');
+    setOcrProgress('Invio screenshot al Backend OCR Profile 2.0...');
+    setMessage('OCR profilo 2.0 in corso: usa calibrazione profilo + voto OCR su numeri Leggendario MG/BR/DMZ/Zombie.');
     try {
-      const candidates = backendCandidates();
-      if (!candidates.length) {
-        throw new Error('NEXT_PUBLIC_OCR_BACKEND_URL non configurato. Su Vercel serve URL HTTPS Render, esempio https://ak47dx-ocr-backend.onrender.com');
-      }
-      const backendUrl = candidates[0];
-      let backendVersion = 'direct-profile-fastlane';
-      setOcrProgressPct(12);
-      setOcrProgress(`V5.7 Profile OCR: provo import diretto su ${backendUrl}. /health è solo informativo.`);
-
-      try {
-        const healthResponse = await fetchWithTimeout(`${backendUrl}/health`, { cache: 'no-store' }, 7000);
-        if (healthResponse.ok) {
+      let backendUrl = '';
+      let backendVersion = 'unknown';
+      const attempts: string[] = [];
+      for (const candidate of backendCandidates()) {
+        try {
+          const healthResponse = await fetchWithTimeout(`${candidate}/health`, { cache: 'no-store' }, 25000);
+          if (!healthResponse.ok) {
+            attempts.push(`${candidate} -> HTTP ${healthResponse.status}`);
+            continue;
+          }
           const health = await healthResponse.json() as { version?: string };
-          backendVersion = health.version || backendVersion;
-          setOcrProgressPct(18);
-          setOcrProgress(`Backend OCR risponde (${backendVersion}). Avvio OCR profilo V5.7 con frame frontend...`);
-        } else {
-          setOcrProgressPct(18);
-          setOcrProgress(`Health HTTP ${healthResponse.status}. Avvio comunque OCR profilo diretto...`);
+          backendVersion = health.version || 'unknown';
+          if (!ACCEPTED_BACKEND_VERSIONS.includes(backendVersion)) {
+            attempts.push(`${candidate} -> versione ${backendVersion}, attese ${ACCEPTED_BACKEND_VERSIONS.join(', ')}`);
+            continue;
+          }
+          backendUrl = candidate;
+          break;
+        } catch (healthError) {
+          attempts.push(`${candidate} -> ${healthError instanceof Error ? healthError.message : 'Failed to fetch'}`);
         }
-      } catch {
-        setOcrProgressPct(18);
-        setOcrProgress('Health Render lento/cold start. Avvio comunque OCR profilo diretto...');
       }
+      if (!backendUrl) throw new Error(`Backend OCR 2.0 non raggiungibile/allineato. Su Vercel imposta NEXT_PUBLIC_OCR_BACKEND_URL con URL Render HTTPS. Versioni accettate ${ACCEPTED_BACKEND_VERSIONS.join(', ')}. Tentativi: ${attempts.join(' | ') || 'nessun URL configurato'}`);
 
       const formData = new FormData();
       formData.append('file', file);
-      formData.append('profile_mode', 'v5_7_template_frame_ocr');
-      formData.append('import_type', importType);
       if (useCalibrationTemplate) {
         setActivePhoneProfile('profile_base', selectedCalibrationPhone);
         const calibrationBundle = loadCalibrationBundle('profile_base', selectedCalibrationPhone);
         formData.append('calibration_template', JSON.stringify(calibrationBundle));
-        formData.append('template_source', `profile_v5_7_frame:${calibrationBundle.meta?.phoneProfile || selectedCalibrationPhone}`);
       }
-      try {
-        const frameUrl = imageUrl || URL.createObjectURL(file);
-        const frame = await detectImageContentFrameFromUrl(frameUrl);
-        formData.append('calibration_frame', JSON.stringify(frame));
-        setOcrProgressPct(24);
-        setOcrProgress(`Frame frontend profilo inviato: ${Math.round(frame.x * 1000) / 10}%,${Math.round(frame.y * 1000) / 10}% ${Math.round(frame.w * 1000) / 10}%x${Math.round(frame.h * 1000) / 10}%.`);
-      } catch {
-        setOcrProgressPct(24);
-        setOcrProgress('Frame frontend non calcolato: backend userà fallback automatico.');
-      }
-
-      const parsed = await postProfileFormDataWithProgress(`${backendUrl}/ocr/profile`, formData, 150000, (percent, label) => {
-        setOcrProgressPct(percent);
-        setOcrProgress(label);
-      });
+      const response = await fetchWithTimeout(`${backendUrl}/ocr/profile`, { method: 'POST', body: formData }, 180000);
+      if (!response.ok) throw new Error(`Backend profilo non risponde (${response.status}): ${await response.text()}`);
+      const parsed = await response.json() as BackendProfileResult;
       setBackendRawJson(JSON.stringify(parsed, null, 2));
       setRawText(parsed.raw_text || JSON.stringify(parsed, null, 2));
 
@@ -285,15 +204,12 @@ export default function ImportProfilePage() {
       if (parsed.legendary_dmz !== null && parsed.legendary_dmz !== undefined) setLegendaryDmz(String(parsed.legendary_dmz));
       if (parsed.legendary_zombie !== null && parsed.legendary_zombie !== undefined) setLegendaryZombie(String(parsed.legendary_zombie));
       const warnings = parsed.warnings?.length ? ` Warning: ${parsed.warnings.join(' | ')}` : '';
-      setOcrProgressPct(100);
-      setOcrProgress('OCR profilo completato. Controlla i campi gialli e salva.');
-      setMessage(`OCR profilo V5.7 completato. Layout=${Math.round((parsed.layout_confidence || 0) * 100)}%, OCR=${Math.round((parsed.ocr_confidence || 0) * 100)}%. Usa frame frontend + fallback backend/full-frame. Controlla i campi gialli prima di salvare.${warnings}`);
+      setMessage(`OCR profilo 2.0 completato. Layout=${Math.round((parsed.layout_confidence || 0) * 100)}%, OCR=${Math.round((parsed.ocr_confidence || 0) * 100)}%. Controlla numeri Leggendario prima di salvare.${warnings}`);
     } catch (error) {
-      setOcrProgressPct(100);
-      setOcrProgress('OCR profilo fermato. Controlla messaggio e backend.');
-      setMessage(error instanceof Error ? (error.name === 'AbortError' ? 'OCR profilo fermato per timeout dopo 120 secondi. Il backend Render è troppo lento: prova prima /health, poi riprova; l’import partite resta invariato.' : error.message) : 'Errore OCR profilo backend.');
+      setMessage(error instanceof Error ? error.message : 'Errore OCR profilo backend.');
     } finally {
       setWorking(false);
+      setOcrProgress('');
     }
   }
 
@@ -462,13 +378,13 @@ export default function ImportProfilePage() {
   }
 
   return (
-    <main className="container wide profile-fastlane-page">
-      <section className="profile-fastlane-layout">
+    <main className="container">
+      <section className="grid grid-2">
         <div className="card">
           <h1>Import profilo / statistiche CODM</h1>
           <p className="muted">
             Usa questa pagina per screenshot profilo base, Multigiocatore, Battle Royale, Zombi e DMZ.
-            L'OCR V5.7 usa lo stesso frame della calibrazione frontend e prova fallback backend/full-frame se i numeri non vengono letti.
+            L'OCR 2.0 usa il backend Python, template profilo calibrato e voto su più letture per nickname, UID, livello e numeri Leggendario MG/BR/DMZ/Zombie.
           </p>
           <div className="form">
             <div className="field">
@@ -487,10 +403,10 @@ export default function ImportProfilePage() {
             <input className="input" type="file" accept="image/*" onChange={(e) => onFileSelected(e.target.files?.[0] || null)} />
             {imageUrl && <img className="preview" src={imageUrl} alt="Screenshot profilo" />}
             <div className="grid grid-2">
-              <button className="btn" onClick={runBackendProfileOcr} disabled={working}>{working ? '⏳ Lettura...' : '🪪 OCR Profilo V5.7 frame-lock'}</button>
+              <button className="btn" onClick={runBackendProfileOcr} disabled={working}>{working ? '⏳ Lettura...' : '🪪 OCR Profile Hybrid 2.0'}</button>
               <button className="btn secondary" onClick={runOcr} disabled={working}>{working ? 'Lettura...' : 'OCR browser fallback 0.7'}</button>
             </div>
-            {ocrProgress && <div className="notice"><strong>Avanzamento OCR profilo: {ocrProgressPct}%</strong><div className="ak-progress-track"><div className="ak-progress-bar" style={{ width: `${ocrProgressPct}%` }} /></div><span>{ocrProgress}</span></div>}
+            {ocrProgress && <div className="notice">{ocrProgress}</div>}
             {message && <div className="notice">{message}</div>}
             {!!debugImages.length && (
               <details>

@@ -1,37 +1,24 @@
-# CODM AK47DX V5.6 — Profile FastLane stabile
+# CODM AK47DX V5.5 - Clean Start + MIRZA Logo + Medaglie
 
-Questa versione mantiene l'import partite V5.4 FastLane funzionante e allinea Import Profilo / Statistiche giocatore.
+Base import mantenuta: V5.4 FastLane. Non è stato cambiato il motore OCR funzionante.
 
-## Modifiche principali
+## Modifiche
+- 1° posto = Oro / MVP
+- 2° posto = Argento
+- 3° posto = Bronzo
+- 4° posto = Legno
+- 5° posto = Olimpico
+- Logo sviluppatore MIRZA visibile in alto a destra e nel footer in fondo.
+- Aggiunto SQL di reset dati test: `supabase/99_RESET_DATABASE_PULITO_KEEP_OWNER.sql`.
 
-- Import partite non toccato.
-- Profilo OCR V5.6 FastLane: non si blocca più sul controllo `/health`.
-- `/health` è solo informativo; l'import profilo prova direttamente `/ocr/profile`.
-- Progress percentuale profilo: upload, OCR Render, applicazione campi.
-- Backend profilo più leggero: niente Google/Paddle prima di Tesseract, numeri Leggendario letti con fast numeric.
-- Layout Import Profilo/Statistiche più largo e leggibile.
-- Frontend: `V5_6_PROFILE_FASTLANE_STABILE_OK`.
-- Backend: `2.0.11-v5-6-profile-fastlane-stabile-ak47dx`.
+## Reset database pulito
+1. Apri Supabase -> SQL Editor.
+2. Apri `supabase/99_RESET_DATABASE_PULITO_KEEP_OWNER.sql`.
+3. Sostituisci `INSERISCI_EMAIL_OWNER` con la tua email principale.
+4. Esegui.
 
-## Installazione
+Il reset cancella partite/statistiche/eventi/notifiche/roster di prova e mantiene solo l'utente principale come owner.
 
-Copia il contenuto dello ZIP nella root progetto mantenendo solo `.git` e `.env.local`, poi esegui:
-
-```bat
-APPLICA_PUSH_V5_6.bat
-```
-
-## Render
-
-Aggiorna Render con la cartella `ocr-backend` di questa versione.
-Dopo deploy, `/health` deve mostrare:
-
-```txt
-2.0.11-v5-6-profile-fastlane-stabile-ak47dx
-```
-
-## Test
-
-- `/version` deve mostrare `V5_6_PROFILE_FASTLANE_STABILE_OK`.
-- `/import/match` deve continuare a usare FastLane V5.4.
-- `/import/profile` deve usare il nuovo Profile FastLane V5.6.
+## Versione
+Frontend marker: `V5_5_CLEAN_START_LOGO_MEDALS_OK`
+Backend OCR resta: `2.0.10-v5-4-fastlane-import-stabile-ak47dx`

@@ -8,7 +8,7 @@ from app.services.scoreboard_ced import parse_scoreboard_ced
 from app.services.profile_ocr import parse_profile
 from app.services.ocr_engines import engine_status
 
-ENGINE_VERSION = "2.0.12-v5-7-profile-template-frame-ocr-ak47dx"
+ENGINE_VERSION = "2.0.10-v5-4-fastlane-import-stabile-ak47dx"
 
 app = FastAPI(title="CODM OCR Hybrid Engine", version=ENGINE_VERSION)
 
@@ -32,12 +32,6 @@ def health():
         "ready_for_ocr": ok_engine,
         "engines": status,
         "features": [
-            "v5_7_profile_frontend_frame_lock",
-            "v5_7_profile_numeric_ocr_retry",
-            "v5_7_profile_template_fallback",
-            "v5_6_profile_fastlane_no_block",
-            "v5_6_profile_legendary_fast_numeric",
-            "v5_6_profile_stats_page_aligned",
             "dynamic_layout",
             "opencv",
             "google_vision_text",
@@ -114,8 +108,8 @@ async def ocr_scoreboard_ced(
 
 
 @app.post("/ocr/profile", response_model=ProfileOcrResult)
-async def ocr_profile(file: UploadFile = File(...), calibration_template: str | None = Form(default=None), calibration_frame: str | None = Form(default=None), template_source: str | None = Form(default=None)):
+async def ocr_profile(file: UploadFile = File(...), calibration_template: str | None = Form(default=None)):
     data = await file.read()
-    result = parse_profile(data, calibration_template=calibration_template, calibration_frame=calibration_frame, template_source=template_source)
+    result = parse_profile(data, calibration_template=calibration_template)
     result.engine_version = ENGINE_VERSION
     return result

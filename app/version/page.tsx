@@ -5,13 +5,14 @@ export default function VersionPage() {
         <div className="ak-login-card">
           <div className="ak-pill">AK47DX DEPLOY CHECK</div>
           <h1 className="ak-title">CODM Clan Intelligence</h1>
-          <p className="ak-lead">Versione V5.7.0-profile-template-frame-ocr: Import partite V5.4 mantenuto stabile, Import profilo corretto con frame frontend, OCR numerico robusto e fallback template.</p>
-          <div className="notice top-gap"><strong>Marker:</strong> V5_7_PROFILE_TEMPLATE_FRAME_OCR_OK</div>
-          <div className="notice top-gap"><strong>Backend OCR:</strong> 2.0.12-v5-7-profile-template-frame-ocr-ak47dx</div>
+          <p className="ak-lead">Versione V5.8: rollback controllato alla base stabile. Import partite riportato a V5.4 FastLane, backend OCR riportato a 2.0.10, profilo non deve più rompere il caricamento risultati.</p>
+          <div className="notice top-gap"><strong>Marker:</strong> V5_8_ROLLBACK_IMPORT_STABILE_PROFILE_SAFE_OK</div>
+          <div className="notice top-gap"><strong>Backend OCR richiesto:</strong> 2.0.10-v5-4-fastlane-import-stabile-ak47dx</div>
           <div className="ak-quick-links">
             <a href="/cache-reset">Reset cache sicuro</a>
             <a href="/calibration">Calibrazione</a>
             <a href="/import/match">Import partite</a>
+            <a href="/import/profile">Import profilo</a>
             <a href="/events">Eventi</a>
             <a href="/ocr-status">OCR Status</a>
           </div>

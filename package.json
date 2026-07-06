@@ -1,6 +1,6 @@
 {
   "name": "codm-clan-intelligence-ak47dx",
-  "version": "5.7.0-profile-template-frame-ocr",
+  "version": "5.8.0-rollback-import-stabile-profile-safe",
   "private": true,
   "scripts": {
     "dev": "next dev",
