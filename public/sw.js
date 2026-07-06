@@ -1,35 +1,29 @@
-const CODM_CACHE = 'codm-pwa-full-stable-v1';
+const CODM_CACHE = 'codm-pwa-full-stable-clean-v4';
 const CODM_OFFLINE_URL = '/offline.html';
-
-const CORE_ASSETS = [
-  '/',
-  CODM_OFFLINE_URL,
-  '/manifest.webmanifest'
-];
+const CORE_ASSETS = ['/', CODM_OFFLINE_URL, '/manifest.webmanifest'];
 
 self.addEventListener('install', (event) => {
   event.waitUntil(
-    caches.open(CODM_CACHE).then((cache) => cache.addAll(CORE_ASSETS)).then(() => self.skipWaiting())
+    caches.open(CODM_CACHE)
+      .then((cache) => cache.addAll(CORE_ASSETS))
+      .then(() => self.skipWaiting())
   );
 });
 
 self.addEventListener('activate', (event) => {
   event.waitUntil(
-    caches.keys().then((keys) => Promise.all(
-      keys.filter((key) => key !== CODM_CACHE).map((key) => caches.delete(key))
-    )).then(() => self.clients.claim())
+    caches.keys()
+      .then((keys) => Promise.all(keys.filter((key) => key !== CODM_CACHE).map((key) => caches.delete(key))))
+      .then(() => self.clients.claim())
   );
 });
 
 self.addEventListener('fetch', (event) => {
   const request = event.request;
-
   if (request.method !== 'GET') return;
 
   if (request.mode === 'navigate') {
-    event.respondWith(
-      fetch(request).catch(() => caches.match(CODM_OFFLINE_URL))
-    );
+    event.respondWith(fetch(request).catch(() => caches.match(CODM_OFFLINE_URL)));
     return;
   }
 
@@ -37,8 +31,9 @@ self.addEventListener('fetch', (event) => {
     caches.match(request).then((cached) => {
       if (cached) return cached;
       return fetch(request).then((response) => {
-        const copy = response.clone();
-        if (response.ok && new URL(request.url).origin === self.location.origin) {
+        const origin = new URL(request.url).origin;
+        if (response.ok && origin === self.location.origin) {
+          const copy = response.clone();
           caches.open(CODM_CACHE).then((cache) => cache.put(request, copy));
         }
         return response;
@@ -52,7 +47,7 @@ self.addEventListener('push', (event) => {
   try {
     payload = event.data ? event.data.json() : {};
   } catch (_) {
-    payload = { title: 'CODM Clan', body: event.data ? event.data.text() : 'Nuova notifica' };
+    payload = { body: event.data ? event.data.text() : 'Nuova notifica CODM.' };
   }
 
   const title = payload.title || 'CODM Clan';
@@ -71,9 +66,8 @@ self.addEventListener('notificationclick', (event) => {
   const url = event.notification?.data?.url || '/';
   event.waitUntil(
     clients.matchAll({ type: 'window', includeUncontrolled: true }).then((clientList) => {
-      for (const client of clientList) {
-        if ('focus' in client) return client.focus();
-      }
+      const existing = clientList.find((client) => 'focus' in client);
+      if (existing) return existing.focus();
       if (clients.openWindow) return clients.openWindow(url);
       return undefined;
     })

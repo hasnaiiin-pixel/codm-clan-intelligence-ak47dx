@@ -9,9 +9,7 @@ function fallbackUuid() {
 }
 
 export function createCodmUuid() {
-  if (typeof crypto !== 'undefined' && crypto.randomUUID) {
-    return crypto.randomUUID();
-  }
+  if (typeof crypto !== 'undefined' && crypto.randomUUID) return crypto.randomUUID();
   return fallbackUuid();
 }
 

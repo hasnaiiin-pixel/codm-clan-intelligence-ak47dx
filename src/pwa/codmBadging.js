@@ -21,7 +21,5 @@ export async function setCodmAppBadge(count) {
 export function updateCodmNotificationBadges(count) {
   const safeCount = Number.isFinite(Number(count)) ? Math.max(0, Number(count)) : 0;
   setCodmAppBadge(safeCount);
-
-  document.documentElement.dataset.codmUnread = String(safeCount);
   window.dispatchEvent(new CustomEvent('codm:badge-updated', { detail: { count: safeCount } }));
 }

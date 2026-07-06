@@ -1,7 +1,7 @@
 {
   "name": "CODM Clan Intelligence",
   "short_name": "CODM Clan",
-  "description": "Gestione clan, eventi, roster, statistiche e scrim CODM.",
+  "description": "Gestione clan, eventi, roster, calendario, statistiche e scrim CODM.",
   "start_url": "/",
   "scope": "/",
   "display": "standalone",
@@ -24,7 +24,7 @@
       "src": "/icons/icon-maskable-512.png",
       "sizes": "512x512",
       "type": "image/png",
-      "purpose": "maskable"
+      "purpose": "any maskable"
     }
   ]
 }
