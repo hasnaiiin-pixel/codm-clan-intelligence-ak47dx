@@ -214,9 +214,18 @@ function CalibrationEditor() {
   }
 
   function save() {
-    saveCalibration(kind, regions, phoneProfile, templateName, ownerName);
+    const nextPhone = makeCalibrationProfileKey(phoneDevice || 'default', templateSlot || 'default');
+    const split = splitCalibrationProfileKey(nextPhone);
+    setPhoneProfile(nextPhone);
+    setPhoneDevice(split.phone);
+    setTemplateSlot(split.template);
+    setActivePhoneProfile(kind, nextPhone);
+    const cleanTemplateName = templateSlot && templateSlot !== 'default' ? templateSlot : templateName;
+    saveCalibration(kind, regions, nextPhone, cleanTemplateName || templateName, ownerName);
     setProfiles(listCalibrationPhoneProfiles(kind));
-    setMessage(`Template salvato per login ${ownerName || 'utente locale'} / telefono ${phoneDevice} / template ${templateSlot}. Import Partita e Import Profilo useranno questi riquadri.`);
+    setPhoneOptions(listCalibrationPhones(kind));
+    setTemplateOptions(listCalibrationTemplatesForPhone(kind, split.phone));
+    setMessage(`Template salvato correttamente: telefono ${split.phone} / template ${split.template}. In Import scegli prima il telefono e poi vedrai questo nome template.`);
   }
   function reset() {
     resetCalibration(kind, phoneProfile);
@@ -262,14 +271,14 @@ function CalibrationEditor() {
         </p>
         <div className="grid grid-4">
           <div className="field"><label>Tipo template</label><select className="select" value={kind} onChange={(e) => changeKind(e.target.value as CalibrationKind)}>{kinds.map((entry) => <option key={entry.value} value={entry.value}>{entry.label}</option>)}</select><small className="muted">{kinds.find((e) => e.value === kind)?.help}</small></div>
-          <div className="field"><label>Tipologia telefono</label><div className="cal-phone-row"><select className="select" value={phoneDevice} onChange={(e) => changePhoneDevice(e.target.value)}>{phoneOptions.map((p) => <option key={p} value={p}>{p}</option>)}</select><button className="btn small secondary" type="button" onClick={newPhoneProfile}>Nuovo</button></div><small className="muted">Esempio: iphone_17px</small></div>
-          <div className="field"><label>Nome template</label><select className="select" value={templateSlot} onChange={(e) => changeTemplateSlot(e.target.value)}>{templateOptions.map((p) => <option key={p} value={p}>{p}</option>)}</select><input className="input top-gap" value={templateName} onChange={(e) => setTemplateName(e.target.value)} placeholder="Descrizione template" /><small className="muted">Esempio: ced, postazione, dominio, profilo_base</small></div>
+          <div className="field"><label>Tipologia telefono</label><input className="input" list="cal-phone-options" value={phoneDevice} onChange={(e) => setPhoneDevice(slug(e.target.value))} onBlur={() => changePhoneDevice(phoneDevice)} placeholder="iphone_17px" /><datalist id="cal-phone-options">{phoneOptions.map((p) => <option key={p} value={p} />)}</datalist><small className="muted">Scrivi o scegli il telefono usato, esempio iphone_17px.</small></div>
+          <div className="field"><label>Nome template</label><input className="input" list="cal-template-options" value={templateSlot} onChange={(e) => setTemplateSlot(slug(e.target.value))} onBlur={() => changeTemplateSlot(templateSlot)} placeholder="ced / postazione / dominio / profilo_base" /><datalist id="cal-template-options">{templateOptions.map((p) => <option key={p} value={p} />)}</datalist><input className="input top-gap" value={templateName} onChange={(e) => setTemplateName(e.target.value)} placeholder="Descrizione opzionale" /><small className="muted">Questo nome comparirà in Import dopo aver scelto il telefono.</small></div>
           <div className="field"><label>Login/profilo collegato</label><input className="input" value={ownerName} onChange={(e) => setOwnerName(e.target.value)} placeholder="Nome login" /><small className="muted">Chiave attiva: {phoneProfile}</small></div>
         </div>
         <div className="grid grid-3 top-gap">
           <div className="field"><label>Screenshot campione</label><input className="input" type="file" accept="image/*" onChange={(event) => onFile(event.target.files?.[0] || null)} /></div>
           <div className="field"><label>Comandi</label><div className="cal-buttons"><button className="btn small" type="button" onClick={save}>Salva template</button><button className="btn small secondary" type="button" onClick={reset}>Reset</button><button className="btn small secondary" type="button" onClick={exportJson}>Esporta</button></div></div>
-          <div className="notice">V5.9: per più template sullo stesso telefono usa formato telefono__template, esempio iphone_17px__ced, iphone_17px__postazione, iphone_17px__dominio. Trascina il riquadro dal centro. Prendi un angolo per cambiare larghezza/altezza. Il salvataggio è automatico. Il bordo tratteggiato indica il content frame usato per non perdere coordinate tra immagini.</div>
+          <div className="notice">V6.3: per più template sullo stesso telefono usa formato telefono__template, esempio iphone_17px__ced, iphone_17px__postazione, iphone_17px__dominio. Trascina il riquadro dal centro. Prendi un angolo per cambiare larghezza/altezza. Il salvataggio è automatico. Il bordo tratteggiato indica il content frame usato per non perdere coordinate tra immagini.</div>
         </div>
         {message && <div className="notice top-gap">{message}</div>}
       </section>

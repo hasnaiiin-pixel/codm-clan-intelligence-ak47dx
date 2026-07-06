@@ -1,6 +1,6 @@
 {
   "name": "codm-clan-intelligence-ak47dx",
-  "version": "6.2.0-home-events-template-profile-stable",
+  "version": "6.3.0-event-planner-template-fix",
   "private": true,
   "scripts": {
     "dev": "next dev",

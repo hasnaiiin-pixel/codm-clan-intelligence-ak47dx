@@ -6,6 +6,7 @@ import { kdRatio, winRate } from '@/lib/statistics';
 
 type ClanRow = { id: string; name?: string | null; tag?: string | null; logo_url?: string | null; description?: string | null };
 type MatchRow = { id: string; result?: string | null; mode?: string | null; match_type?: string | null };
+type EventRow = { id: string; title: string; starts_at: string; event_type?: string | null; location?: string | null; event_plan?: any | null; event_notes?: string | null };
 type StatRow = { kills?: number | null; deaths?: number | null; assists?: number | null };
 type ScoreRow = { nickname_resolved?: string | null; nickname_raw?: string | null; team_rank?: number | null; mvp_type?: string | null; assists?: number | null; players?: { nickname?: string | null; clan_name?: string | null } | null };
 
@@ -15,6 +16,7 @@ export default function HomePage() {
   const [stats, setStats] = useState<StatRow[]>([]);
   const [scoreRows, setScoreRows] = useState<ScoreRow[]>([]);
   const [message, setMessage] = useState('');
+  const [events, setEvents] = useState<EventRow[]>([]);
 
   useEffect(() => { void load(); }, []);
 
@@ -22,15 +24,19 @@ export default function HomePage() {
     setMessage('');
     const { data: clanData } = await supabase.from('clans').select('*').order('created_at', { ascending: true }).limit(1);
     const activeClan = (clanData || [])[0] as ClanRow | undefined;
-    setClan(activeClan || { id: '', name: 'AK47DX', tag: 'AK47DX' });
+    let localProfile: any = null;
+    try { localProfile = JSON.parse(window.localStorage.getItem('codm_clan_hq_profile_v2_0') || 'null'); } catch {}
+    setClan({ ...(activeClan || { id: '', name: 'AK47DX', tag: 'AK47DX' }), name: localProfile?.clan_name || activeClan?.name || 'AK47DX', tag: localProfile?.tag || activeClan?.tag || 'AK47DX', logo_url: localProfile?.logo_url || activeClan?.logo_url || '/assets/ak47dx-logo.jpeg', description: localProfile?.motto || activeClan?.description || undefined });
 
     const { data: matchData, error: matchError } = await supabase.from('matches').select('id,result,mode,match_type').order('match_date', { ascending: false }).limit(500);
     const { data: statData } = await supabase.from('match_player_stats').select('kills,deaths,assists').limit(5000);
     const { data: rowData } = await supabase.from('match_scoreboard_rows').select('nickname_resolved,nickname_raw,team_rank,mvp_type,assists,players(nickname,clan_name)').limit(5000);
+    const { data: eventData } = await supabase.from('codm_events').select('id,title,starts_at,event_type,location,event_plan,event_notes').gte('starts_at', new Date(Date.now() - 60*60*1000).toISOString()).order('starts_at', { ascending: true }).limit(6);
     if (matchError) setMessage(matchError.message);
     setMatches((matchData || []) as MatchRow[]);
     setStats((statData || []) as StatRow[]);
     setScoreRows((rowData || []) as ScoreRow[]);
+    setEvents((eventData || []) as EventRow[]);
   }
 
   const summary = useMemo(() => {
@@ -106,12 +112,10 @@ export default function HomePage() {
           </div>
         </div>
         <div className="card">
-          <h2>⚡ Azioni rapide</h2>
-          <div className="quick-action-grid">
-            <a className="ak-quick-action" href="/dashboard">📊 Dashboard completa</a>
-            <a className="ak-quick-action" href="/players">👥 Roster</a>
-            <a className="ak-quick-action" href="/analytics">📈 Statistiche clan</a>
-            <a className="ak-quick-action" href="/profile">🪪 Mio profilo</a>
+          <h2>📅 Eventi futuri / Scrim</h2>
+          <div className="player-mini-list top-gap">
+            {events.map((event) => <div className="player-mini" key={event.id}><div className="avatar-placeholder small-avatar">📅</div><div style={{ flex: 1 }}><b>{event.title}</b><br /><small className="muted">{new Date(event.starts_at).toLocaleString('it-IT')} · {event.event_type || 'evento'} {event.location ? `· ${event.location}` : ''}</small></div><a className="btn small secondary" href="/events">Apri</a></div>)}
+            {!events.length && <div className="empty-state">Nessun evento futuro programmato.</div>}
           </div>
         </div>
       </section>

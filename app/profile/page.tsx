@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useCodmAuth } from '@/lib/authRoles';
 import { supabase } from '@/lib/supabaseClient';
 
@@ -29,6 +29,8 @@ export default function ProfilePage() {
   const [players, setPlayers] = useState<PlayerLite[]>([]);
   const [linkedPlayerId, setLinkedPlayerId] = useState('');
   const [history, setHistory] = useState<NameHistoryEntry[]>([]);
+  const [playerStats, setPlayerStats] = useState<any[]>([]);
+  const [playerMatches, setPlayerMatches] = useState<any[]>([]);
 
   useEffect(() => {
     if (!auth.user) return;
@@ -57,6 +59,16 @@ export default function ProfilePage() {
     setPlayers((roster || []) as PlayerLite[]);
     const linked = (roster || []).find((p: any) => p.user_id === auth.user?.id || p.uid_codm === auth.user?.user_metadata?.codm_uid);
     if (linked?.id) setLinkedPlayerId(linked.id);
+  }
+
+  useEffect(() => { void loadIndividualStats(); }, [linkedPlayerId]);
+
+  async function loadIndividualStats() {
+    if (!linkedPlayerId) { setPlayerStats([]); setPlayerMatches([]); return; }
+    const { data: statsRows } = await supabase.from('match_player_stats').select('*, matches(id,mode,map_name,result,match_date)').eq('player_id', linkedPlayerId).limit(500);
+    const { data: rowRows } = await supabase.from('match_scoreboard_rows').select('*, matches(id,mode,map_name,result,match_date)').eq('player_id', linkedPlayerId).limit(500);
+    setPlayerStats((statsRows || []) as any[]);
+    setPlayerMatches((rowRows || []) as any[]);
   }
 
   function addHistory(oldName: string, newName: string, source = 'profilo') {
@@ -139,6 +151,17 @@ export default function ProfilePage() {
     }
   }
 
+  const individualSummary = useMemo(() => {
+    const source = playerMatches.length ? playerMatches : playerStats;
+    const matches = source.length;
+    const kills = source.reduce((sum, row) => sum + Number(row.kills || 0), 0);
+    const deaths = source.reduce((sum, row) => sum + Number(row.deaths || 0), 0);
+    const assists = source.reduce((sum, row) => sum + Number(row.assists || 0), 0);
+    const mvp = source.filter((row) => Number(row.team_rank || row.rank_position || 0) === 1 || row.mvp_type).length;
+    const wins = source.filter((row) => String(row.matches?.result || row.result || '').toUpperCase() === 'WIN').length;
+    return { matches, kills, deaths, assists, mvp, wins, kd: deaths ? (kills / deaths).toFixed(2) : String(kills) };
+  }, [playerStats, playerMatches]);
+
   if (auth.loading) return <main className="container"><div className="card">Caricamento profilo...</div></main>;
   if (!auth.user) return <main className="container"><div className="card"><h1>Profilo</h1><p>Accedi per modificare profilo, foto e password.</p><a className="btn" href="/login">Login</a></div></main>;
 
@@ -193,6 +216,24 @@ export default function ProfilePage() {
           <div className="name-history-list">
             {history.length ? history.map((entry, index) => <div className="name-history-row" key={`${entry.at}-${index}`}><strong>{entry.oldName || '-'}</strong><span>→</span><strong>{entry.newName || '-'}</strong><small>{new Date(entry.at).toLocaleString('it-IT')} · {entry.source}</small></div>) : <p className="muted">Nessun cambio nome registrato da questo dispositivo.</p>}
           </div>
+        </div>
+      </section>
+
+      <section className="card top-gap">
+        <div className="section-title"><div><p className="eyebrow">📊 Statistiche individuali</p><h2>Riepilogo del tuo profilo CODM</h2></div><a className="btn small secondary" href="/import/profile">Importa profilo</a></div>
+        <div className="grid grid-6 top-gap">
+          <div className="kpi"><span>Partite</span><strong>{individualSummary.matches}</strong></div>
+          <div className="kpi"><span>Vittorie</span><strong>{individualSummary.wins}</strong></div>
+          <div className="kpi"><span>Kill</span><strong>{individualSummary.kills}</strong></div>
+          <div className="kpi"><span>Death</span><strong>{individualSummary.deaths}</strong></div>
+          <div className="kpi"><span>Assist</span><strong>{individualSummary.assists}</strong></div>
+          <div className="kpi"><span>MVP / K-D</span><strong>{individualSummary.mvp} / {individualSummary.kd}</strong></div>
+        </div>
+        <div className="table-scroll top-gap">
+          <table className="table compact"><thead><tr><th>Data</th><th>Modalità</th><th>Mappa</th><th>Esito</th><th>K/D/A</th><th>Rank</th></tr></thead><tbody>
+            {playerMatches.slice(0, 20).map((row) => <tr key={row.id}><td>{row.matches?.match_date ? new Date(row.matches.match_date).toLocaleDateString('it-IT') : '-'}</td><td>{row.matches?.mode || '-'}</td><td>{row.matches?.map_name || '-'}</td><td>{row.matches?.result || '-'}</td><td>{row.kills || 0}/{row.deaths || 0}/{row.assists || 0}</td><td>{row.team_rank || '-'}</td></tr>)}
+            {!playerMatches.length && <tr><td colSpan={6} className="muted">Nessuna statistica individuale collegata a questo player.</td></tr>}
+          </tbody></table>
         </div>
       </section>
     </main>

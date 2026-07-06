@@ -10,12 +10,13 @@ type MatchPlan = {
   teamBName: string;
   teamALogo: string;
   teamBLogo: string;
+  coverImage: string;
   totalMatches: number;
   lobbyTime: string;
   discordLink: string;
   lobbyLink: string;
   roomNumber: string;
-  rounds: Array<{ n: number; mode: string; map: string; scoreType: string; target: string; players: string; reserves: string }>;
+  rounds: Array<{ n: number; mode: string; map: string; scoreType: string; target: string; players: string; reserves: string; lobbyOpen: string; meetingTime: string; startTime: string; bans: string; result: string; ourScore: string; opponentScore: string; mvp: string }>;
 };
 
 type CodmEvent = {
@@ -54,12 +55,13 @@ function emptyPlan(clanName = 'AK47DX'): MatchPlan {
     teamBName: 'Clan avversario',
     teamALogo: '/assets/ak47dx-logo.jpeg',
     teamBLogo: '',
-    totalMatches: 3,
+    coverImage: '',
+    totalMatches: 1,
     lobbyTime: '',
     discordLink: '',
     lobbyLink: '',
     roomNumber: '',
-    rounds: Array.from({ length: 5 }, (_, i) => ({ n: i + 1, mode: i === 0 ? 'CED' : i === 1 ? 'POSTAZIONE' : 'DOMINIO', map: '', scoreType: i === 0 || i === 2 ? 'Punteggio round' : 'Kill / punti', target: '', players: '', reserves: '' }))
+    rounds: [{ n: 1, mode: 'CED', map: '', scoreType: 'Punteggio round', target: '', players: '', reserves: '', lobbyOpen: '', meetingTime: '', startTime: '', bans: '', result: 'Da giocare', ourScore: '', opponentScore: '', mvp: '' }]
   };
 }
 function readPlan(event: CodmEvent): MatchPlan {
@@ -132,6 +134,25 @@ export default function EventsPage() {
   }
   function updateRound(index: number, patch: Partial<MatchPlan['rounds'][number]>) {
     setPlan((current) => ({ ...current, rounds: current.rounds.map((round, i) => i === index ? { ...round, ...patch } : round) }));
+  }
+  function addRound() {
+    setPlan((current) => {
+      const n = current.rounds.length + 1;
+      const round = { n, mode: 'CED', map: '', scoreType: 'Punteggio round', target: '', players: '', reserves: '', lobbyOpen: '', meetingTime: '', startTime: '', bans: '', result: 'Da giocare', ourScore: '', opponentScore: '', mvp: '' };
+      return { ...current, totalMatches: n, rounds: [...current.rounds, round] };
+    });
+  }
+  function removeRound(index: number) {
+    setPlan((current) => {
+      const next = current.rounds.filter((_, i) => i !== index).map((r, i) => ({ ...r, n: i + 1 }));
+      return { ...current, totalMatches: Math.max(1, next.length), rounds: next.length ? next : [{ n: 1, mode: 'CED', map: '', scoreType: 'Punteggio round', target: '', players: '', reserves: '', lobbyOpen: '', meetingTime: '', startTime: '', bans: '', result: 'Da giocare', ourScore: '', opponentScore: '', mvp: '' }] };
+    });
+  }
+  function readImage(file: File | null | undefined, cb: (url: string) => void) {
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () => cb(String(reader.result || ''));
+    reader.readAsDataURL(file);
   }
 
   async function createEvent() {
@@ -224,10 +245,10 @@ export default function EventsPage() {
             <div className="field"><label>Titolo evento</label><input className="input" value={title} onChange={(e) => setTitle(e.target.value)} /></div>
             <div className="grid grid-2"><div className="field"><label>Inizio</label><input type="datetime-local" className="input" value={startsAt} onChange={(e) => setStartsAt(e.target.value)} /></div><div className="field"><label>Fine</label><input type="datetime-local" className="input" value={endsAt} onChange={(e) => setEndsAt(e.target.value)} /></div></div>
             <div className="grid grid-2"><div className="field"><label>Team A</label><input className="input" value={plan.teamAName} onChange={(e) => setPlan((p) => ({ ...p, teamAName: e.target.value }))} /></div><div className="field"><label>Team B</label><input className="input" value={plan.teamBName} onChange={(e) => setPlan((p) => ({ ...p, teamBName: e.target.value }))} /></div></div>
-            <div className="grid grid-2"><div className="field"><label>Logo Team A URL</label><input className="input" value={plan.teamALogo} onChange={(e) => setPlan((p) => ({ ...p, teamALogo: e.target.value }))} /></div><div className="field"><label>Logo Team B URL</label><input className="input" value={plan.teamBLogo} onChange={(e) => setPlan((p) => ({ ...p, teamBLogo: e.target.value }))} /></div></div>
-            <div className="grid grid-4"><div className="field"><label>Partite da giocare</label><input type="number" min={1} max={7} className="input" value={plan.totalMatches} onChange={(e) => setPlan((p) => ({ ...p, totalMatches: Number(e.target.value || 1) }))} /></div><div className="field"><label>Tempo lobby</label><input className="input" value={plan.lobbyTime} onChange={(e) => setPlan((p) => ({ ...p, lobbyTime: e.target.value }))} placeholder="es. 21:45" /></div><div className="field"><label>Numero stanza</label><input className="input" value={plan.roomNumber} onChange={(e) => setPlan((p) => ({ ...p, roomNumber: e.target.value }))} /></div><div className="field"><label>Tipo evento</label><select className="select" value={eventType} onChange={(e) => setEventType(e.target.value)}><option value="scrim">Scrim</option><option value="torneo">Torneo</option><option value="allenamento">Allenamento</option></select></div></div>
+            <div className="grid grid-3"><div className="field"><label>Logo Team A</label><input className="input" type="file" accept="image/*" onChange={(e) => readImage(e.target.files?.[0], (url) => setPlan((p) => ({ ...p, teamALogo: url })))} /><small className="muted">Seleziona file logo.</small></div><div className="field"><label>Logo Team B</label><input className="input" type="file" accept="image/*" onChange={(e) => readImage(e.target.files?.[0], (url) => setPlan((p) => ({ ...p, teamBLogo: url })))} /><small className="muted">Seleziona file logo avversario.</small></div><div className="field"><label>Cover presentazione</label><input className="input" type="file" accept="image/*" onChange={(e) => readImage(e.target.files?.[0], (url) => setPlan((p) => ({ ...p, coverImage: url })))} /><small className="muted">Immagine grande evento.</small></div></div>
+            <div className="grid grid-4"><div className="field"><label>Partite da giocare</label><div className="cal-buttons"><button className="btn small secondary" type="button" onClick={addRound}>+ Aggiungi</button><button className="btn small secondary" type="button" onClick={() => removeRound(plan.rounds.length - 1)}>- Togli</button></div><small className="muted">Default 1. Puoi aggiungere/togliere.</small></div><div className="field"><label>Tempo lobby generale</label><input className="input" value={plan.lobbyTime} onChange={(e) => setPlan((p) => ({ ...p, lobbyTime: e.target.value }))} placeholder="es. 21:45" /></div><div className="field"><label>Numero stanza</label><input className="input" value={plan.roomNumber} onChange={(e) => setPlan((p) => ({ ...p, roomNumber: e.target.value }))} /></div><div className="field"><label>Tipo evento</label><select className="select" value={eventType} onChange={(e) => setEventType(e.target.value)}><option value="scrim">Scrim</option><option value="torneo">Torneo</option><option value="allenamento">Allenamento</option></select></div></div>
             <div className="grid grid-2"><div className="field"><label>Link Discord</label><input className="input" value={plan.discordLink} onChange={(e) => setPlan((p) => ({ ...p, discordLink: e.target.value }))} /></div><div className="field"><label>Link lobby</label><input className="input" value={plan.lobbyLink} onChange={(e) => setPlan((p) => ({ ...p, lobbyLink: e.target.value }))} /></div></div>
-            <div className="round-plan-list">{plan.rounds.slice(0, Number(plan.totalMatches || 1)).map((round, index) => <div className="round-plan-card" key={round.n}><strong>Partita {round.n}</strong><select className="select" value={round.mode} onChange={(e) => updateRound(index, { mode: e.target.value })}>{modes.map((m) => <option key={m} value={m}>{m}</option>)}</select><input className="input" value={round.map} onChange={(e) => updateRound(index, { map: e.target.value })} placeholder="Mappa" /><input className="input" value={round.scoreType} onChange={(e) => updateRound(index, { scoreType: e.target.value })} placeholder="Punteggio/Kill" /></div>)}</div>
+            <div className="round-plan-list">{plan.rounds.map((round, index) => <div className="round-plan-card event-round-editor" key={round.n}><div className="section-title"><strong>Partita {round.n}</strong><button className="btn small secondary" type="button" onClick={() => removeRound(index)}>Togli</button></div><div className="grid grid-4"><select className="select" value={round.mode} onChange={(e) => updateRound(index, { mode: e.target.value })}>{modes.map((m) => <option key={m} value={m}>{m}</option>)}</select><input className="input" value={round.map} onChange={(e) => updateRound(index, { map: e.target.value })} placeholder="Mappa" /><input className="input" value={round.scoreType} onChange={(e) => updateRound(index, { scoreType: e.target.value })} placeholder="Punteggio/Kill" /><input className="input" value={round.target} onChange={(e) => updateRound(index, { target: e.target.value })} placeholder="Target es. 6 round / 250 punti" /></div><div className="grid grid-3 top-gap"><input className="input" value={round.meetingTime} onChange={(e) => updateRound(index, { meetingTime: e.target.value })} placeholder="Ritrovo es. 21:30" /><input className="input" value={round.lobbyOpen} onChange={(e) => updateRound(index, { lobbyOpen: e.target.value })} placeholder="Lobby aperta es. 21:45" /><input className="input" value={round.startTime} onChange={(e) => updateRound(index, { startTime: e.target.value })} placeholder="Orario partita" /></div><div className="grid grid-2 top-gap"><textarea className="input" rows={2} value={round.players} onChange={(e) => updateRound(index, { players: e.target.value })} placeholder="Formazione titolare per questa partita" /><textarea className="input" rows={2} value={round.reserves} onChange={(e) => updateRound(index, { reserves: e.target.value })} placeholder="Riserve per questa partita" /></div><div className="grid grid-4 top-gap"><input className="input" value={round.bans} onChange={(e) => updateRound(index, { bans: e.target.value })} placeholder="BAN: armi/perk vietati" /><select className="select" value={round.result} onChange={(e) => updateRound(index, { result: e.target.value })}><option>Da giocare</option><option>Vinto</option><option>Perso</option><option>Pareggiato</option></select><input className="input" value={round.ourScore} onChange={(e) => updateRound(index, { ourScore: e.target.value })} placeholder="Nostro score" /><input className="input" value={round.mvp} onChange={(e) => updateRound(index, { mvp: e.target.value })} placeholder="MVP partita" /></div></div>)}</div>
             <div className="field"><label>Descrizione pubblica</label><textarea className="input" rows={3} value={description} onChange={(e) => setDescription(e.target.value)} /></div>
             <div className="grid grid-2"><div className="field"><label>Luogo</label><input className="input" value={location} onChange={(e) => setLocation(e.target.value)} /></div><div className="field"><label>Reminder minuti</label><input className="input" value={reminderMinutes} onChange={(e) => setReminderMinutes(e.target.value)} /></div></div>
             <label className="check-line ak-check-card"><input type="checkbox" checked={telegramEnabled} onChange={(e) => setTelegramEnabled(e.target.checked)} /> Reminder Telegram attivo</label>
@@ -256,8 +277,14 @@ function PlayerPicker({ title, players, selected, toggle }: { title: string; pla
   return <div className="field"><label>{title}</label><div className="ak-player-pick-list">{players.map((player) => <label key={player.id} className="ak-player-pick"><input type="checkbox" checked={selected.includes(player.id)} onChange={() => toggle(player.id)} /><span>{player.nickname}</span><small>{player.clan_name || 'AK47DX'}</small></label>)}{!players.length && <p className="muted">Nessun player nel roster.</p>}</div></div>;
 }
 function EventPresentation({ event, plan, starters, reserves, canWrite, onDelete }: { event: CodmEvent; plan: MatchPlan; starters: string[]; reserves: string[]; canWrite: boolean; onDelete: (id: string) => Promise<void> }) {
-  const rounds = plan.rounds.slice(0, Number(plan.totalMatches || 1));
-  return <article className="event-presentation-card"><div className="event-versus"><TeamLogo name={plan.teamAName} logo={plan.teamALogo} /><div className="vs-block"><span>VS</span><strong>{new Date(event.starts_at).toLocaleString('it-IT')}</strong><small>{plan.lobbyTime ? `Lobby ${plan.lobbyTime}` : event.location || 'CODM'}</small></div><TeamLogo name={plan.teamBName} logo={plan.teamBLogo} /></div><div className="event-meta-grid"><span>🎮 Partite: <b>{plan.totalMatches}</b></span><span>🏠 Stanza: <b>{plan.roomNumber || '-'}</b></span><span>💬 Discord: <b>{plan.discordLink ? 'presente' : '-'}</b></span><span>🔗 Lobby: <b>{plan.lobbyLink ? 'presente' : '-'}</b></span></div><div className="round-timeline">{rounds.map((round) => <div key={round.n} className="round-pill"><b>#{round.n}</b><span>{round.mode}</span><small>{round.map || 'Mappa da decidere'} · {round.scoreType}</small></div>)}</div><div className="grid grid-2 top-gap"><div className="notice"><b>Titolari</b><br />{starters.length ? starters.join(', ') : 'Da scegliere'}</div><div className="notice"><b>Riserve</b><br />{reserves.length ? reserves.join(', ') : 'Da scegliere'}</div></div>{canWrite && <button className="btn danger secondary top-gap" onClick={() => void onDelete(event.id)}>Cancella evento</button>}</article>;
+  const rounds = plan.rounds.slice(0, Number(plan.totalMatches || plan.rounds.length || 1));
+  return <article className="event-presentation-card">
+    {plan.coverImage && <img className="event-cover-image" src={plan.coverImage} alt={`Cover ${event.title}`} />}
+    <div className="event-versus"><TeamLogo name={plan.teamAName} logo={plan.teamALogo} /><div className="vs-block"><span>VS</span><strong>{new Date(event.starts_at).toLocaleString('it-IT')}</strong><small>{plan.lobbyTime ? `Lobby ${plan.lobbyTime}` : event.location || 'CODM'}</small></div><TeamLogo name={plan.teamBName} logo={plan.teamBLogo} /></div>
+    <div className="event-meta-grid"><span>🎮 Partite: <b>{rounds.length}</b></span><span>🏠 Stanza: <b>{plan.roomNumber || '-'}</b></span><span>💬 Discord: <b>{plan.discordLink ? 'presente' : '-'}</b></span><span>🔗 Lobby: <b>{plan.lobbyLink ? 'presente' : '-'}</b></span></div>
+    <div className="round-timeline event-rounds-detail">{rounds.map((round) => <div key={round.n} className="round-pill"><b>#{round.n}</b><span>{round.mode}</span><small>{round.map || 'Mappa da decidere'} · {round.scoreType}</small><small>Ritrovo {round.meetingTime || '-'} · Lobby {round.lobbyOpen || '-'} · Start {round.startTime || '-'}</small>{round.bans && <small className="ban-line">🚫 BAN: {round.bans}</small>}<small>{round.result || 'Da giocare'} {round.ourScore ? `· Score ${round.ourScore}` : ''} {round.mvp ? `· MVP ${round.mvp}` : ''}</small>{round.players && <small>Titolari: {round.players}</small>}{round.reserves && <small>Riserve: {round.reserves}</small>}<a className="btn small secondary" href={`/import/match?event=${event.id}&round=${round.n}`}>Importa risultato</a></div>)}</div>
+    <div className="grid grid-2 top-gap"><div className="notice"><b>Titolari evento</b><br />{starters.length ? starters.join(', ') : 'Da scegliere'}</div><div className="notice"><b>Riserve evento</b><br />{reserves.length ? reserves.join(', ') : 'Da scegliere'}</div></div>{canWrite && <button className="btn danger secondary top-gap" onClick={() => void onDelete(event.id)}>Cancella evento</button>}
+  </article>;
 }
 function TeamLogo({ name, logo }: { name: string; logo?: string }) {
   return <div className="team-logo-card">{logo ? <img src={logo} alt={name} /> : <div className="team-logo-placeholder">{name.slice(0, 2).toUpperCase()}</div>}<strong>{name}</strong></div>;

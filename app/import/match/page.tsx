@@ -254,7 +254,7 @@ function ImportMatchEditor() {
     const previousTemplate = selectedCalibrationTemplate || splitCalibrationProfileKey(getBestCalibrationPhoneProfile('scoreboard_ced')).template;
     const templateInput = templateRaw !== undefined
       ? templateRaw
-      : (templateOptions.includes(previousTemplate) ? previousTemplate : (templateOptions.find((t) => t !== 'default') || 'default'));
+      : (previousTemplate && previousTemplate !== 'default' && templateOptions.includes(previousTemplate) ? previousTemplate : (templateOptions.find((t) => t !== 'default') || 'default'));
     const key = makeCalibrationProfileKey(phoneInput, templateInput);
     setCalibrationPhoneOptions(Array.from(new Set([...phoneOptions, phoneInput])).sort());
     setCalibrationTemplateOptions(Array.from(new Set([...templateOptions, templateInput])).sort());

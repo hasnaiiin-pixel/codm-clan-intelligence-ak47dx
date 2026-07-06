@@ -165,7 +165,7 @@ export default function ImportProfilePage() {
     const previousTemplate = template || splitPhoneTemplate(getActivePhoneProfile('profile_base')).template || 'default';
     const chosenTemplate = nextTemplate !== undefined
       ? slug(nextTemplate)
-      : (templates.includes(previousTemplate) ? previousTemplate : (templates.find((t) => t !== 'default') || 'default'));
+      : (previousTemplate && previousTemplate !== 'default' && templates.includes(previousTemplate) ? previousTemplate : (templates.find((t) => t !== 'default') || 'default'));
     setCalibrationPhones(phones);
     setCalibrationTemplates(templates.includes(chosenTemplate) ? templates : uniqueSorted([...templates, chosenTemplate]));
     setPhone(chosenPhone);
@@ -467,7 +467,7 @@ export default function ImportProfilePage() {
         rank_br_current: rankBr || null,
         rank_mp_best: rankBest || null,
         status: 'active',
-        notes: `Creato da import profilo V5.9 ${phone}/${template}`,
+        notes: `Creato da import profilo V6.3 ${phone}/${template}`,
       }).select('id').single();
       if (error) return setMessage(error.message);
       finalPlayerId = created?.id || '';
@@ -518,7 +518,7 @@ export default function ImportProfilePage() {
     <main className="container wide">
       <section className="card import-hero">
         <div>
-          <p className="eyebrow">🪪 Import profilo V5.9</p>
+          <p className="eyebrow">🪪 Import profilo V6.3</p>
           <h1>Import profilo / statistiche giocatore</h1>
           <p className="muted">Un solo tasto di import. Seleziona telefono e template, centra il frame se serve, poi controlla i campi e salva.</p>
         </div>

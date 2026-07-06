@@ -34,6 +34,7 @@ type ClanProfile = {
   social_instagram: string;
   notice_title: string;
   notice_body: string;
+  logo_url: string;
 };
 
 const defaultProfile: ClanProfile = {
@@ -49,7 +50,8 @@ const defaultProfile: ClanProfile = {
   social_youtube: '',
   social_instagram: '',
   notice_title: 'Avviso clan',
-  notice_body: 'Scrivi qui comunicazioni importanti, roster, allenamenti, scrim o regole aggiornate.'
+  notice_body: 'Scrivi qui comunicazioni importanti, roster, allenamenti, scrim o regole aggiornate.',
+  logo_url: '/assets/ak47dx-logo.jpeg'
 };
 
 export default function ClanPage() {
@@ -80,6 +82,13 @@ export default function ClanPage() {
 
   function update<K extends keyof ClanProfile>(key: K, value: ClanProfile[K]) {
     setProfile((prev) => ({ ...prev, [key]: value }));
+  }
+
+  function onLogoFile(file?: File | null) {
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () => setProfile((prev) => ({ ...prev, logo_url: String(reader.result || prev.logo_url) }));
+    reader.readAsDataURL(file);
   }
 
   async function saveProfile() {
@@ -139,7 +148,7 @@ export default function ClanPage() {
     return Array.from(grouped.values())
       .map((x) => ({ ...x, playerCount: x.players.size, kd: kdRatio(x.kills, x.deaths) }))
       .filter((x) => selectedClan === 'ALL' || x.clan === selectedClan)
-      .sort((a, b) => b.kills - a.kills);
+      .sort((a, b) => b.mvpWin - a.mvpWin || b.assists - a.assists || b.kills - a.kills);
   }, [players, rows, selectedClan]);
 
   const selectedPlayers = useMemo(() => {
@@ -170,7 +179,7 @@ export default function ClanPage() {
             {profile.social_instagram && <a className="btn secondary" href={profile.social_instagram} target="_blank">📸 Instagram</a>}
           </div>
         </div>
-        <div className="clan-emblem logo-clan-emblem"><img src="/assets/ak47dx-logo.jpeg" alt="AK47DX logo" /><span>{profile.tag || 'AK47DX'}</span></div>
+        <div className="clan-emblem logo-clan-emblem"><img src={profile.logo_url || '/assets/ak47dx-logo.jpeg'} alt="AK47DX logo" /><span>{profile.tag || 'AK47DX'}</span></div>
       </section>
 
       <section className="grid grid-4 top-gap">
@@ -201,7 +210,7 @@ export default function ClanPage() {
           <h2>Statistiche per clan</h2>
           <div className="field"><label>Filtro clan</label><select className="select" value={selectedClan} onChange={(e) => setSelectedClan(e.target.value)}>{clanOptions.map((c) => <option key={c} value={c}>{c === 'ALL' ? 'Tutti i clan' : c}</option>)}</select></div>
           <div className="table-scroll top-gap">
-            <table className="table compact"><thead><tr><th>Clan</th><th>Player</th><th>Righe</th><th>K/D/A</th><th>K/D</th><th>MVP V</th><th>MVP P</th></tr></thead><tbody>{clanStats.map((c) => <tr key={c.clan}><td>{c.clan}</td><td>{c.playerCount}</td><td>{c.rows}</td><td>{c.kills}/{c.deaths}/{c.assists}</td><td>{c.kd}</td><td>{c.mvpWin}</td><td>{c.mvpLose}</td></tr>)}{!clanStats.length && <tr><td colSpan={7} className="muted">Nessuna statistica clan.</td></tr>}</tbody></table>
+            <table className="table compact"><thead><tr><th>Clan</th><th>Player</th><th>Righe</th><th>K/D/A</th><th>K/D</th><th>🥇 MVP</th><th>🥈 Assist</th></tr></thead><tbody>{clanStats.map((c) => <tr key={c.clan}><td>{c.clan}</td><td>{c.playerCount}</td><td>{c.rows}</td><td>{c.kills}/{c.deaths}/{c.assists}</td><td>{c.kd}</td><td>{c.mvpWin}</td><td>{c.mvpLose}</td></tr>)}{!clanStats.length && <tr><td colSpan={7} className="muted">Nessuna statistica clan.</td></tr>}</tbody></table>
           </div>
         </div>
         <div className="card">
@@ -217,9 +226,10 @@ export default function ClanPage() {
         <h2>Modifica Clan HQ</h2>
         <p className="muted">Questa sezione serve per descrivere il clan, capi, vice, social, avvisi e identità AK47DX. Salva su Supabase con la migrazione 2.0; in ogni caso viene mantenuto un backup locale nel browser.</p>
         {message && <div className="notice">{message}</div>}
-        <div className="grid grid-2 top-gap">
+        <div className="grid grid-3 top-gap">
           <div className="field"><label>Nome clan</label><input className="input" value={profile.clan_name} onChange={(e) => update('clan_name', e.target.value)} /></div>
           <div className="field"><label>Tag / stemma</label><input className="input" value={profile.tag} onChange={(e) => update('tag', e.target.value)} /></div>
+          <div className="field"><label>Logo clan</label><input className="input" type="file" accept="image/*" onChange={(e) => onLogoFile(e.target.files?.[0] || null)} /><small className="muted">Seleziona file logo, non scrivere percorso.</small></div>
         </div>
         <div className="field top-gap"><label>Motto</label><input className="input" value={profile.motto} onChange={(e) => update('motto', e.target.value)} /></div>
         <div className="field top-gap"><label>Storia clan</label><textarea className="textarea" value={profile.story} onChange={(e) => update('story', e.target.value)} /></div>
