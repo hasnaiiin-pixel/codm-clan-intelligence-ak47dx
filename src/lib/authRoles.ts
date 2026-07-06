@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import type { Session, User } from '@supabase/supabase-js';
 import { supabase, isSupabaseConfigured } from '@/lib/supabaseClient';
+import { loadClanIdentity, clanDisplayName } from '@/lib/clanIdentity';
 
 export type CodmRole = 'anon' | 'registered' | 'viewer' | 'player' | 'staff' | 'coach' | 'owner';
 
@@ -46,17 +47,10 @@ export function roleLabel(role: CodmRole) {
 }
 
 async function getFirstClan() {
-  const { data, error } = await supabase
-    .from('clans')
-    .select('id,name,tag')
-    .order('created_at', { ascending: true })
-    .limit(1);
-
-  if (error) throw error;
-  const clan = data?.[0] || null;
+  const identity = await loadClanIdentity();
   return {
-    clanId: clan?.id || null,
-    clanName: clan?.tag || clan?.name || 'AK47DX'
+    clanId: identity.clanId,
+    clanName: clanDisplayName(identity)
   };
 }
 

@@ -64,9 +64,9 @@ type EventPlayerRow = { event_id: string; player_id: string | null; nickname: st
 type ModeOption = { value: string; label: string; icon: string; help: string };
 type ScoreTypeOption = { value: string; label: string; target: string; help: string };
 
-const PLAN_MARKER = 'AK_EVENT_PLAN_V6_6::';
-const OLD_PLAN_MARKERS = ['AK_EVENT_PLAN_V6_5::', 'AK_EVENT_PLAN_V6_4::', 'AK_EVENT_PLAN_V6_3::', 'AK_EVENT_PLAN_V6_2::'];
-const DRAFT_KEY = 'clan_manager_event_editor_draft_v6_6';
+const PLAN_MARKER = 'AK_EVENT_PLAN_V6_7::';
+const OLD_PLAN_MARKERS = ['AK_EVENT_PLAN_V6_6::', 'AK_EVENT_PLAN_V6_5::', 'AK_EVENT_PLAN_V6_4::', 'AK_EVENT_PLAN_V6_3::', 'AK_EVENT_PLAN_V6_2::'];
+const DRAFT_KEY = 'clan_manager_event_editor_draft_v6_7';
 const matchStatuses = ['Da giocare', 'Giocata', 'Risultato caricato'];
 const resultLabels = ['Vinto', 'Perso', 'Pareggiato'];
 
@@ -97,7 +97,15 @@ const scoreTypeOptions: ScoreTypeOption[] = [
 ];
 
 const banOptions = [
-  'Prizefighters', 'Boxing Gloves', 'Melee vietate', 'Shotgun vietati', 'Shorty', 'NA-45', 'Akimbo', 'Thermite', 'Molotov', 'Trip Mine', 'C4', 'Concussion', 'Gas Grenade', 'Cryo Bomb', 'Heartbeat Sensor', 'Trophy System limitato', 'Persistence', 'Martyrdom', 'Hardline', 'Dead Silence', 'Operator Skill', 'Kinetic Armor', 'Transform Shield', 'Ballistic Shield', 'Purifier', 'War Machine', 'Annihilator', 'Death Machine', 'Sparrow', 'Scorestreak UAV', 'Counter UAV', 'Shock RC', 'Hunter Killer', 'Predator Missile', 'Sentry Gun', 'Swarm', 'VTOL', 'Stealth Chopper', 'Cluster Strike', 'Napalm', 'Orbital Laser', 'Operator leggendari vietati'
+  'Armi corpo a corpo vietate', 'Guantoni da boxe vietati', 'Prizefighters vietati', 'Coltello / lama tattica vietata', 'Machete / ascia vietata',
+  'Shotgun vietati', 'Shorty vietata', 'NA-45 vietato', 'Akimbo vietato', 'Akimbo Fennec vietato',
+  'Termite vietata', 'Molotov vietata', 'Mina laser vietata', 'C4 vietato', 'Granata a concussione vietata', 'Granata gas vietata', 'Cryo Bomb vietata', 'Sensore battito cardiaco vietato',
+  'Sistema Trophy limitato', 'Scudo trasformabile vietato', 'Scudo balistico vietato', 'Classe operatore vietata', 'Abilità operatore vietate',
+  'Armatura cinetica vietata', 'Purificatore vietato', 'Macchina da guerra vietata', 'Annientatore vietato', 'Mitragliatrice Death Machine vietata', 'Arco Sparrow vietato',
+  'Persistenza vietata', 'Martirio vietato', 'Linea dura vietata', 'Silenzio di tomba vietato',
+  'UAV vietato', 'Counter UAV vietato', 'Shock RC vietato', 'Hunter Killer vietato', 'Missile Predator vietato', 'Torretta sentinella vietata',
+  'Sciame vietato', 'VTOL vietato', 'Elicottero furtivo vietato', 'Attacco a grappolo vietato', 'Napalm vietato', 'Laser orbitale vietato',
+  'Operatori leggendari non consentiti', 'Skin troppo luminose/non competitive vietate'
 ];
 
 const eventTypes = [
@@ -192,7 +200,7 @@ export default function EventsPage() {
   useEffect(() => { if (auth.clanName) setPlan((p) => ({ ...p, teamAName: p.teamAName === 'AK47DX' ? auth.clanName : p.teamAName })); }, [auth.clanName]);
   useEffect(() => {
     try {
-      const cachedEvents = localStorage.getItem('clan_manager_events_cache_v6_6');
+      const cachedEvents = localStorage.getItem('clan_manager_events_cache_v6_7');
       if (cachedEvents) setEvents(JSON.parse(cachedEvents) as CodmEvent[]);
       const raw = localStorage.getItem(DRAFT_KEY);
       if (raw) {
@@ -212,7 +220,7 @@ export default function EventsPage() {
     if (!draftReady || !canWrite) return;
     try { localStorage.setItem(DRAFT_KEY, draftPayload({ title, description, location, eventType, startsAt, endsAt, telegramEnabled, reminderMinutes, telegramTemplate, eventNotes, selectedPlayers, reservePlayers, plan, editingEventId })); } catch {}
   }, [draftReady, canWrite, title, description, location, eventType, startsAt, endsAt, telegramEnabled, reminderMinutes, telegramTemplate, eventNotes, selectedPlayers, reservePlayers, plan, editingEventId]);
-  useEffect(() => { try { if (events.length) localStorage.setItem('clan_manager_events_cache_v6_6', JSON.stringify(events)); } catch {} }, [events]);
+  useEffect(() => { try { if (events.length) localStorage.setItem('clan_manager_events_cache_v6_7', JSON.stringify(events)); } catch {} }, [events]);
 
   async function loadPlayers() { const { data } = await supabase.from('players').select('id,nickname,clan_name,status').order('nickname'); setPlayers((data || []) as PlayerRow[]); }
   async function loadEvents() {
@@ -346,7 +354,7 @@ function MatchRoundEditor({ round, index, players, updateRound, removeRound, tog
   const meta = modeMeta(round.mode); const starters = listFromText(round.players); const reserves = listFromText(round.reserves); const outcome = getMatchOutcome(round); const status = getMatchStatus(round);
   return <article className="match-card-v64">
     <div className="match-card-head"><div><p className="eyebrow">{meta.icon} {meta.help}</p><h3>Partita {round.n}</h3><span className="match-code-pill">ID {round.matchCode}</span></div><div className="match-head-actions"><span className={`match-status-pill ${status === 'Risultato caricato' ? 'loaded' : status === 'Giocata' ? 'played' : ''}`}>{status}</span>{outcome && <span className={`match-result-pill ${outcome.toLowerCase()}`}>{outcome}</span>}<button className="btn small secondary" type="button" onClick={() => removeRound(index)}>Elimina</button></div></div>
-    <div className="grid grid-4"><div className="field"><label>Tipologia partita</label><select className="select codm-mode-select" value={round.mode} onChange={(e) => updateRound(index, { mode: e.target.value })}>{modeOptions.map((mode) => <option key={mode.value} value={mode.value}>{mode.label}</option>)}</select></div><div className="field"><label>Mappa CODM</label><input className="input" list="codm-map-list" value={round.map} onChange={(e) => updateRound(index, { map: e.target.value })} placeholder="Scegli mappa" /><datalist id="codm-map-list">{codmMaps.map((map) => <option key={map} value={map} />)}</datalist></div><div className="field"><label>Tipologia round / punteggio</label><select className="select" value={round.scoreType} onChange={(e) => { const metaScore = scoreMeta(e.target.value); updateRound(index, { scoreType: e.target.value, target: round.target || metaScore.target }); }}>{scoreTypeOptions.map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}</select><small className="muted">{scoreMeta(round.scoreType).help}</small></div><div className="field"><label>Punteggio / target</label><input className="input" value={round.target} onChange={(e) => updateRound(index, { target: e.target.value })} placeholder={scoreMeta(round.scoreType).target} /></div></div>
+    <div className="grid grid-4"><div className="field"><label>Tipologia partita</label><select className="select codm-mode-select" value={round.mode} onChange={(e) => updateRound(index, { mode: e.target.value })}>{modeOptions.map((mode) => <option key={mode.value} value={mode.value}>{mode.label}</option>)}</select></div><div className="field"><label>Mappa CODM</label><select className="select codm-map-select" value={round.map} onChange={(e) => updateRound(index, { map: e.target.value })}><option value="">🗺️ Seleziona mappa</option>{codmMaps.map((map) => <option key={map} value={map}>{map}</option>)}</select><small className="muted">Menu a tendina diretto: clicchi e vedi subito le mappe.</small></div><div className="field"><label>Tipologia round / punteggio</label><select className="select" value={round.scoreType} onChange={(e) => { const metaScore = scoreMeta(e.target.value); updateRound(index, { scoreType: e.target.value, target: round.target || metaScore.target }); }}>{scoreTypeOptions.map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}</select><small className="muted">{scoreMeta(round.scoreType).help}</small></div><div className="field"><label>Punteggio / target</label><input className="input" value={round.target} onChange={(e) => updateRound(index, { target: e.target.value })} placeholder={scoreMeta(round.scoreType).target} /></div></div>
     <div className="grid grid-3 top-gap"><div className="field"><label>Orario ritrovo</label><input className="input" value={round.meetingTime} onChange={(e) => updateRound(index, { meetingTime: e.target.value })} placeholder="21:30" /></div><div className="field"><label>Apertura lobby</label><input className="input" value={round.lobbyOpen} onChange={(e) => updateRound(index, { lobbyOpen: e.target.value })} placeholder="21:45" /></div><div className="field"><label>Orario partita</label><input className="input" value={round.startTime} onChange={(e) => updateRound(index, { startTime: e.target.value })} placeholder="22:00" /></div></div>
     <div className="grid grid-2 top-gap"><RoundRosterPicker title="Formazione titolare da roster app" players={players} selected={starters} opposite={reserves} onToggle={(nickname) => toggleRoundRoster(index, 'players', nickname)} /><RoundRosterPicker title="Riserve da roster app" players={players} selected={reserves} opposite={starters} onToggle={(nickname) => toggleRoundRoster(index, 'reserves', nickname)} /></div>
     <div className="field top-gap"><label>🚫 BAN partita da lista</label><BanPicker value={round.bans} onChange={(value) => updateRound(index, { bans: value })} /></div>

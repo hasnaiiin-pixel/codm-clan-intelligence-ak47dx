@@ -1,6 +1,6 @@
 {
   "name": "codm-clan-intelligence-ak47dx",
-  "version": "6.6.0-clan-manager-events-persist-roster-rules",
+  "version": "6.7.0-clan-hq-rules-map-ban-flow",
   "private": true,
   "scripts": {
     "dev": "next dev",

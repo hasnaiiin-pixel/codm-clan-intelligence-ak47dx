@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useCodmAuth } from '@/lib/authRoles';
 import { supabase } from '@/lib/supabaseClient';
+import { loadClanIdentity, clanDisplayName } from '@/lib/clanIdentity';
 
 type NameHistoryEntry = { at: string; oldName: string; newName: string; source: string };
 type PlayerLite = { id: string; nickname: string; avatar_url?: string | null; uid_codm?: string | null };
@@ -13,8 +14,9 @@ function historyKey(userId?: string) {
 }
 
 async function getFirstClan(): Promise<ClanLite | null> {
-  const { data } = await supabase.from('clans').select('id,name,tag').order('created_at', { ascending: true }).limit(1);
-  return (data?.[0] as ClanLite | undefined) || null;
+  const identity = await loadClanIdentity();
+  if (!identity.clanId) return null;
+  return { id: identity.clanId, name: identity.clanName, tag: clanDisplayName(identity) };
 }
 
 export default function ProfilePage() {

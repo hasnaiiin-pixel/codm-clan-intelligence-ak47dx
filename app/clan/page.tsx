@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { supabase } from '@/lib/supabaseClient';
 import { kdRatio, winRate } from '@/lib/statistics';
 import { useCodmAuth } from '@/lib/authRoles';
+import { cacheClanIdentity, loadClanIdentity, clanDisplayName } from '@/lib/clanIdentity';
 import type { Match, Player } from '@/lib/types';
 
 type ScoreboardRow = {
@@ -71,6 +72,22 @@ export default function ClanPage() {
     if (saved) {
       try { setProfile({ ...defaultProfile, ...JSON.parse(saved) as Partial<ClanProfile> }); } catch { /* ignore local backup */ }
     }
+    try {
+      const identity = await loadClanIdentity();
+      setProfile((prev) => ({
+        ...prev,
+        clan_name: identity.clanName || prev.clan_name,
+        tag: clanDisplayName(identity),
+        logo_url: identity.logoUrl || prev.logo_url
+      }));
+    } catch { /* profile remoto non disponibile */ }
+    try {
+      const { data: remoteProfile } = await supabase.from('clan_public_profiles').select('*').eq('profile_key', 'main').maybeSingle();
+      if (remoteProfile) {
+        const rp = remoteProfile as Partial<ClanProfile>;
+        setProfile((prev) => ({ ...prev, ...rp, logo_url: rp.logo_url || prev.logo_url }));
+      }
+    } catch { /* tabella profilo non presente */ }
 
     const { data: playerData } = await supabase.from('players').select('*').order('nickname');
     const { data: matchData } = await supabase.from('matches').select('*').order('match_date', { ascending: false });
@@ -93,29 +110,49 @@ export default function ClanPage() {
 
   async function saveProfile() {
     setMessage('');
-    window.localStorage.setItem('codm_clan_hq_profile_v2_0', JSON.stringify(profile));
+    const cleanProfile = {
+      ...profile,
+      clan_name: profile.clan_name.trim() || 'AK47DX',
+      tag: profile.tag.trim() || profile.clan_name.trim() || 'AK47DX'
+    };
+    window.localStorage.setItem('codm_clan_hq_profile_v2_0', JSON.stringify(cleanProfile));
+    cacheClanIdentity({ clanId: auth.clanId, clanName: cleanProfile.clan_name, clanTag: cleanProfile.tag, logoUrl: cleanProfile.logo_url });
+
+    let clanSyncMessage = '';
+    if (auth.clanId) {
+      const clanUpdate = await supabase.from('clans').update({ name: cleanProfile.clan_name, tag: cleanProfile.tag, logo_url: cleanProfile.logo_url || null }).eq('id', auth.clanId);
+      if (clanUpdate.error) clanSyncMessage = ` Clan base non aggiornato: ${clanUpdate.error.message}`;
+
+      // Correzione mirata vecchie assegnazioni: non tocca clan avversari, aggiorna solo tag storici/placeholder del nostro roster.
+      const legacyTags = ['AK', 'AKঐ', 'ѦҞ', 'ѦҞঐ', 'ѦҞঐ ', 'Senza clan', ''];
+      await supabase.from('players').update({ clan_name: cleanProfile.tag }).eq('clan_id', auth.clanId).in('clan_name', legacyTags);
+    }
+
     const { error } = await supabase.from('clan_public_profiles').upsert({
       profile_key: 'main',
-      clan_name: profile.clan_name,
-      tag: profile.tag,
-      motto: profile.motto,
-      story: profile.story,
-      leaders: profile.leaders,
-      vice_admins: profile.vice_admins,
-      social_discord: profile.social_discord,
-      social_whatsapp: profile.social_whatsapp,
-      social_tiktok: profile.social_tiktok,
-      social_youtube: profile.social_youtube,
-      social_instagram: profile.social_instagram,
-      notice_title: profile.notice_title,
-      notice_body: profile.notice_body,
+      clan_name: cleanProfile.clan_name,
+      tag: cleanProfile.tag,
+      motto: cleanProfile.motto,
+      story: cleanProfile.story,
+      leaders: cleanProfile.leaders,
+      vice_admins: cleanProfile.vice_admins,
+      social_discord: cleanProfile.social_discord,
+      social_whatsapp: cleanProfile.social_whatsapp,
+      social_tiktok: cleanProfile.social_tiktok,
+      social_youtube: cleanProfile.social_youtube,
+      social_instagram: cleanProfile.social_instagram,
+      notice_title: cleanProfile.notice_title,
+      notice_body: cleanProfile.notice_body,
+      logo_url: cleanProfile.logo_url,
       updated_at: new Date().toISOString()
     }, { onConflict: 'profile_key' });
+    setProfile(cleanProfile);
     if (error) {
-      setMessage(`Profilo salvato localmente. Supabase: ${error.message}`);
+      setMessage(`Profilo salvato localmente. Supabase profilo pubblico: ${error.message}.${clanSyncMessage}`);
     } else {
-      setMessage('Clan HQ salvato su Supabase e backup locale aggiornato.');
+      setMessage(`Clan HQ salvato. Da ora nuovi player/registrazioni prendono il tag ${cleanProfile.tag}.${clanSyncMessage}`);
     }
+    await load();
   }
 
   const clanOptions = useMemo(() => {
@@ -224,11 +261,11 @@ export default function ClanPage() {
 
       {canWrite ? <section className="card top-gap">
         <h2>Modifica Clan HQ</h2>
-        <p className="muted">Questa sezione serve per descrivere il clan, capi, vice, social, avvisi e identità AK47DX. Salva su Supabase con la migrazione 2.0; in ogni caso viene mantenuto un backup locale nel browser.</p>
+        <p className="muted">Questa sezione è la sorgente ufficiale del clan: nome clan e TAG vengono assegnati automaticamente ai nuovi player registrati e usati nel roster/eventi. Salva su Supabase e backup locale.</p>
         {message && <div className="notice">{message}</div>}
         <div className="grid grid-3 top-gap">
           <div className="field"><label>Nome clan</label><input className="input" value={profile.clan_name} onChange={(e) => update('clan_name', e.target.value)} /></div>
-          <div className="field"><label>Tag / stemma</label><input className="input" value={profile.tag} onChange={(e) => update('tag', e.target.value)} /></div>
+          <div className="field"><label>TAG clan assegnato ai player</label><input className="input" value={profile.tag} onChange={(e) => update('tag', e.target.value)} /></div>
           <div className="field"><label>Logo clan</label><input className="input" type="file" accept="image/*" onChange={(e) => onLogoFile(e.target.files?.[0] || null)} /><small className="muted">Seleziona file logo, non scrivere percorso.</small></div>
         </div>
         <div className="field top-gap"><label>Motto</label><input className="input" value={profile.motto} onChange={(e) => update('motto', e.target.value)} /></div>

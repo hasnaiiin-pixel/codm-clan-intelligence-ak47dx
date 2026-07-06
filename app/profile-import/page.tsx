@@ -4,17 +4,14 @@ import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { supabase } from '@/lib/supabaseClient';
 import { useCodmAuth } from '@/lib/authRoles';
+import { loadClanIdentity, clanDisplayName } from '@/lib/clanIdentity';
 
 type ClanRow = { id: string; name?: string | null; tag?: string | null };
 
 async function getFirstClan(): Promise<ClanRow | null> {
-  const { data, error } = await supabase
-    .from('clans')
-    .select('id,name,tag')
-    .order('created_at', { ascending: true })
-    .limit(1);
-  if (error) throw error;
-  return (data?.[0] as ClanRow | undefined) || null;
+  const identity = await loadClanIdentity();
+  if (!identity.clanId) return null;
+  return { id: identity.clanId, name: identity.clanName, tag: clanDisplayName(identity) };
 }
 
 async function ensureRosterPlayer(clan: ClanRow, userId: string, nickname: string, uidCodm: string, email?: string | null) {

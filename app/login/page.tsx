@@ -3,19 +3,15 @@
 import { useMemo, useState } from 'react';
 import Link from 'next/link';
 import { supabase } from '@/lib/supabaseClient';
+import { loadClanIdentity, clanDisplayName } from '@/lib/clanIdentity';
 
 type Mode = 'login' | 'register';
 type ClanRow = { id: string; name?: string | null; tag?: string | null };
 
 async function getFirstClan(): Promise<ClanRow | null> {
-  const { data, error } = await supabase
-    .from('clans')
-    .select('id,name,tag')
-    .order('created_at', { ascending: true })
-    .limit(1);
-
-  if (error) throw error;
-  return (data?.[0] as ClanRow | undefined) || null;
+  const identity = await loadClanIdentity();
+  if (!identity.clanId) return null;
+  return { id: identity.clanId, name: identity.clanName, tag: clanDisplayName(identity) };
 }
 
 function getAppUrl() {
@@ -34,7 +30,7 @@ async function ensureRosterPlayer(clan: ClanRow | null, nickname: string, uid: s
       clan_id: clan.id,
       nickname: cleanNickname,
       uid_codm: uid.trim() || null,
-      clan_name: clan.tag || clan.name || 'AK47DX',
+      clan_name: clan?.tag || clan?.name || 'AK47DX',
       status: 'active',
       notes: `Creato automaticamente da registrazione app Clan Manager${email ? ` · email=${email}` : ''}${userId ? ` · user_id=${userId}` : ''}`
     };
@@ -145,7 +141,7 @@ export default function LoginPage() {
                 </label>
                 <label className="ak-field">
                   Nome giocatore CODM
-                  <input value={nickname} onChange={(e) => setNickname(e.target.value)} className="ak-input" placeholder="Es. AKঐMIRZA" />
+                  <input value={nickname} onChange={(e) => setNickname(e.target.value)} className="ak-input" placeholder="Es. MIRZA" />
                 </label>
                 <label className="ak-field">
                   UID CODM opzionale

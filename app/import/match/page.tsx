@@ -1,5 +1,6 @@
 'use client';
 import { useCodmAuth } from '@/lib/authRoles';
+import { loadClanIdentity, clanDisplayName } from '@/lib/clanIdentity';
 import { WriteAccessBlock } from '@/components/WriteAccessBlock';
 
 
@@ -208,9 +209,9 @@ type LinkedCodmEvent = {
   event_plan?: LinkedEventPlan | null;
 };
 
-const IMPORT_PLAN_MARKER = 'AK_EVENT_PLAN_V6_6::';
-const IMPORT_OLD_PLAN_MARKERS = ['AK_EVENT_PLAN_V6_5::', 'AK_EVENT_PLAN_V6_4::', 'AK_EVENT_PLAN_V6_3::', 'AK_EVENT_PLAN_V6_2::'];
-const IMPORT_DRAFT_KEY = 'clan_manager_import_match_draft_v6_6';
+const IMPORT_PLAN_MARKER = 'AK_EVENT_PLAN_V6_7::';
+const IMPORT_OLD_PLAN_MARKERS = ['AK_EVENT_PLAN_V6_6::', 'AK_EVENT_PLAN_V6_5::', 'AK_EVENT_PLAN_V6_4::', 'AK_EVENT_PLAN_V6_3::', 'AK_EVENT_PLAN_V6_2::'];
+const IMPORT_DRAFT_KEY = 'clan_manager_import_match_draft_v6_7';
 
 function emptyLinkedRound(n = 1): LinkedEventRound {
   return { n, matchCode: `CM-IMPORT-${String(n).padStart(2, '0')}`, mode: 'CED', map: '', scoreType: 'Punteggio round', target: '', players: '', reserves: '', lobbyOpen: '', meetingTime: '', startTime: '', bans: '', status: 'Da giocare', result: '', ourScore: '', opponentScore: '', mvp: '' };
@@ -473,10 +474,12 @@ function ImportMatchEditor() {
   }
 
   useEffect(() => {
+    let restoredDraft = false;
     try {
       const rawDraft = localStorage.getItem(IMPORT_DRAFT_KEY);
       if (rawDraft) {
         const draft = JSON.parse(rawDraft) as any;
+        restoredDraft = true;
         if (draft.mode) setMode(draft.mode);
         if (draft.matchType) setMatchType(draft.matchType);
         if (draft.result) setResult(draft.result);
@@ -495,12 +498,12 @@ function ImportMatchEditor() {
         if (draft.linkedEvent) setLinkedEvent(draft.linkedEvent);
         if (draft.linkedEventPlan) setLinkedEventPlan(draft.linkedEventPlan);
         if (typeof draft.linkedRoundIndex === 'number') setLinkedRoundIndex(draft.linkedRoundIndex);
-        setMessage('Bozza import risultato ripristinata: resta salvata finché non premi Salva partita o Reset cache.');
+        setMessage('Bozza import risultato ripristinata: resta salvata finché non premi Salva partita. Se eri già dentro Importa partita da Eventi, non ricarico campi vuoti sopra la tua bozza.');
       }
     } catch {}
     importDraftReadyRef.current = true;
     loadRoster();
-    loadLinkedEventFromQuery();
+    if (!restoredDraft) loadLinkedEventFromQuery();
     supabase.auth.getUser().then(({ data }) => {
       const user = data.user;
       setActiveUserContext(user?.id || 'anonymous', String(user?.user_metadata?.display_name || user?.email || ''));
@@ -532,11 +535,10 @@ function ImportMatchEditor() {
   }, [teamScore, enemyScore, ourTeam]);
 
   async function loadRoster() {
-    const { data: clansData } = await supabase.from('clans').select('*').limit(1);
-    const clans = (clansData || []) as Array<{ id: string; name?: string; tag?: string | null }>;
-    if (clans?.[0]?.id) {
-      setClanId(clans[0].id);
-      setClanName(clans[0].tag || clans[0].name || 'Nostro clan');
+    const identity = await loadClanIdentity();
+    if (identity.clanId) {
+      setClanId(identity.clanId);
+      setClanName(clanDisplayName(identity));
     }
     const { data } = await supabase.from('players').select('*').order('nickname');
     setRoster((data || []) as Player[]);

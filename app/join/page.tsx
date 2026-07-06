@@ -2,11 +2,13 @@
 
 import { useEffect, useState } from 'react';
 import { supabase } from '@/lib/supabaseClient';
+import { loadClanIdentity, clanDisplayName } from '@/lib/clanIdentity';
 
 type ClanRow = { id: string; name?: string | null; tag?: string | null };
 async function getFirstClan(): Promise<ClanRow | null> {
-  const { data } = await supabase.from('clans').select('id,name,tag').order('created_at', { ascending: true }).limit(1);
-  return (data?.[0] as ClanRow | undefined) || null;
+  const identity = await loadClanIdentity();
+  if (!identity.clanId) return null;
+  return { id: identity.clanId, name: identity.clanName, tag: clanDisplayName(identity) };
 }
 
 export default function JoinPage() {
@@ -22,7 +24,9 @@ export default function JoinPage() {
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     setCode(params.get('code') || '');
-    setClan(params.get('clan') || 'AK47DX');
+    const urlClan = params.get('clan');
+    setClan(urlClan || 'AK47DX');
+    loadClanIdentity().then((identity) => setClan(urlClan || clanDisplayName(identity))).catch(() => undefined);
   }, []);
 
   async function submit() {
@@ -45,14 +49,14 @@ export default function JoinPage() {
   return (
     <main className="container">
       <section className="card gaming-panel">
-        <p className="eyebrow">🐺 AK47DX Join</p>
+        <p className="eyebrow">🐺 Clan Manager Join</p>
         <h1>Iscrizione clan</h1>
         <p className="muted">Link invito: <b>{code || '-'}</b> · Clan: <b>{clan}</b>. Nome, email e nome in gioco finiscono nel roster automaticamente.</p>
         {message && <div className="notice">{message}</div>}
         <div className="form top-gap">
           <div className="field"><label>Nome</label><input className="input" value={fullName} onChange={(e) => setFullName(e.target.value)} placeholder="Nome e cognome" /></div>
           <div className="field"><label>Email</label><input className="input" type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="player@email.com" /></div>
-          <div className="field"><label>Nome in gioco CODM</label><input className="input" value={nickname} onChange={(e) => setNickname(e.target.value)} placeholder="AKঐMIRZA" /></div>
+          <div className="field"><label>Nome in gioco CODM</label><input className="input" value={nickname} onChange={(e) => setNickname(e.target.value)} placeholder="MIRZA" /></div>
           <div className="field"><label>UID CODM</label><input className="input" value={uid} onChange={(e) => setUid(e.target.value)} placeholder="UID opzionale" /></div>
           <div className="field"><label>Social / contatto</label><input className="input" value={social} onChange={(e) => setSocial(e.target.value)} placeholder="Discord, WhatsApp, TikTok..." /></div>
           <button className="btn" onClick={submit}>🚀 Iscriviti e aggiungi al roster</button>
