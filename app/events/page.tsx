@@ -4,7 +4,6 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { supabase, isSupabaseConfigured } from "@/lib/supabaseClient";
 import { useCodmAuth } from "@/lib/authRoles";
 import { buildGoogleCalendarUrl } from "@/lib/googleCalendar";
-import { pushLocalNotification } from "@/lib/clientNotifications";
 
 type MatchRound = {
   n: number;
@@ -92,16 +91,31 @@ const OLD_PLAN_MARKERS = [
   "AK_EVENT_PLAN_V6_3::",
   "AK_EVENT_PLAN_V6_2::",
 ];
-const DRAFT_KEY = "clan_manager_event_editor_draft_v7_0";
-const EVENTS_CACHE_KEY = "clan_manager_events_cache_v7_0";
-const LOCAL_EVENTS_KEY = "codm_local_events_v7_0";
-const DELETED_EVENTS_KEY = "codm_deleted_events_v7_5";
-const EVENTS_FORM_VERSION_KEY = "codm_events_form_version";
-const EVENTS_FORM_VERSION = "V7_5_DEEP_EVENTS_DELETE_OPPONENT_SYNC";
+const EVENTS_FORM_VERSION = "V7_6_DATABASE_ONLY_EVENTS";
+const LEGACY_EVENT_STORAGE_KEYS = [
+  "clan_manager_event_editor_draft_v7_0",
+  "clan_manager_events_cache_v7_0",
+  "clan_manager_events_cache_v6_7",
+  "codm_local_events_v7_0",
+  "codm_deleted_events_v7_5",
+  "codm_events_form_version",
+  "codm_pwa_events",
+  "codm_events_draft",
+  "codm-events-cache",
+  "events_cache",
+];
 const MAX_LOCAL_IMAGE_DATA_URL_CHARS = 240_000;
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{12}$/i;
 function isUuid(value: unknown): value is string {
   return typeof value === "string" && UUID_RE.test(value);
+}
+function cleanupLegacyEventStorage() {
+  if (typeof window === "undefined") return;
+  for (const key of LEGACY_EVENT_STORAGE_KEYS) {
+    try { window.localStorage.removeItem(key); } catch {}
+    try { window.sessionStorage.removeItem(key); } catch {}
+  }
+  try { window.dispatchEvent(new CustomEvent("codm-events-db-only")); } catch {}
 }
 function sortEvents(rows: CodmEvent[]) {
   return dedupeEvents(rows).sort((a, b) => new Date(a.starts_at).getTime() - new Date(b.starts_at).getTime());
@@ -576,6 +590,7 @@ export default function EventsPage() {
   useEffect(() => { locationRef.current = location; }, [location]);
 
   useEffect(() => {
+    cleanupLegacyEventStorage();
     void loadEvents();
     void loadPlayers();
   }, []);
@@ -587,225 +602,20 @@ export default function EventsPage() {
       }));
   }, [auth.clanName]);
   useEffect(() => {
-    try {
-      const appliedFormVersion = localStorage.getItem(EVENTS_FORM_VERSION_KEY);
-      if (appliedFormVersion !== EVENTS_FORM_VERSION) {
-        localStorage.removeItem(DRAFT_KEY);
-        localStorage.removeItem(EVENTS_CACHE_KEY);
-        localStorage.setItem(EVENTS_FORM_VERSION_KEY, EVENTS_FORM_VERSION);
-      }
-      const cachedEvents =
-        localStorage.getItem(EVENTS_CACHE_KEY) ||
-        localStorage.getItem("clan_manager_events_cache_v6_7");
-      const localEvents = localStorage.getItem(LOCAL_EVENTS_KEY);
-      const mergedCached = [
-        ...(cachedEvents ? (JSON.parse(cachedEvents) as CodmEvent[]) : []),
-        ...(localEvents ? (JSON.parse(localEvents) as CodmEvent[]) : []),
-      ];
-      if (mergedCached.length) setEvents(dedupeEvents(mergedCached));
-      const raw = localStorage.getItem(DRAFT_KEY);
-      if (raw) {
-        const draft = JSON.parse(raw) as any;
-        setTitle(draft.title || "Scrim AK47DX vs Clan avversario");
-        setDescription(draft.description || "");
-        setLocation(draft.location || "CODM room");
-        setEventType(draft.eventType || "scrim");
-        setStartsAt(
-          draft.startsAt ||
-            toLocalInputValue(new Date(Date.now() + 60 * 60 * 1000)),
-        );
-        setEndsAt(
-          draft.endsAt ||
-            toLocalInputValue(new Date(Date.now() + 3 * 60 * 60 * 1000)),
-        );
-        setTelegramEnabled(draft.telegramEnabled ?? true);
-        setReminderMinutes(draft.reminderMinutes || "120,60,30,10");
-        setTelegramTemplate(
-          draft.telegramTemplate || DEFAULT_TELEGRAM_TEMPLATE,
-        );
-        setEventNotes(draft.eventNotes || "");
-        setSelectedPlayers(
-          Array.isArray(draft.selectedPlayers) ? draft.selectedPlayers : [],
-        );
-        setReservePlayers(
-          Array.isArray(draft.reservePlayers) ? draft.reservePlayers : [],
-        );
-        if (draft.plan)
-          commitPlan(
-            normalizePlan({
-              ...emptyPlan(auth.clanName || "AK47DX"),
-              ...draft.plan,
-            }),
-          );
-        setEditingEventId(draft.editingEventId || null);
-        setMessage(
-          "Bozza evento ripristinata: non si perde quando cambi tab Chrome o apri cartelle sul PC.",
-        );
-      }
-    } catch {}
+    // V7.6: gli eventi non vengono mai letti o salvati in localStorage.
+    // Questa pulizia rimuove dati vecchi della PWA che causavano differenze tra app installata e browser.
+    cleanupLegacyEventStorage();
     setDraftReady(true);
   }, []);
-  useEffect(() => {
-    if (!draftReady || !canWrite) return;
-    const timer = window.setTimeout(() => {
-      try {
-        localStorage.setItem(
-          DRAFT_KEY,
-          draftPayload({
-            title,
-            description,
-            location,
-            eventType,
-            startsAt,
-            endsAt,
-            telegramEnabled,
-            reminderMinutes,
-            telegramTemplate,
-            eventNotes,
-            selectedPlayers,
-            reservePlayers,
-            plan,
-            editingEventId,
-          }),
-        );
-      } catch {}
-    }, 850);
-    return () => window.clearTimeout(timer);
-  }, [
-    draftReady,
-    canWrite,
-    title,
-    description,
-    location,
-    eventType,
-    startsAt,
-    endsAt,
-    telegramEnabled,
-    reminderMinutes,
-    telegramTemplate,
-    eventNotes,
-    selectedPlayers,
-    reservePlayers,
-    plan,
-    editingEventId,
-  ]);
-  useEffect(() => {
-    try {
-      if (events.length)
-        localStorage.setItem(
-          EVENTS_CACHE_KEY,
-          JSON.stringify(events),
-        );
-    } catch {}
-  }, [events]);
 
-  function getDeletedEventIds(): Set<string> {
-    try {
-      return new Set(JSON.parse(localStorage.getItem(DELETED_EVENTS_KEY) || "[]").map(String));
-    } catch {
-      return new Set();
-    }
+  function setDbEvents(rows: CodmEvent[]) {
+    setEvents(sortEvents(rows));
   }
-  function rememberDeletedEvent(ids: Array<string | null | undefined>) {
-    const deleted = getDeletedEventIds();
-    for (const id of ids) if (id) deleted.add(String(id));
-    try {
-      localStorage.setItem(DELETED_EVENTS_KEY, JSON.stringify(Array.from(deleted).slice(-500)));
-    } catch {}
-  }
-  function eventMatchesDeleted(event: CodmEvent, deleted = getDeletedEventIds()) {
-    return deleted.has(String(event.id)) || Boolean(event.local_id && deleted.has(String(event.local_id)));
-  }
-  function getLocalEvents(): CodmEvent[] {
-    try {
-      const deleted = getDeletedEventIds();
-      return (JSON.parse(localStorage.getItem(LOCAL_EVENTS_KEY) || "[]") as CodmEvent[])
-        .filter((event) => !eventMatchesDeleted(event, deleted));
-    } catch {
-      return [];
-    }
-  }
-  function saveLocalEvents(rows: CodmEvent[]) {
-    const deleted = getDeletedEventIds();
-    const normalized = sortEvents(rows.filter((event) => !eventMatchesDeleted(event, deleted))).slice(0, 150);
-    try {
-      localStorage.setItem(LOCAL_EVENTS_KEY, JSON.stringify(normalized));
-      window.dispatchEvent(new CustomEvent("codm-events-changed"));
-    } catch {
-      try {
-        const compacted = normalized.map(compactEventForLocalStorage);
-        localStorage.setItem(LOCAL_EVENTS_KEY, JSON.stringify(compacted));
-        window.dispatchEvent(new CustomEvent("codm-events-changed"));
-      } catch {}
-    }
-  }
-  function saveEventsCache(rows: CodmEvent[]) {
-    const deleted = getDeletedEventIds();
-    const cleanRows = rows.filter((event) => !eventMatchesDeleted(event, deleted));
-    try {
-      localStorage.setItem(EVENTS_CACHE_KEY, JSON.stringify(sortEvents(cleanRows).slice(0, 300)));
-    } catch {
-      try {
-        localStorage.setItem(EVENTS_CACHE_KEY, JSON.stringify(sortEvents(cleanRows).slice(0, 300).map(compactEventForLocalStorage)));
-      } catch {}
-    }
-  }
-  function mergeWithLocalEvents(remoteRows: CodmEvent[]) {
-    const deleted = getDeletedEventIds();
-    const remoteLocalIds = new Set(remoteRows.map((event) => event.local_id).filter(Boolean).map(String));
-    const localRows = getLocalEvents().filter((event) => !event.local_id || !remoteLocalIds.has(String(event.local_id)));
-    return sortEvents([...localRows, ...remoteRows].filter((event) => !eventMatchesDeleted(event, deleted)));
-  }
-  function persistEventInPwa(row: CodmEvent, replaceIds: string[] = []) {
-    const idsToReplace = new Set([row.id, row.local_id, ...replaceIds].filter(Boolean).map(String));
-    const merge = (current: CodmEvent[], includeRow = true) => {
-      const deleted = getDeletedEventIds();
-      const kept = current.filter((event) => !idsToReplace.has(String(event.id)) && !(event.local_id && idsToReplace.has(String(event.local_id))) && !eventMatchesDeleted(event, deleted));
-      return includeRow ? sortEvents([row, ...kept]) : sortEvents(kept);
-    };
-    const isConfirmedRemote = isUuid(row.id) && row.sync_status === "synced";
-    const nextLocal = merge(getLocalEvents(), !isConfirmedRemote);
-    saveLocalEvents(nextLocal);
-    setEvents((current) => {
-      const next = merge(current, true);
-      saveEventsCache(next);
-      return next;
-    });
-  }
-  async function saveEventNotification(event: CodmEvent, mode: "created" | "updated" | "sync-error") {
-    const titleText =
-      mode === "sync-error"
-        ? "Evento salvato solo in PWA"
-        : mode === "updated"
-          ? "Evento aggiornato"
-          : "Nuovo evento creato";
-    const body = `${event.title} · ${new Date(event.starts_at).toLocaleString("it-IT")}`;
-    pushLocalNotification({
-      id: `event-${mode}-${event.id}`,
-      type: "event",
-      title: titleText,
-      body,
-      href: "/events",
-    });
-    if (!auth.user?.id || !isSupabaseConfigured) return;
-    try {
-      await supabase.from("codm_notifications").upsert(
-        {
-          ...(isUuid(event.clan_id) ? { clan_id: event.clan_id } : {}),
-          user_id: auth.user.id,
-          type: "event",
-          title: titleText,
-          body,
-          metadata: { event_id: event.id, local_id: event.local_id || null, sync_status: event.sync_status || null },
-          dedupe_key: `event-${mode}-${event.id}`,
-          read_at: null,
-          created_at: new Date().toISOString(),
-        },
-        { onConflict: "user_id,dedupe_key" },
-      );
-    } catch {
-      // La notifica locale è già stata salvata; il server non deve bloccare la creazione evento.
-    }
+
+  async function saveEventNotification(_event: CodmEvent, _mode: "created" | "updated" | "sync-error") {
+    // V7.6 database-only: le notifiche evento vengono create dalla API server in public.codm_notifications.
+    // Nessuna notifica/evento viene salvato localmente nella PWA.
+    if (typeof window !== "undefined") window.dispatchEvent(new CustomEvent("codm-server-notifications-changed"));
   }
   async function loadPlayers() {
     try {
@@ -830,57 +640,38 @@ export default function EventsPage() {
 
   async function loadEvents() {
     setEventsLoading(true);
-    setMessage((m) => (m && m.includes("Bozza") ? m : ""));
-    const localRows = getLocalEvents();
-    if (localRows.length)
-      setEvents((current) => dedupeEvents([...current, ...localRows]));
+    setMessage((m) => (m && m.includes("Bozza") ? "" : m));
+    cleanupLegacyEventStorage();
     try {
       const token = isSupabaseConfigured ? await readSessionToken() : null;
-      if (token) {
-        const params = isUuid(auth.clanId) ? `?clan_id=${encodeURIComponent(auth.clanId)}` : "";
-        const response = await fetch(`/api/events/list${params}`, {
-          method: "GET",
-          cache: "no-store",
-          headers: { Authorization: `Bearer ${token}` },
-        });
-        const json = await response.json().catch(() => null);
-        if (!response.ok || !json?.ok) throw new Error(json?.error || "API eventi non disponibile.");
-        const rows = mergeWithLocalEvents((json.events || []) as CodmEvent[]);
-        setEvents(rows);
-        saveEventsCache(rows);
-        setEventPlayers((json.eventPlayers || []) as EventPlayerRow[]);
+      if (!token) {
+        setEvents([]);
+        setEventPlayers([]);
+        setMessage("Eventi non caricati: serve login Supabase. La PWA non usa più dati locali.");
         return;
       }
-
-      const { data, error } = await supabase
-        .from("codm_events")
-        .select("*")
-        .order("starts_at", { ascending: true })
-        .limit(300);
-      if (error) throw error;
-      const rows = mergeWithLocalEvents((data || []) as CodmEvent[]);
-      setEvents(rows);
-      saveEventsCache(rows);
-      const ids = rows
-        .filter((e) => !String(e.id).startsWith("local-"))
-        .map((e) => e.id)
-        .filter(Boolean);
-      if (ids.length) {
-        const { data: epRows } = await supabase
-          .from("codm_event_players")
-          .select("event_id,player_id,nickname,status")
-          .in("event_id", ids);
-        setEventPlayers((epRows || []) as EventPlayerRow[]);
-      } else setEventPlayers([]);
+      const params = isUuid(auth.clanId) ? `?clan_id=${encodeURIComponent(auth.clanId)}` : "";
+      const response = await fetch(`/api/events/list${params}`, {
+        method: "GET",
+        cache: "no-store",
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Cache-Control": "no-store, max-age=0",
+          Pragma: "no-cache",
+        },
+      });
+      const json = await response.json().catch(() => null);
+      if (!response.ok || !json?.ok) throw new Error(json?.error || "API eventi non disponibile.");
+      setDbEvents((json.events || []) as CodmEvent[]);
+      setEventPlayers((json.eventPlayers || []) as EventPlayerRow[]);
     } catch (error) {
-      const fallback = mergeWithLocalEvents([]);
-      setEvents(fallback);
-      if (!fallback.length)
-        setMessage(
-          error instanceof Error
-            ? `Eventi non caricati: ${error.message}`
-            : "Eventi non caricati.",
-        );
+      setEvents([]);
+      setEventPlayers([]);
+      setMessage(
+        error instanceof Error
+          ? `Eventi non caricati dal database: ${error.message}`
+          : "Eventi non caricati dal database.",
+      );
     } finally {
       setEventsLoading(false);
     }
@@ -1007,14 +798,10 @@ export default function EventsPage() {
     setSelectedPlayers([]);
     setReservePlayers([]);
     commitPlan(emptyPlan(auth.clanName || "AK47DX"));
-    if (clearDraft) {
-      try {
-        localStorage.removeItem(DRAFT_KEY);
-      } catch {}
-    }
+    if (clearDraft) cleanupLegacyEventStorage();
     setMessage(
       clearDraft
-        ? "Editor pulito e bozza locale cancellata."
+        ? "Editor pulito. La PWA non conserva bozze/eventi locali."
         : "Editor pronto per nuovo evento.",
     );
   }
@@ -1141,10 +928,10 @@ export default function EventsPage() {
 
       const effectiveClanId = isUuid(auth.clanId) ? auth.clanId : null;
       const remoteEditingId = isUuid(editingEventId) ? editingEventId : null;
-      const localEventId =
-        editingEventId && !isUuid(editingEventId)
-          ? editingEventId
-          : remoteEditingId || `local-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+      if (editingEventId && !isUuid(editingEventId)) {
+        setMessage("Questo evento era locale da una vecchia PWA e non può essere aggiornato. Cancella cache PWA e ricrealo nel database.");
+        return;
+      }
       const createdBy = isUuid(auth.user?.id) ? auth.user?.id : null;
 
       const basePayload: Record<string, any> = {
@@ -1167,20 +954,10 @@ export default function EventsPage() {
       };
       const payloadWithPlan = { ...basePayload, event_plan: effectivePlan };
 
-      const optimisticEvent = buildLocalEventFromPayload({
-        ...payloadWithPlan,
-        id: localEventId,
-        local_id: localEventId,
-        clan_id: effectiveClanId || null,
-        sync_status: "pending",
-        sync_error: null,
-      });
-
-      persistEventInPwa(optimisticEvent, [localEventId]);
       setMessage(
         editingEventId
-          ? "Evento aggiornato nella PWA. Conferma server Supabase in corso..."
-          : "Evento creato nella PWA. Conferma server Supabase in corso...",
+          ? "Invio aggiornamento evento al database Supabase..."
+          : "Invio nuovo evento al database Supabase...",
       );
 
       let eventId: string | null = remoteEditingId;
@@ -1202,7 +979,7 @@ export default function EventsPage() {
       ];
 
       if (!isSupabaseConfigured) {
-        error = new Error("Supabase non configurato: evento salvato solo nella PWA locale e non visibile agli altri utenti.");
+        error = new Error("Supabase non configurato: evento non salvato. Da V7.6 gli eventi esistono solo nel database.");
       } else {
         try {
           const { data: sessionData } = await supabase.auth.getSession();
@@ -1224,7 +1001,6 @@ export default function EventsPage() {
             },
             body: JSON.stringify({
               id: remoteEditingId,
-              local_id: localEventId,
               clan_id: effectiveClanId,
               mode: remoteEditingId ? "updated" : "created",
               event: payloadWithPlan,
@@ -1245,20 +1021,10 @@ export default function EventsPage() {
       }
 
       if (error) {
-        const localEvent = buildLocalEventFromPayload({
-          ...payloadWithPlan,
-          id: localEventId,
-          local_id: localEventId,
-          clan_id: effectiveClanId || null,
-          sync_status: "error",
-          sync_error: error instanceof Error ? error.message : String(error),
-        });
-        persistEventInPwa(localEvent, [localEventId]);
-        await saveEventNotification(localEvent, "sync-error");
+        setEvents((current) => current.filter((event) => isUuid(event.id)));
         setMessage(
-          `Evento salvato e mantenuto nella PWA, ma NON ancora condiviso con altri utenti: ${error instanceof Error ? error.message : String(error)}`,
+          `Evento NON salvato: il database Supabase non ha confermato. ${error instanceof Error ? error.message : String(error)}`,
         );
-        setEditingEventId(null);
         return;
       }
 
@@ -1267,26 +1033,13 @@ export default function EventsPage() {
           ...payloadWithPlan,
           ...(savedRemoteRow || {}),
           id: eventId,
-          local_id: localEventId,
           clan_id: savedClanId,
           created_at: savedRemoteRow?.created_at || new Date().toISOString(),
           sync_status: "synced",
           sync_error: null,
         });
-        persistEventInPwa(savedEvent, [localEventId, eventId]);
-        setEventPlayers((current) => {
-          const kept = current.filter((row) => row.event_id !== savedEvent.id && row.event_id !== localEventId);
-          const nextRows = serverPlayers.map((player) => ({
-            event_id: savedEvent.id,
-            player_id: player.player_id,
-            nickname: player.nickname,
-            status: player.status,
-          }));
-          return [...kept, ...nextRows];
-        });
         await saveEventNotification(savedEvent, editingEventId ? "updated" : "created");
-        if (typeof window !== "undefined") window.dispatchEvent(new CustomEvent("codm-server-notifications-changed"));
-        void loadEvents();
+        await loadEvents();
       }
 
       setMessage(
@@ -1306,23 +1059,14 @@ export default function EventsPage() {
   async function deleteEvent(id: string) {
     if (!canWrite)
       return setMessage("Solo staff/coach/owner possono cancellare eventi.");
-    const eventToDelete = events.find((event) => event.id === id || event.local_id === id);
-    if (!confirm(`Cancellare definitivamente evento${eventToDelete?.title ? ` "${eventToDelete.title}"` : ""} e convocazioni?`)) return;
-
-    const idsToRemove = [id, eventToDelete?.id, eventToDelete?.local_id].filter(Boolean).map(String);
-    rememberDeletedEvent(idsToRemove);
-    saveLocalEvents(getLocalEvents().filter((event) => !idsToRemove.includes(String(event.id)) && !(event.local_id && idsToRemove.includes(String(event.local_id)))));
-    setEvents((current) => {
-      const next = sortEvents(current.filter((event) => !idsToRemove.includes(String(event.id)) && !(event.local_id && idsToRemove.includes(String(event.local_id)))));
-      saveEventsCache(next);
-      return next;
-    });
-    setEventPlayers((current) => current.filter((row) => !idsToRemove.includes(String(row.event_id))));
-
+    const eventToDelete = events.find((event) => event.id === id);
     if (!isUuid(id)) {
-      setMessage("Evento locale cancellato e bloccato dalla cache PWA.");
+      setMessage("Questo ID non è nel database. Ho pulito i vecchi dati locali PWA: aggiorna la pagina.");
+      cleanupLegacyEventStorage();
+      await loadEvents();
       return;
     }
+    if (!confirm(`Cancellare definitivamente evento${eventToDelete?.title ? ` "${eventToDelete.title}"` : ""} dal database Supabase?`)) return;
 
     try {
       const token = await readSessionToken();
@@ -1333,16 +1077,19 @@ export default function EventsPage() {
         headers: {
           "Content-Type": "application/json",
           Authorization: `Bearer ${token}`,
+          "Cache-Control": "no-store, max-age=0",
+          Pragma: "no-cache",
         },
         body: JSON.stringify({ id }),
       });
       const json = await response.json().catch(() => null);
       if (!response.ok || !json?.ok) throw new Error(json?.error || "Supabase/API non ha confermato la cancellazione.");
-      setMessage("Evento cancellato da Supabase e dalla PWA. Non deve più riapparire.");
+      setMessage("Evento cancellato definitivamente dal database Supabase.");
       window.dispatchEvent(new CustomEvent("codm-server-notifications-changed"));
-      window.setTimeout(() => void loadEvents(), 250);
+      await loadEvents();
     } catch (error) {
-      setMessage(error instanceof Error ? `Evento nascosto nella PWA, ma cancellazione cloud non confermata: ${error.message}` : "Evento nascosto nella PWA, ma cancellazione cloud non confermata.");
+      setMessage(error instanceof Error ? `Evento NON cancellato: ${error.message}` : "Evento NON cancellato.");
+      await loadEvents();
     }
   }
 
@@ -1517,8 +1264,7 @@ export default function EventsPage() {
                     : "Nuovo evento / Editor partite"}
                 </h2>
                 <p className="muted">
-                  I campi risultato sono aggiornati dall’import partita. La
-                  bozza resta salvata anche se cambi tab Chrome.
+                  V7.6 database unico: eventi letti e salvati solo su Supabase. Nessun evento o bozza resta nella PWA.
                 </p>
               </div>
               <div className="editor-actions-row">
@@ -1944,9 +1690,9 @@ function dedupeEvents(rows: CodmEvent[]) {
 }
 function buildLocalEventFromPayload(payload: Record<string, any>): CodmEvent {
   return {
-    id: payload.id || `local-${Date.now()}`,
+    id: payload.id || "",
     clan_id: isUuid(payload.clan_id) ? payload.clan_id : "",
-    local_id: payload.local_id || null,
+    local_id: null,
     sync_status: payload.sync_status || null,
     sync_error: payload.sync_error || null,
     title: payload.title || "Evento CODM",

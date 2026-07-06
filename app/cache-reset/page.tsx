@@ -4,11 +4,11 @@ import { useState } from 'react';
 import { calibrationStorageKeysToPreserve } from '@/lib/calibration';
 
 export default function CacheResetPage() {
-  const [status, setStatus] = useState('Pronto per pulire cache/PWA senza cancellare i template OCR salvati.');
+  const [status, setStatus] = useState('Pronto per pulire cache/PWA. Gli eventi non vengono più conservati localmente: restano solo quelli nel database Supabase.');
 
   async function resetCache() {
     try {
-      setStatus('Pulizia cache in corso. Salvo temporaneamente template OCR e profilo telefono...');
+      setStatus('Pulizia cache in corso. Salvo temporaneamente i template OCR; eventi/cache eventi locali vengono eliminati definitivamente...');
 
       const preservedEntries: Array<[string, string]> = [];
       try {
@@ -38,7 +38,7 @@ export default function CacheResetPage() {
         // ignore storage errors
       }
 
-      setStatus(`Cache pulita. Template OCR preservati: ${preservedEntries.length}. Reindirizzo alla dashboard aggiornata...`);
+      setStatus(`Cache pulita. Template OCR preservati: ${preservedEntries.length}. Eventi locali rimossi: ora la PWA usa solo Supabase. Reindirizzo alla dashboard aggiornata...`);
       window.setTimeout(() => {
         window.location.href = `/dashboard?fresh=${Date.now()}`;
       }, 900);
@@ -53,14 +53,14 @@ export default function CacheResetPage() {
         <p style={{ color: '#22d3ee', fontWeight: 800, letterSpacing: 1, marginBottom: 8 }}>AK47DX CACHE RESET SICURO</p>
         <h1 style={{ fontSize: 32, lineHeight: 1.1, margin: '0 0 16px' }}>Pulisci versione vecchia senza perdere calibrazione</h1>
         <p style={{ color: '#cbd5e1' }}>
-          Usa questo pulsante se telefono o PWA continua a mostrare una versione vecchia. Da V5.2 i template OCR salvati restano conservati e viene usato anche il template canonico più recente.
+          Usa questo pulsante se telefono o PWA continua a mostrare eventi vecchi o una versione precedente. Da V7.6 gli eventi locali vengono cancellati e la PWA legge solo Supabase; i template OCR salvati restano conservati.
         </p>
         <button
           type="button"
           onClick={resetCache}
           style={{ marginTop: 12, padding: '14px 18px', borderRadius: 12, border: 0, background: '#0891b2', color: 'white', fontWeight: 900, cursor: 'pointer' }}
         >
-          Pulisci cache e conserva template OCR
+          Pulisci cache, elimina eventi locali e conserva template OCR
         </button>
         <pre style={{ marginTop: 18, padding: 14, borderRadius: 12, background: 'rgba(0,0,0,0.32)', color: '#86efac', whiteSpace: 'pre-wrap' }}>{status}</pre>
       </section>

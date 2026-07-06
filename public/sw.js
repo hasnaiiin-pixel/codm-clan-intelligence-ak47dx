@@ -1,4 +1,4 @@
-const CODM_CACHE = 'codm-ak47dx-pwa-v7-5-deep-events-delete-opponent-sync';
+const CODM_CACHE = 'codm-ak47dx-pwa-v7-6-database-only-events';
 const CODM_OFFLINE_URL = '/offline.html';
 const CORE_ASSETS = [CODM_OFFLINE_URL, '/manifest.webmanifest', '/icons/icon-192.png', '/icons/icon-512.png', '/icons/icon-maskable-512.png'];
 
@@ -75,9 +75,9 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
-  // Pagine e chunk Next.js: network-first per evitare differenze desktop/PWA dopo deploy.
+  // Pagine e chunk Next.js: network-only. Evita codice vecchio nella PWA installata.
   if (request.mode === 'navigate' || url.pathname.startsWith('/_next/')) {
-    event.respondWith(networkFirst(request, CODM_OFFLINE_URL));
+    event.respondWith(fetch(request, { cache: 'no-store' }).catch(() => caches.match(CODM_OFFLINE_URL)));
     return;
   }
 

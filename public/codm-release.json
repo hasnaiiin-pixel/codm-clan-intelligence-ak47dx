@@ -1,8 +1,8 @@
 {
-  "version": "V7.5_DEEP_EVENTS_DELETE_OPPONENT_SYNC_FINAL",
-  "marker": "V7_5_DEEP_EVENTS_DELETE_OPPONENT_SYNC_OK",
+  "version": "V7.6_DATABASE_ONLY_EVENTS_FINAL",
+  "marker": "V7_6_DATABASE_ONLY_EVENTS_OK",
   "backend_ocr": "2.0.10-v5-4-fastlane-import-stabile-ak47dx",
-  "notes": "Revisione totale eventi PWA: list/save/delete via API server no-store, cancellazione definitiva con tombstone locale, cache PWA anti-riapparizione, nome avversario letto dal form al submit e titolo sincronizzato.",
-  "build": "CODM_AK47DX_V7_5_DEEP_EVENTS_DELETE_OPPONENT_SYNC_FINAL",
+  "notes": "Reset architetturale eventi: database unico Supabase via API server. La PWA non legge, non salva e non conserva eventi/bozze locali. Cache eventi legacy cancellata automaticamente.",
+  "build": "CODM_AK47DX_V7_6_DATABASE_ONLY_EVENTS_FINAL_BUILD",
   "date": "2026-07-06"
 }

@@ -46,12 +46,6 @@ function sanitizeReminderMinutes(value: unknown) {
   return Array.from(new Set(nums.length ? nums : [120, 60, 30, 10])).sort((a, b) => b - a);
 }
 
-function safeLocalId(value: unknown) {
-  const text = cleanText(value, '');
-  if (text) return text.slice(0, 160);
-  return `local-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
-}
-
 function supabaseUrl() {
   return process.env.NEXT_PUBLIC_SUPABASE_URL || '';
 }
@@ -184,7 +178,6 @@ function buildEventPayload(body: EventSaveBody, clanId: string, userId: string) 
   const endsAt = normalizeIso(event.ends_at);
   return {
     clan_id: clanId,
-    local_id: safeLocalId(body.local_id || event.local_id),
     title: cleanText(event.title, 'Evento CODM'),
     description: cleanText(event.description, '') || null,
     location: cleanText(event.location, '') || null,
@@ -303,31 +296,13 @@ export async function POST(request: NextRequest) {
       if (error) throw error;
       savedEvent = data;
     } else {
-      const { data: existingByLocalId, error: lookupError } = await db
+      const { data, error } = await db
         .from('codm_events')
-        .select('id')
-        .eq('local_id', payload.local_id)
-        .maybeSingle();
-      if (lookupError) throw lookupError;
-
-      if (existingByLocalId?.id) {
-        const { data, error } = await db
-          .from('codm_events')
-          .update(payload)
-          .eq('id', existingByLocalId.id)
-          .select('*')
-          .single();
-        if (error) throw error;
-        savedEvent = data;
-      } else {
-        const { data, error } = await db
-          .from('codm_events')
-          .insert(payload)
-          .select('*')
-          .single();
-        if (error) throw error;
-        savedEvent = data;
-      }
+        .insert(payload)
+        .select('*')
+        .single();
+      if (error) throw error;
+      savedEvent = data;
     }
 
     if (!savedEvent?.id) throw new Error('Evento non salvato su Supabase.');

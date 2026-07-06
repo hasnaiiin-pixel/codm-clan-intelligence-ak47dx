@@ -23,6 +23,26 @@ function canUseNotifications() {
   return typeof window !== 'undefined' && 'Notification' in window;
 }
 
+function clearLegacyEventStorage() {
+  if (typeof window === 'undefined') return;
+  const keys = [
+    'clan_manager_event_editor_draft_v7_0',
+    'clan_manager_events_cache_v7_0',
+    'clan_manager_events_cache_v6_7',
+    'codm_local_events_v7_0',
+    'codm_deleted_events_v7_5',
+    'codm_events_form_version',
+    'codm_pwa_events',
+    'codm_events_draft',
+    'codm-events-cache',
+    'events_cache',
+  ];
+  for (const key of keys) {
+    try { window.localStorage.removeItem(key); } catch {}
+    try { window.sessionStorage.removeItem(key); } catch {}
+  }
+}
+
 export function PwaInstaller() {
   const { count } = useLocalNotificationBadge();
   const [installEvent, setInstallEvent] = useState<BeforeInstallPromptEvent | null>(null);
@@ -34,6 +54,7 @@ export function PwaInstaller() {
   const isIOS = useMemo(() => isiOSDevice(), []);
 
   useEffect(() => {
+    clearLegacyEventStorage();
     setStandalone(isStandaloneMode());
     if (canUseNotifications()) setNotificationState(Notification.permission as 'default' | 'granted' | 'denied');
     else setNotificationState('unsupported');

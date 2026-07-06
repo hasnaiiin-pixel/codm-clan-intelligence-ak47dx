@@ -1,0 +1,6 @@
+CODM AK47DX V7.6 DATABASE ONLY EVENTS FINAL
+- Eventi con database unico Supabase.
+- PWA non legge più localStorage per eventi.
+- PWA non salva più eventi/pending/tombstone/cache locali.
+- Create/update/delete passano solo da /api/events/*.
+- Eventi locali legacy eliminati automaticamente all'avvio PWA.

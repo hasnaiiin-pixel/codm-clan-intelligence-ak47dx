@@ -2,20 +2,19 @@
 <html lang="it">
 <head>
   <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-  <meta name="theme-color" content="#080B12" />
-  <title>CODM Clan Intelligence - Offline</title>
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>CODM offline</title>
   <style>
-    body{margin:0;min-height:100vh;display:grid;place-items:center;background:#080b12;color:#f7fafc;font-family:system-ui,-apple-system,Segoe UI,sans-serif;padding:24px;text-align:center}
-    .card{max-width:420px;border:1px solid rgba(255,255,255,.12);border-radius:26px;background:linear-gradient(180deg,rgba(20,28,48,.94),rgba(10,14,24,.98));padding:28px;box-shadow:0 24px 80px rgba(0,0,0,.38)}
-    h1{font-size:24px;margin:0 0 10px}p{color:#aab4c8;line-height:1.5}.badge{display:inline-flex;margin-bottom:16px;padding:8px 12px;border-radius:999px;background:rgba(255,48,79,.14);color:#ff6b80;font-weight:800}
+    body{margin:0;background:#06070d;color:#f8fafc;font-family:Arial,sans-serif;display:grid;place-items:center;min-height:100vh;padding:24px}
+    main{max-width:620px;border:1px solid rgba(255,255,255,.16);border-radius:22px;padding:24px;background:linear-gradient(135deg,rgba(8,145,178,.18),rgba(15,23,42,.96))}
+    h1{margin:0 0 12px;font-size:30px} p{color:#cbd5e1;line-height:1.5} a{color:#67e8f9;font-weight:800}
   </style>
 </head>
 <body>
-  <main class="card">
-    <div class="badge">CODM PWA</div>
-    <h1>Sei offline</h1>
-    <p>L'app resta installata sul telefono. Gli eventi salvati localmente verranno sincronizzati quando torna la connessione.</p>
+  <main>
+    <h1>CODM è offline</h1>
+    <p>Da V7.6 gli eventi non vengono mai salvati localmente nella PWA. Per vedere, creare, modificare o cancellare eventi serve connessione al database Supabase.</p>
+    <p>Quando torna internet, riapri <a href="/events">Eventi</a> o usa <a href="/cache-reset">Reset cache</a> se la PWA mostra una versione vecchia.</p>
   </main>
 </body>
 </html>
