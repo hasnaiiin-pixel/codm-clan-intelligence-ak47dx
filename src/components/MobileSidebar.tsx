@@ -2,8 +2,9 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { roleLabel, useCodmAuth } from '@/lib/authRoles';
+import { supabase, isSupabaseConfigured } from '@/lib/supabaseClient';
 import { useLocalNotificationBadge } from '@/lib/clientNotifications';
 
 type NavAudience = 'public' | 'player' | 'write' | 'owner' | 'system';
@@ -36,9 +37,37 @@ export function MobileSidebar() {
   const pathname = usePathname();
   const auth = useCodmAuth();
   const [open, setOpen] = useState(false);
-  const { count: notificationCount } = useLocalNotificationBadge();
+  const { count: localNotificationCount } = useLocalNotificationBadge();
+  const [serverNotificationCount, setServerNotificationCount] = useState(0);
+  const notificationCount = localNotificationCount + serverNotificationCount;
+
+  const refreshServerNotificationCount = useCallback(async () => {
+    if (!auth.user?.id || !isSupabaseConfigured) {
+      setServerNotificationCount(0);
+      return;
+    }
+    const { count, error } = await supabase
+      .from('codm_notifications')
+      .select('id', { count: 'exact', head: true })
+      .eq('user_id', auth.user.id)
+      .is('read_at', null);
+    if (!error) setServerNotificationCount(count || 0);
+  }, [auth.user?.id]);
 
   useEffect(() => { setOpen(false); }, [pathname]);
+  useEffect(() => {
+    void refreshServerNotificationCount();
+    const onRefresh = () => void refreshServerNotificationCount();
+    const onFocus = () => void refreshServerNotificationCount();
+    window.addEventListener('codm-server-notifications-changed', onRefresh);
+    window.addEventListener('focus', onFocus);
+    const timer = window.setInterval(onRefresh, 60000);
+    return () => {
+      window.removeEventListener('codm-server-notifications-changed', onRefresh);
+      window.removeEventListener('focus', onFocus);
+      window.clearInterval(timer);
+    };
+  }, [refreshServerNotificationCount]);
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => { if (event.key === 'Escape') setOpen(false); };
     window.addEventListener('keydown', onKeyDown);

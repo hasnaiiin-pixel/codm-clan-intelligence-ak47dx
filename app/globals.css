@@ -1905,3 +1905,46 @@ main.container.wide > section.card {
     bottom: calc(env(safe-area-inset-bottom) + 88px) !important;
   }
 }
+
+/* CODM AK47DX V7.3 - eventi condivisi, notifiche in alto, impostazioni in basso */
+.ak-notifications-v7-3 {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 16px;
+}
+.ak-notifications-received-card {
+  order: 1;
+  border-color: rgba(34,211,238,.28) !important;
+}
+.ak-notifications-preferences-card {
+  order: 2;
+}
+.event-notification-settings-block {
+  border: 1px solid rgba(34,211,238,.18);
+  border-radius: 20px;
+  padding: 16px;
+  background: linear-gradient(135deg, rgba(15,23,42,.66), rgba(2,6,23,.52));
+}
+.event-notification-settings-block h3 {
+  margin: 0 0 4px;
+  color: #e0f2fe;
+}
+@media (max-width: 900px) {
+  .toast,
+  .notification-toast,
+  .codm-toast,
+  [role="status"].toast,
+  [role="alert"].toast {
+    top: calc(env(safe-area-inset-top) + 12px) !important;
+    bottom: auto !important;
+    left: 10px !important;
+    right: 10px !important;
+    z-index: 1300 !important;
+  }
+  .ak-notification-list {
+    max-height: none;
+  }
+  .ak-notifications-preferences-card {
+    margin-top: 4px;
+  }
+}

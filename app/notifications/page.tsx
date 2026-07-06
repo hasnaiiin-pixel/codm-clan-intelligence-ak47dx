@@ -107,6 +107,7 @@ export default function NotificationsPage() {
         .limit(100);
       if (error) throw error;
       setNotifications((rows || []) as NotificationRow[]);
+      if (typeof window !== "undefined") window.dispatchEvent(new CustomEvent("codm-server-notifications-changed"));
     } catch (error) {
       setMessage(
         error instanceof Error
@@ -139,6 +140,7 @@ export default function NotificationsPage() {
       .update({ read_at: new Date().toISOString() })
       .eq("id", notificationId);
     if (error) setMessage(error.message);
+    if (typeof window !== "undefined") window.dispatchEvent(new CustomEvent("codm-server-notifications-changed"));
     await load();
   }
 
@@ -157,6 +159,7 @@ export default function NotificationsPage() {
     setMessage(
       error ? error.message : "Tutte le notifiche segnate come lette.",
     );
+    if (typeof window !== "undefined") window.dispatchEvent(new CustomEvent("codm-server-notifications-changed"));
     await load();
   }
 
@@ -224,8 +227,104 @@ export default function NotificationsPage() {
         {message && <div className="notice top-gap">{message}</div>}
       </section>
 
-      <section className="grid grid-2 top-gap">
-        <div className="card">
+      <section className="top-gap ak-notifications-main-grid ak-notifications-v7-3">
+        <div className="card ak-notifications-received-card">
+          <div className="section-title">
+            <h2>Notifiche ricevute</h2>
+            <button
+              className="btn small secondary"
+              type="button"
+              onClick={() => void markAllRead()}
+            >
+              Segna tutte lette
+            </button>
+          </div>
+          <p className="muted">
+            Non lette: {unread} • server {unreadServer} • badge locale{" "}
+            {unreadLocal}
+          </p>
+          <div className="notice top-gap">
+            <b>Badge icona PWA:</b> {localStatus}. Il numero sull’icona usa le
+            notifiche locali già disponibili nella PWA; le push server complete
+            richiedono dominio HTTPS e configurazione push dedicata.
+          </div>
+          <div className="auth-block-actions top-gap">
+            {permission === "default" && (
+              <button
+                className="btn small"
+                type="button"
+                onClick={() => void enableBrowserNotifications()}
+              >
+                Attiva notifiche telefono
+              </button>
+            )}
+            <button
+              className="btn small secondary"
+              type="button"
+              onClick={clearLocal}
+            >
+              Pulisci badge locale
+            </button>
+          </div>
+          {loading && <p className="muted top-gap">Caricamento...</p>}
+          <div className="ak-notification-list top-gap">
+            {!loading &&
+              notifications.length === 0 &&
+              localNotifications.length === 0 && (
+                <div className="notice">Nessuna notifica ancora.</div>
+              )}
+            {localNotifications.map((row) => (
+              <article
+                key={row.id}
+                className={`ak-notification-card ${row.readAt ? "" : "unread"}`}
+              >
+                <div>
+                  <span className="pill">PWA · {row.type}</span>
+                  <h3>{row.title}</h3>
+                  <p>{row.body || "-"}</p>
+                  <small>
+                    {new Date(row.createdAt).toLocaleString("it-IT")}
+                  </small>
+                </div>
+                {!row.readAt && (
+                  <button
+                    className="btn small secondary"
+                    type="button"
+                    onClick={() => markLocalRead(row.id)}
+                  >
+                    Letta
+                  </button>
+                )}
+              </article>
+            ))}
+            {notifications.map((row) => (
+              <article
+                key={row.id}
+                className={`ak-notification-card ${row.read_at ? "" : "unread"}`}
+              >
+                <div>
+                  <span className="pill">Server · {row.type}</span>
+                  <h3>{row.title}</h3>
+                  <p>{row.body || "-"}</p>
+                  <small>
+                    {new Date(row.created_at).toLocaleString("it-IT")}
+                  </small>
+                </div>
+                {!row.read_at && (
+                  <button
+                    className="btn small secondary"
+                    type="button"
+                    onClick={() => void markRead(row.id)}
+                  >
+                    Letta
+                  </button>
+                )}
+              </article>
+            ))}
+          </div>
+        </div>
+
+        <div className="card ak-notifications-preferences-card">
           <h2>Preferenze utente</h2>
           <div className="form top-gap">
             <label className="check-line ak-check-card">
@@ -323,101 +422,6 @@ export default function NotificationsPage() {
           </div>
         </div>
 
-        <div className="card">
-          <div className="section-title">
-            <h2>Notifiche ricevute</h2>
-            <button
-              className="btn small secondary"
-              type="button"
-              onClick={() => void markAllRead()}
-            >
-              Segna tutte lette
-            </button>
-          </div>
-          <p className="muted">
-            Non lette: {unread} • server {unreadServer} • badge locale{" "}
-            {unreadLocal}
-          </p>
-          <div className="notice top-gap">
-            <b>Badge icona PWA:</b> {localStatus}. Il numero sull’icona usa le
-            notifiche locali già disponibili nella PWA; le push server complete
-            richiedono dominio HTTPS e configurazione push dedicata.
-          </div>
-          <div className="auth-block-actions top-gap">
-            {permission === "default" && (
-              <button
-                className="btn small"
-                type="button"
-                onClick={() => void enableBrowserNotifications()}
-              >
-                Attiva notifiche telefono
-              </button>
-            )}
-            <button
-              className="btn small secondary"
-              type="button"
-              onClick={clearLocal}
-            >
-              Pulisci badge locale
-            </button>
-          </div>
-          {loading && <p className="muted top-gap">Caricamento...</p>}
-          <div className="ak-notification-list top-gap">
-            {!loading &&
-              notifications.length === 0 &&
-              localNotifications.length === 0 && (
-                <div className="notice">Nessuna notifica ancora.</div>
-              )}
-            {localNotifications.map((row) => (
-              <article
-                key={row.id}
-                className={`ak-notification-card ${row.readAt ? "" : "unread"}`}
-              >
-                <div>
-                  <span className="pill">PWA · {row.type}</span>
-                  <h3>{row.title}</h3>
-                  <p>{row.body || "-"}</p>
-                  <small>
-                    {new Date(row.createdAt).toLocaleString("it-IT")}
-                  </small>
-                </div>
-                {!row.readAt && (
-                  <button
-                    className="btn small secondary"
-                    type="button"
-                    onClick={() => markLocalRead(row.id)}
-                  >
-                    Letta
-                  </button>
-                )}
-              </article>
-            ))}
-            {notifications.map((row) => (
-              <article
-                key={row.id}
-                className={`ak-notification-card ${row.read_at ? "" : "unread"}`}
-              >
-                <div>
-                  <span className="pill">Server · {row.type}</span>
-                  <h3>{row.title}</h3>
-                  <p>{row.body || "-"}</p>
-                  <small>
-                    {new Date(row.created_at).toLocaleString("it-IT")}
-                  </small>
-                </div>
-                {!row.read_at && (
-                  <button
-                    className="btn small secondary"
-                    type="button"
-                    onClick={() => void markRead(row.id)}
-                  >
-                    Letta
-                  </button>
-                )}
-              </article>
-            ))}
-          </div>
-        </div>
       </section>
     </main>
   );

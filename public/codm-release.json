@@ -1,6 +1,8 @@
 {
-  "version": "CODM_AK47DX_V7_0_FULL_PWA_MOBILE_NOTIFICATIONS",
-  "marker": "V7_0_FULL_PWA_MOBILE_NOTIFICATIONS_OK",
+  "version": "V7.3_EVENTS_CLOUD_NOTIFICATIONS_ICON_FINAL",
+  "marker": "V7_2_EVENTS_SERVER_SYNC_NOTIFICATIONS_OK",
   "backend_ocr": "2.0.10-v5-4-fastlane-import-stabile-ak47dx",
-  "notes": "PWA completa: service worker registrato, offline page, install prompt iOS/Android, badge notifiche, bottom nav mobile, fix crea evento telefono con fallback locale."
+  "notes": "Eventi condivisi Supabase via API server, notifiche in alto, preferenze in basso, icona PWA MIRZA ritagliata e ingrandita.",
+  "build": "CODM_AK47DX_V7_3_EVENTS_CLOUD_NOTIFICATIONS_ICON_FINAL",
+  "date": "2026-07-06"
 }

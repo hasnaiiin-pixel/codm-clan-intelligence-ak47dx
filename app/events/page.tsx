@@ -43,6 +43,9 @@ type MatchPlan = {
 type CodmEvent = {
   id: string;
   clan_id: string;
+  local_id?: string | null;
+  sync_status?: 'pending' | 'synced' | 'error' | null;
+  sync_error?: string | null;
   title: string;
   description: string | null;
   starts_at: string;
@@ -90,6 +93,7 @@ const OLD_PLAN_MARKERS = [
   "AK_EVENT_PLAN_V6_2::",
 ];
 const DRAFT_KEY = "clan_manager_event_editor_draft_v7_0";
+const EVENTS_CACHE_KEY = "clan_manager_events_cache_v7_0";
 const LOCAL_EVENTS_KEY = "codm_local_events_v7_0";
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{12}$/i;
 function isUuid(value: unknown): value is string {
@@ -541,7 +545,7 @@ export default function EventsPage() {
   useEffect(() => {
     try {
       const cachedEvents =
-        localStorage.getItem("clan_manager_events_cache_v7_0") ||
+        localStorage.getItem(EVENTS_CACHE_KEY) ||
         localStorage.getItem("clan_manager_events_cache_v6_7");
       const localEvents = localStorage.getItem(LOCAL_EVENTS_KEY);
       const mergedCached = [
@@ -639,7 +643,7 @@ export default function EventsPage() {
     try {
       if (events.length)
         localStorage.setItem(
-          "clan_manager_events_cache_v7_0",
+          EVENTS_CACHE_KEY,
           JSON.stringify(events),
         );
     } catch {}
@@ -655,24 +659,68 @@ export default function EventsPage() {
     }
   }
   function saveLocalEvents(rows: CodmEvent[]) {
+    const normalized = sortEvents(rows).slice(0, 150);
     try {
-      localStorage.setItem(
-        LOCAL_EVENTS_KEY,
-        JSON.stringify(rows.slice(0, 150)),
-      );
+      localStorage.setItem(LOCAL_EVENTS_KEY, JSON.stringify(normalized));
+      window.dispatchEvent(new CustomEvent("codm-events-changed"));
+    } catch {}
+  }
+  function saveEventsCache(rows: CodmEvent[]) {
+    try {
+      localStorage.setItem(EVENTS_CACHE_KEY, JSON.stringify(sortEvents(rows).slice(0, 300)));
     } catch {}
   }
   function mergeWithLocalEvents(remoteRows: CodmEvent[]) {
     return sortEvents([...getLocalEvents(), ...remoteRows]);
   }
-  function showEventImmediately(row: CodmEvent) {
-    setEvents((current) => sortEvents([...current, row]));
+  function persistEventInPwa(row: CodmEvent, replaceIds: string[] = []) {
+    const idsToReplace = new Set([row.id, row.local_id, ...replaceIds].filter(Boolean).map(String));
+    const merge = (current: CodmEvent[]) => {
+      const kept = current.filter((event) => !idsToReplace.has(String(event.id)) && !(event.local_id && idsToReplace.has(String(event.local_id))));
+      return sortEvents([row, ...kept]);
+    };
+    const nextLocal = merge(getLocalEvents());
+    saveLocalEvents(nextLocal);
+    setEvents((current) => {
+      const next = merge(current);
+      saveEventsCache(next);
+      return next;
+    });
+  }
+  async function saveEventNotification(event: CodmEvent, mode: "created" | "updated" | "sync-error") {
+    const titleText =
+      mode === "sync-error"
+        ? "Evento salvato solo in PWA"
+        : mode === "updated"
+          ? "Evento aggiornato"
+          : "Nuovo evento creato";
+    const body = `${event.title} · ${new Date(event.starts_at).toLocaleString("it-IT")}`;
+    pushLocalNotification({
+      id: `event-${mode}-${event.id}`,
+      type: "event",
+      title: titleText,
+      body,
+      href: "/events",
+    });
+    if (!auth.user?.id || !isSupabaseConfigured) return;
     try {
-      localStorage.setItem(
-        "clan_manager_events_cache_v7_0",
-        JSON.stringify(sortEvents([...events, row]).slice(0, 300)),
+      await supabase.from("codm_notifications").upsert(
+        {
+          ...(isUuid(event.clan_id) ? { clan_id: event.clan_id } : {}),
+          user_id: auth.user.id,
+          type: "event",
+          title: titleText,
+          body,
+          metadata: { event_id: event.id, local_id: event.local_id || null, sync_status: event.sync_status || null },
+          dedupe_key: `event-${mode}-${event.id}`,
+          read_at: null,
+          created_at: new Date().toISOString(),
+        },
+        { onConflict: "user_id,dedupe_key" },
       );
-    } catch {}
+    } catch {
+      // La notifica locale è già stata salvata; il server non deve bloccare la creazione evento.
+    }
   }
   async function loadPlayers() {
     try {
@@ -895,29 +943,19 @@ export default function EventsPage() {
         setMessage("Data/ora fine non valida. Controlla il campo Fine.");
         return;
       }
+
       const startIso = startDate.toISOString();
       const endIso = endDate ? endDate.toISOString() : null;
       const convocati = players.filter((p) => selectedPlayers.includes(p.id));
       const reserves = players.filter((p) => reservePlayers.includes(p.id));
       const effectivePlan = normalizePlan(plan);
-      const matchDetailsText = buildMatchDetails(effectivePlan).replace(
-        /<[^>]*>/g,
-        "",
-      );
+      const matchDetailsText = buildMatchDetails(effectivePlan).replace(/<[^>]*>/g, "");
       const convocationsText = [
-        convocati.length
-          ? `Titolari evento:\n${convocati.map((p) => `• ${p.nickname}`).join("\n")}`
-          : "",
-        reserves.length
-          ? `Riserve evento:\n${reserves.map((p) => `• ${p.nickname}`).join("\n")}`
-          : "",
+        convocati.length ? `Titolari evento:\n${convocati.map((p) => `• ${p.nickname}`).join("\n")}` : "",
+        reserves.length ? `Riserve evento:\n${reserves.map((p) => `• ${p.nickname}`).join("\n")}` : "",
         matchDetailsText ? `Dettaglio partite:\n${matchDetailsText}` : "",
-      ]
-        .filter(Boolean)
-        .join("\n\n");
-      const fullDescription = [description, convocationsText]
-        .filter(Boolean)
-        .join("\n\n");
+      ].filter(Boolean).join("\n\n");
+      const fullDescription = [description, convocationsText].filter(Boolean).join("\n\n");
       const googleUrl = buildGoogleCalendarUrl({
         title,
         description: fullDescription,
@@ -925,7 +963,15 @@ export default function EventsPage() {
         startsAt: startIso,
         endsAt: endIso,
       });
+
       const effectiveClanId = isUuid(auth.clanId) ? auth.clanId : null;
+      const remoteEditingId = isUuid(editingEventId) ? editingEventId : null;
+      const localEventId =
+        editingEventId && !isUuid(editingEventId)
+          ? editingEventId
+          : remoteEditingId || `local-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+      const createdBy = isUuid(auth.user?.id) ? auth.user?.id : null;
+
       const basePayload: Record<string, any> = {
         ...(effectiveClanId ? { clan_id: effectiveClanId } : {}),
         title: title.trim(),
@@ -936,166 +982,142 @@ export default function EventsPage() {
         ends_at: endIso,
         telegram_enabled: telegramEnabled,
         reminder_minutes: parseReminderMinutes(),
-        telegram_message_template:
-          telegramTemplate || DEFAULT_TELEGRAM_TEMPLATE,
+        telegram_message_template: telegramTemplate || DEFAULT_TELEGRAM_TEMPLATE,
         event_notes: planNote(effectivePlan, eventNotes),
         google_calendar_url: googleUrl,
         convocations: convocati
           .map((p) => ({ id: p.id, nickname: p.nickname, role: "titolare" }))
-          .concat(
-            reserves.map((p) => ({
-              id: p.id,
-              nickname: p.nickname,
-              role: "riserva",
-            })),
-          ),
+          .concat(reserves.map((p) => ({ id: p.id, nickname: p.nickname, role: "riserva" }))),
         convocations_text: convocationsText || null,
       };
       const payloadWithPlan = { ...basePayload, event_plan: effectivePlan };
-      const remoteEditingId = isUuid(editingEventId) ? editingEventId : null;
+
+      const optimisticEvent = buildLocalEventFromPayload({
+        ...payloadWithPlan,
+        id: localEventId,
+        local_id: localEventId,
+        clan_id: effectiveClanId || null,
+        sync_status: "pending",
+        sync_error: null,
+      });
+
+      persistEventInPwa(optimisticEvent, [localEventId]);
+      setMessage(
+        editingEventId
+          ? "Evento aggiornato nella PWA. Conferma server Supabase in corso..."
+          : "Evento creato nella PWA. Conferma server Supabase in corso...",
+      );
+
       let eventId: string | null = remoteEditingId;
       let error: any = null;
       let savedRemoteRow: any = null;
-      const createdBy = isUuid(auth.user?.id) ? auth.user?.id : null;
+      let savedClanId: string | null = effectiveClanId;
+      let apiWarning: string | null = null;
+      const serverPlayers = [
+        ...convocati.map((p) => ({
+          player_id: isUuid(p.id) ? p.id : null,
+          nickname: p.nickname,
+          status: "titolare",
+        })),
+        ...reserves.map((p) => ({
+          player_id: isUuid(p.id) ? p.id : null,
+          nickname: p.nickname,
+          status: "riserva",
+        })),
+      ];
 
       if (!isSupabaseConfigured) {
-        error = new Error(
-          "Supabase non configurato: evento salvato solo nella PWA locale.",
-        );
-      } else if (!effectiveClanId) {
-        error = new Error(
-          "Clan Supabase non pronto: manca un clan_id UUID valido. Fai login come admin e apri Gestione utenti per sincronizzare il clan, poi riprova.",
-        );
-      } else if (remoteEditingId) {
-        const updatePayload = {
-          ...payloadWithPlan,
-          ...(createdBy ? { created_by: createdBy } : {}),
-        };
-        const update = await supabase
-          .from("codm_events")
-          .update(updatePayload)
-          .eq("id", remoteEditingId)
-          .select("*")
-          .single();
-        error = update.error;
-        savedRemoteRow = update.data;
-        if (error && /event_plan|column/i.test(error.message)) {
-          const retry = await supabase
-            .from("codm_events")
-            .update(basePayload)
-            .eq("id", remoteEditingId)
-            .select("*")
-            .single();
-          error = retry.error;
-          savedRemoteRow = retry.data;
-        }
+        error = new Error("Supabase non configurato: evento salvato solo nella PWA locale e non visibile agli altri utenti.");
       } else {
-        const insertPayload = {
-          ...payloadWithPlan,
-          ...(createdBy ? { created_by: createdBy } : {}),
-        };
-        const insert = await supabase
-          .from("codm_events")
-          .insert(insertPayload)
-          .select("*")
-          .single();
-        error = insert.error;
-        eventId = insert.data?.id || null;
-        savedRemoteRow = insert.data;
-        if (error && /event_plan|column/i.test(error.message)) {
-          const retryPayload = {
-            ...basePayload,
-            ...(createdBy ? { created_by: createdBy } : {}),
-          };
-          const retry = await supabase
-            .from("codm_events")
-            .insert(retryPayload)
-            .select("*")
-            .single();
-          error = retry.error;
-          eventId = retry.data?.id || null;
-          savedRemoteRow = retry.data;
+        try {
+          const { data: sessionData } = await supabase.auth.getSession();
+          const token = sessionData.session?.access_token;
+          if (!token) {
+            throw new Error("Login richiesto: accedi prima di creare eventi condivisi con il clan.");
+          }
+
+          const response = await fetch("/api/events/save", {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              Authorization: `Bearer ${token}`,
+            },
+            body: JSON.stringify({
+              id: remoteEditingId,
+              local_id: localEventId,
+              clan_id: effectiveClanId,
+              mode: remoteEditingId ? "updated" : "created",
+              event: payloadWithPlan,
+              players: serverPlayers,
+            }),
+          });
+          const json = await response.json().catch(() => null);
+          if (!response.ok || !json?.ok) {
+            throw new Error(json?.error || "Supabase/API non ha confermato il salvataggio evento.");
+          }
+          savedRemoteRow = json.event;
+          eventId = savedRemoteRow?.id || null;
+          savedClanId = json.clanId || savedRemoteRow?.clan_id || effectiveClanId || null;
+          apiWarning = json.warning || null;
+        } catch (apiError) {
+          error = apiError;
         }
       }
+
       if (error) {
-        const localId = editingEventId && !isUuid(editingEventId) ? editingEventId : `local-${Date.now()}`;
         const localEvent = buildLocalEventFromPayload({
           ...payloadWithPlan,
-          id: localId,
+          id: localEventId,
+          local_id: localEventId,
           clan_id: effectiveClanId || null,
+          sync_status: "error",
+          sync_error: error instanceof Error ? error.message : String(error),
         });
-        const nextLocal = [
-          localEvent,
-          ...getLocalEvents().filter((event) => event.id !== localEvent.id),
-        ];
-        saveLocalEvents(nextLocal);
-        setEvents((current) => sortEvents([...current.filter((event) => event.id !== localEvent.id), ...nextLocal]));
-        pushLocalNotification({
-          type: "event",
-          title: editingEventId
-            ? "Evento aggiornato in locale"
-            : "Evento creato in locale",
-          body: `${localEvent.title} · ${new Date(localEvent.starts_at).toLocaleString("it-IT")}`,
-          href: "/events",
-        });
+        persistEventInPwa(localEvent, [localEventId]);
+        await saveEventNotification(localEvent, "sync-error");
         setMessage(
-          `Evento salvato in locale/PWA. Supabase non ha confermato il salvataggio: ${error.message}`,
+          `Evento salvato e mantenuto nella PWA, ma NON ancora condiviso con altri utenti: ${error instanceof Error ? error.message : String(error)}`,
         );
         setEditingEventId(null);
         return;
       }
-      if (eventId && isUuid(eventId) && effectiveClanId) {
-        await supabase
-          .from("codm_event_players")
-          .delete()
-          .eq("event_id", eventId);
-        const rows = [
-          ...convocati.map((p) => ({
-            event_id: eventId,
-            clan_id: effectiveClanId,
-            player_id: isUuid(p.id) ? p.id : null,
-            nickname: p.nickname,
-            status: "titolare",
-          })),
-          ...reserves.map((p) => ({
-            event_id: eventId,
-            clan_id: effectiveClanId,
-            player_id: isUuid(p.id) ? p.id : null,
-            nickname: p.nickname,
-            status: "riserva",
-          })),
-        ];
-        if (rows.length) await supabase.from("codm_event_players").insert(rows);
-      }
-      if (eventId) {
+
+      if (eventId && isUuid(eventId)) {
         const savedEvent = buildLocalEventFromPayload({
           ...payloadWithPlan,
           ...(savedRemoteRow || {}),
           id: eventId,
-          clan_id: effectiveClanId,
+          local_id: localEventId,
+          clan_id: savedClanId,
           created_at: savedRemoteRow?.created_at || new Date().toISOString(),
+          sync_status: "synced",
+          sync_error: null,
         });
-        showEventImmediately(savedEvent);
+        persistEventInPwa(savedEvent, [localEventId, eventId]);
+        setEventPlayers((current) => {
+          const kept = current.filter((row) => row.event_id !== savedEvent.id && row.event_id !== localEventId);
+          const nextRows = serverPlayers.map((player) => ({
+            event_id: savedEvent.id,
+            player_id: player.player_id,
+            nickname: player.nickname,
+            status: player.status,
+          }));
+          return [...kept, ...nextRows];
+        });
+        await saveEventNotification(savedEvent, editingEventId ? "updated" : "created");
+        if (typeof window !== "undefined") window.dispatchEvent(new CustomEvent("codm-server-notifications-changed"));
       }
-      pushLocalNotification({
-        type: "event",
-        title: editingEventId ? "Evento aggiornato" : "Nuovo evento creato",
-        body: `${title.trim()} · ${new Date(startIso).toLocaleString("it-IT")}`,
-        href: "/events",
-      });
+
       setMessage(
-        editingEventId
-          ? "Evento aggiornato. Badge notifiche aggiornato."
-          : "Evento creato. Badge notifiche aggiornato e partite pronte in calendario.",
+        apiWarning
+          ? `${editingEventId ? "Evento aggiornato" : "Evento creato"} e scritto su Supabase. ${apiWarning}`
+          : editingEventId
+            ? "Evento aggiornato, scritto su Supabase e visibile agli altri utenti."
+            : "Evento creato, scritto su Supabase e visibile agli altri utenti.",
       );
       setEditingEventId(null);
-      await loadEvents();
     } catch (error) {
-      setMessage(
-        error instanceof Error
-          ? `Errore creazione evento: ${error.message}`
-          : "Errore creazione evento.",
-      );
+      setMessage(error instanceof Error ? `Errore creazione evento: ${error.message}` : "Errore creazione evento.");
     } finally {
       setSavingEvent(false);
     }
@@ -1112,6 +1134,8 @@ export default function EventsPage() {
     }
     const { error } = await supabase.from("codm_events").delete().eq("id", id);
     if (error) return setMessage(error.message);
+    saveLocalEvents(getLocalEvents().filter((event) => event.id !== id && event.local_id !== id));
+    setEvents((current) => sortEvents(current.filter((event) => event.id !== id && event.local_id !== id)));
     setMessage("Evento cancellato.");
     await loadEvents();
   }
@@ -1515,43 +1539,6 @@ export default function EventsPage() {
                 />
               </div>
               <div className="grid grid-2">
-                <div className="field">
-                  <label>Reminder minuti</label>
-                  <input
-                    className="input"
-                    value={reminderMinutes}
-                    onChange={(e) => setReminderMinutes(e.target.value)}
-                  />
-                </div>
-                <label className="check-line ak-check-card">
-                  <input
-                    type="checkbox"
-                    checked={telegramEnabled}
-                    onChange={(e) => setTelegramEnabled(e.target.checked)}
-                  />{" "}
-                  Reminder Telegram attivo
-                </label>
-              </div>
-              <div className="field">
-                <label>Messaggio Telegram</label>
-                <textarea
-                  className="input"
-                  rows={7}
-                  value={telegramTemplate}
-                  onChange={(e) => setTelegramTemplate(e.target.value)}
-                />
-                <small className="muted">
-                  Usa <b>{"{match_details}"}</b> per inviare Partita 1, Partita
-                  2, ecc. con dettagli, orari e convocati.
-                </small>
-              </div>
-              <details className="notice">
-                <summary>Anteprima dettaglio partite Telegram</summary>
-                <pre className="telegram-preview-box">
-                  {telegramPreview || "Nessuna partita compilata."}
-                </pre>
-              </details>
-              <div className="grid grid-2">
                 <PlayerPicker
                   title="Titolari evento"
                   players={players}
@@ -1573,6 +1560,47 @@ export default function EventsPage() {
                   value={eventNotes}
                   onChange={(e) => setEventNotes(e.target.value)}
                 />
+              </div>
+              <div className="event-notification-settings-block top-gap">
+                <h3>🔔 Impostazioni notifiche evento</h3>
+                <p className="muted">Promemoria e messaggio Telegram sono in basso per non bloccare la creazione rapida dell’evento.</p>
+                <div className="grid grid-2">
+                  <div className="field">
+                    <label>Reminder minuti</label>
+                    <input
+                      className="input"
+                      value={reminderMinutes}
+                      onChange={(e) => setReminderMinutes(e.target.value)}
+                    />
+                  </div>
+                  <label className="check-line ak-check-card">
+                    <input
+                      type="checkbox"
+                      checked={telegramEnabled}
+                      onChange={(e) => setTelegramEnabled(e.target.checked)}
+                    />{" "}
+                    Reminder Telegram attivo
+                  </label>
+                </div>
+                <div className="field">
+                  <label>Messaggio Telegram</label>
+                  <textarea
+                    className="input"
+                    rows={7}
+                    value={telegramTemplate}
+                    onChange={(e) => setTelegramTemplate(e.target.value)}
+                  />
+                  <small className="muted">
+                    Usa <b>{"{match_details}"}</b> per inviare Partita 1, Partita
+                    2, ecc. con dettagli, orari e convocati.
+                  </small>
+                </div>
+                <details className="notice">
+                  <summary>Anteprima dettaglio partite Telegram</summary>
+                  <pre className="telegram-preview-box">
+                    {telegramPreview || "Nessuna partita compilata."}
+                  </pre>
+                </details>
               </div>
               <button
                 className="btn event-save-button"
@@ -1694,6 +1722,9 @@ function buildLocalEventFromPayload(payload: Record<string, any>): CodmEvent {
   return {
     id: payload.id || `local-${Date.now()}`,
     clan_id: isUuid(payload.clan_id) ? payload.clan_id : "",
+    local_id: payload.local_id || null,
+    sync_status: payload.sync_status || null,
+    sync_error: payload.sync_error || null,
     title: payload.title || "Evento CODM",
     description: payload.description || null,
     starts_at: payload.starts_at || new Date().toISOString(),
