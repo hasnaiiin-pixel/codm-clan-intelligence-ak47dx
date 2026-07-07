@@ -1,20 +1,19 @@
 {
-  "version": "8.2B_IMPORT_CALIBRATION_LINK_FIX",
-  "marker": "V8_2B_IMPORT_CALIBRATION_LINK_FIX_OK",
+  "version": "8.2C_IMPORT_CLEAN_TEMPLATE_TELEGRAM_DELETE_FIX",
+  "marker": "V8_2C_IMPORT_CLEAN_TEMPLATE_TELEGRAM_DELETE_FIX_OK",
   "appName": "CLAN MANAGER",
   "app": "CLAN MANAGER by MIRZA",
-  "notes": "Fix calibrazione/import con stesso frame immagine senza deformazione; menu telefono/template con lista visibile; rimozione link Google Calendar automatico dagli eventi.",
-  "build": "CLAN_MANAGER_V8_2B_IMPORT_CALIBRATION_LINK_FIX_BUILD",
+  "notes": "Import risultati semplificato: rimossi riquadri Vittoria/Punteggio/Impatto, un solo nome template default/salvato, layout import dentro pagina, link evento solo manuali e messaggio Telegram cancellazione più evidente.",
+  "build": "CLAN_MANAGER_V8_2C_IMPORT_CLEAN_TEMPLATE_TELEGRAM_DELETE_FIX_BUILD",
   "date": "2026-07-07",
-  "status": "V8_2B_IMPORT_CALIBRATION_LINK_FIX_OK",
+  "status": "V8_2C_IMPORT_CLEAN_TEMPLATE_TELEGRAM_DELETE_FIX_OK",
   "routes": [
-    "/api/events/save",
-    "/api/events/delete",
-    "/api/events/update-result",
-    "/api/telegram/reminders",
     "/events",
     "/calibration",
     "/import/match",
+    "/api/events/save",
+    "/api/events/delete",
+    "/api/telegram/reminders",
     "/events-health"
   ]
 }

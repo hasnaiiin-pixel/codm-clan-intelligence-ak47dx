@@ -378,35 +378,55 @@ function ImportMatchEditor() {
   const [linkedRoundIndex, setLinkedRoundIndex] = useState<number | null>(null);
   const linkedRound = linkedEventPlan && linkedRoundIndex !== null ? linkedEventPlan.rounds[linkedRoundIndex] : null;
 
+  function isImportUsefulRegion(region: { name?: string }) {
+    const name = String(region.name || '').toUpperCase();
+    if (!name) return false;
+    if (name === 'SCOREBOARD_RESULT_LABEL' || name === 'SCOREBOARD_RESULT_FULL') return false;
+    if (name.startsWith('SCOREBOARD_SCORE')) return false;
+    if (name.endsWith('_SCORE') || name.endsWith('_IMPACT')) return false;
+    return true;
+  }
+
+  function filterImportRegions(regions: CalibratedRegion[] = []) {
+    return regions.filter(isImportUsefulRegion);
+  }
+
+  const visibleTemplateRegions = useMemo(() => filterImportRegions(localTemplateRegions), [localTemplateRegions]);
+  const visibleBackendBoxes = useMemo(() => (backendBoxes || []).filter(isImportUsefulRegion), [backendBoxes]);
+
   function refreshCalibrationTemplate(phoneRaw?: string, templateRaw?: string) {
-    const phoneInput = phoneRaw || selectedCalibrationPhone || splitCalibrationProfileKey(getBestCalibrationPhoneProfile('scoreboard_ced')).phone;
-    const phoneOptions = listCalibrationPhones('scoreboard_ced');
+    // V8.2C: un solo nome template visibile. Il telefono resta tecnico su default
+    // per evitare doppia gestione telefono+template nell'import.
+    const phoneInput = 'default';
+    const phoneOptions = ['default'];
     const templateOptions = listCalibrationTemplatesForPhone('scoreboard_ced', phoneInput);
     const previousTemplate = selectedCalibrationTemplate || splitCalibrationProfileKey(getBestCalibrationPhoneProfile('scoreboard_ced')).template;
     const templateInput = templateRaw !== undefined
       ? templateRaw
       : (previousTemplate && previousTemplate !== 'default' && templateOptions.includes(previousTemplate) ? previousTemplate : (templateOptions.find((t) => t !== 'default') || 'default'));
     const key = makeCalibrationProfileKey(phoneInput, templateInput);
-    setCalibrationPhoneOptions(Array.from(new Set([...phoneOptions, phoneInput])).sort());
-    setCalibrationTemplateOptions(Array.from(new Set([...templateOptions, templateInput])).sort());
+    setCalibrationPhoneOptions(['default']);
+    setCalibrationTemplateOptions(Array.from(new Set(['default', ...templateOptions, templateInput])).sort());
     setSelectedCalibrationPhone(phoneInput);
     setSelectedCalibrationTemplate(templateInput);
-    setCalibrationProfiles(Array.from(new Set([...phoneOptions, phoneInput])).sort());
+    setCalibrationProfiles(['default']);
     setActivePhoneProfile('scoreboard_ced', key);
     const bundle = loadCalibrationBundle('scoreboard_ced', key);
     const saved = hasSavedCalibration('scoreboard_ced', key);
-    setLocalTemplateRegions(bundle.regions || []);
-    if (!selectedImportRegionName && bundle.regions?.[0]?.name) setSelectedImportRegionName(bundle.regions[0].name);
+    const visibleRegions = filterImportRegions(bundle.regions || []);
+    setLocalTemplateRegions(visibleRegions);
+    if ((!selectedImportRegionName || !visibleRegions.some((r) => r.name === selectedImportRegionName)) && visibleRegions?.[0]?.name) setSelectedImportRegionName(visibleRegions[0].name);
     setTemplateSaved(saved);
-    setTemplateSummary(`${phoneInput} / ${templateInput} · ${bundle.meta?.templateName || 'Scoreboard CED'} · ${bundle.regions?.length || 0} riquadri · ${saved ? 'SALVATO' : 'DEFAULT NON SALVATO'}`);
-    return { phone: key, bundle, saved };
+    setTemplateSummary(`${templateInput || 'default'} · ${visibleRegions.length} riquadri utili · ${saved ? 'SALVATO' : 'DEFAULT'}`);
+    return { phone: key, bundle: { ...bundle, regions: visibleRegions }, saved };
   }
 
   function saveImportTemplateRegions(nextRegions = localTemplateRegions) {
-    const key = makeCalibrationProfileKey(selectedCalibrationPhone, selectedCalibrationTemplate);
-    saveCalibration('scoreboard_ced', nextRegions, key, `Scoreboard ${selectedCalibrationTemplate}`, clanName);
-    refreshCalibrationTemplate(selectedCalibrationPhone, selectedCalibrationTemplate);
-    setMessage(`Template risultati salvato da Import: telefono ${selectedCalibrationPhone}, template ${selectedCalibrationTemplate}.`);
+    const key = makeCalibrationProfileKey('default', selectedCalibrationTemplate || 'default');
+    const cleanRegions = filterImportRegions(nextRegions);
+    saveCalibration('scoreboard_ced', cleanRegions, key, selectedCalibrationTemplate || 'default', clanName);
+    refreshCalibrationTemplate('default', selectedCalibrationTemplate);
+    setMessage(`Template risultati salvato: ${selectedCalibrationTemplate || 'default'}.`);
   }
 
   function updateImportRegion(name: string, patch: Partial<CalibratedRegion>) {
@@ -798,7 +818,7 @@ function ImportMatchEditor() {
         if (!activeTemplate.saved) {
           setMessage(`ATTENZIONE: stai usando il template DEFAULT non salvato (${activeTemplate.phone}). Apri /calibration, salva il template corretto e poi torna qui. Importo comunque per revisione manuale.`);
         }
-        formData.append('calibration_template', JSON.stringify(activeTemplate.bundle));
+        formData.append('calibration_template', JSON.stringify({ ...activeTemplate.bundle, regions: filterImportRegions(activeTemplate.bundle.regions || []) }));
         formData.append('calibration_frame', JSON.stringify(activeFrame));
         formData.append('calibration_mode', 'content_frame');
         formData.append('template_source', activeTemplate.saved ? `saved_canonical_template_v5_4:${activeTemplate.bundle.meta?.phoneProfile || activeTemplate.phone}` : 'default_template_not_saved');
@@ -1072,7 +1092,7 @@ function ImportMatchEditor() {
           <table className="table compact import-table-clean">
             <thead>
               <tr>
-                <th>#</th><th>Medaglia</th><th>Player roster</th><th>Nome giocatore</th><th>Clan appartenenza</th><th>🎯 Score</th><th>🗡️ Kill</th><th>💀 Death</th><th>🤝 Assist</th><th>🏆 MVP</th><th>Stato</th>
+                <th>#</th><th>Medaglia</th><th>Player roster</th><th>Nome giocatore</th><th>Clan appartenenza</th><th>🗡️ Kill</th><th>💀 Death</th><th>🤝 Assist</th><th>🏆 MVP</th><th>Stato</th>
               </tr>
             </thead>
             <tbody>
@@ -1088,7 +1108,6 @@ function ImportMatchEditor() {
                   </td>
                   <td><input className="input nick-input" value={row.nickname} onChange={(e) => updateRow(index, 'nickname', e.target.value)} placeholder="Nome giocatore" /></td>
                   <td><input className="input clan-input" value={row.playerClanName || ''} onChange={(e) => updateRow(index, 'playerClanName', e.target.value)} placeholder={side === 'ALLY' ? clanName : 'Clan avversario'} /></td>
-                  <td><input className="input mini" value={row.score || 0} onChange={(e) => updateRow(index, 'score', e.target.value)} /></td>
                   <td><input className="input mini" value={row.kills} onChange={(e) => updateRow(index, 'kills', e.target.value)} /></td>
                   <td><input className="input mini" value={row.deaths} onChange={(e) => updateRow(index, 'deaths', e.target.value)} /></td>
                   <td><input className="input mini" value={row.assists} onChange={(e) => updateRow(index, 'assists', e.target.value)} /></td>
@@ -1096,7 +1115,7 @@ function ImportMatchEditor() {
                   <td><span className={row.needsReview ? 'badge warn' : 'badge ok'}>{row.needsReview ? 'Controlla' : (row.readStatus || 'ok')}</span></td>
                 </tr>
               ))}
-              {!indexedRows.length && <tr><td colSpan={11} className="muted">Nessuna riga. Aggiungi player manualmente.</td></tr>}
+              {!indexedRows.length && <tr><td colSpan={10} className="muted">Nessuna riga. Aggiungi player manualmente.</td></tr>}
             </tbody>
           </table>
         </div>
@@ -1111,7 +1130,6 @@ function ImportMatchEditor() {
               <label>Nome giocatore<input className="input" value={row.nickname} onChange={(e) => updateRow(index, 'nickname', e.target.value)} /></label>
               <label>Clan<input className="input" value={row.playerClanName || ''} onChange={(e) => updateRow(index, 'playerClanName', e.target.value)} /></label>
               <div className="ak-score-grid">
-                <label>Score<input className="input" value={row.score || 0} onChange={(e) => updateRow(index, 'score', e.target.value)} /></label>
                 <label>Kill<input className="input" value={row.kills} onChange={(e) => updateRow(index, 'kills', e.target.value)} /></label>
                 <label>Death<input className="input" value={row.deaths} onChange={(e) => updateRow(index, 'deaths', e.target.value)} /></label>
                 <label>Assist<input className="input" value={row.assists} onChange={(e) => updateRow(index, 'assists', e.target.value)} /></label>
@@ -1138,12 +1156,9 @@ function ImportMatchEditor() {
             <span className="pill-chip">✅ Salvataggio diretto</span>
           </div>
         </div>
-        <div className="import-actions import-actions-pro">
+        <div className="import-actions import-actions-pro import-actions-simple">
           <input className="input" type="file" accept="image/*" onChange={(e) => onFileSelected(e.target.files?.[0] || null)} />
-          <select className="select" value={selectedCalibrationPhone} onChange={(e) => refreshCalibrationTemplate(e.target.value)} disabled={!useCalibrationTemplate} title="Telefono/profilo OCR attivo">
-            {calibrationPhoneOptions.map((p) => <option key={p} value={p}>{p}</option>)}
-          </select>
-          <select className="select" value={selectedCalibrationTemplate} onChange={(e) => refreshCalibrationTemplate(selectedCalibrationPhone, e.target.value)} disabled={!useCalibrationTemplate} title="Template OCR attivo">
+          <select className="select" value={selectedCalibrationTemplate} onChange={(e) => refreshCalibrationTemplate('default', e.target.value)} disabled={!useCalibrationTemplate} title="Template OCR attivo">
             {calibrationTemplateOptions.map((p) => <option key={p} value={p}>{p}</option>)}
           </select>
           <a className="btn secondary" href="/calibration">🎯 Calibrazione</a>
@@ -1171,9 +1186,9 @@ function ImportMatchEditor() {
           {imageUrl ? (
             <div className="cal-image-wrap ocr-image-wrap import-ocr-same-frame" ref={imageWrapRef}>
               <img className="ocr-overlay-image" src={imageUrl} alt="Scoreboard" draggable={false} />
-              {useCalibrationTemplate && !!localTemplateRegions.length && (
+              {useCalibrationTemplate && !!visibleTemplateRegions.length && (
                 <div className="ocr-template-layer editable" aria-label="Template salvato applicato localmente">
-                  {localTemplateRegions.map((region) => (
+                  {visibleTemplateRegions.map((region) => (
                     <div
                       key={`tpl-${region.name}`}
                       className={`ocr-template-box cal-rect ${selectedImportRegionName === region.name ? 'active' : ''} ${region.name.startsWith('BLUE') || region.name.includes('BLUE') ? 'ocr-template-blue' : region.name.startsWith('RED') || region.name.includes('RED') ? 'ocr-template-red' : 'ocr-template-neutral'} ${(ourTeam === 'blue' && region.name.startsWith('BLUE')) || (ourTeam === 'red' && region.name.startsWith('RED')) ? 'ocr-template-own' : ''}`}
@@ -1188,7 +1203,7 @@ function ImportMatchEditor() {
                   ))}
                 </div>
               )}
-              {!!backendBoxes.length && <div className="ocr-overlay-layer">{backendBoxes.map((box, index) => <div key={`${box.name}-${index}`} className={`ocr-box ${box.team === 'blue' ? 'ocr-box-blue' : box.team === 'red' ? 'ocr-box-red' : 'ocr-box-neutral'}`} title={`BACKEND LETTO: ${box.name} | ${box.role}`} style={{ left: `${box.x_norm * 100}%`, top: `${box.y_norm * 100}%`, width: `${box.w_norm * 100}%`, height: `${box.h_norm * 100}%` }} />)}</div>}
+              {!!visibleBackendBoxes.length && <div className="ocr-overlay-layer">{visibleBackendBoxes.map((box, index) => <div key={`${box.name}-${index}`} className={`ocr-box ${box.team === 'blue' ? 'ocr-box-blue' : box.team === 'red' ? 'ocr-box-red' : 'ocr-box-neutral'}`} title={`BACKEND LETTO: ${box.name} | ${box.role}`} style={{ left: `${box.x_norm * 100}%`, top: `${box.y_norm * 100}%`, width: `${box.w_norm * 100}%`, height: `${box.h_norm * 100}%` }} />)}</div>}
             </div>
           ) : <div className="empty-state">🖼️ Carica lo screenshot della partita.</div>}
           {(working || ocrProgress) && (
@@ -1199,8 +1214,8 @@ function ImportMatchEditor() {
             </div>
           )}
           <div className={`ak-template-status ${templateSaved ? 'ok' : 'warn'}`}>
-            <strong>Profilo OCR attivo:</strong> 📱 {selectedCalibrationPhone} · 🧩 {selectedCalibrationTemplate} · {templateSummary} <br /><strong>Coordinate:</strong> stesso overlay Calibrazione/Import con content frame {activeFrame.reason}.
-            <span> · Overlay locale visibile: {localTemplateRegions.length} riquadri. I riquadri sottili sono quelli salvati/calibrati; i riquadri spessi sono quelli realmente letti dal backend.</span>
+            <strong>Template OCR attivo:</strong> 🧩 {selectedCalibrationTemplate || 'default'} · {templateSummary} <br /><strong>Coordinate:</strong> stesso overlay Calibrazione/Import con content frame {activeFrame.reason}.
+            <span> · Overlay visibile: {visibleTemplateRegions.length} riquadri utili. Sono esclusi Vittoria, punteggio e impatto.</span>
           </div>
           <details className="top-gap">
             <summary>🎯 Centratura manuale immagine risultati</summary>
@@ -1220,8 +1235,8 @@ function ImportMatchEditor() {
             <summary>🧩 Regola riquadri direttamente sull'immagine</summary>
             <div className="notice top-gap">Clicca un riquadro nello screenshot, trascinalo con mouse/dito e ridimensionalo dagli angoli. Non devi più scegliere dalla lista e usare i tasti freccia.</div>
             <div className="grid grid-2 top-gap">
-              <div className="field"><label>Riquadro selezionato</label><select className="select" value={selectedImportRegionName} onChange={(e) => setSelectedImportRegionName(e.target.value)}>{localTemplateRegions.map((r) => <option key={r.name} value={r.name}>{r.label || r.name}</option>)}</select></div>
-              <div className="field"><label>Salvataggio</label><button className="btn small" type="button" onClick={() => saveImportTemplateRegions()}>💾 Salva riquadri per questo telefono/template</button><small className="muted">Le modifiche vengono rilette anche dalla pagina Calibrazione.</small></div>
+              <div className="field"><label>Riquadro selezionato</label><select className="select" value={selectedImportRegionName} onChange={(e) => setSelectedImportRegionName(e.target.value)}>{visibleTemplateRegions.map((r) => <option key={r.name} value={r.name}>{r.label || r.name}</option>)}</select></div>
+              <div className="field"><label>Salvataggio</label><button className="btn small" type="button" onClick={() => saveImportTemplateRegions()}>💾 Salva template</button><small className="muted">Le modifiche vengono rilette anche dalla pagina Calibrazione.</small></div>
             </div>
           </details>
           {message && <div className="notice top-gap">{message}</div>}
@@ -1229,7 +1244,7 @@ function ImportMatchEditor() {
             <summary>⚙️ Impostazioni avanzate OCR</summary>
             <div className="grid grid-2 top-gap">
               <div className="field"><label>Usa calibrazione</label><select className="select" value={useCalibrationTemplate ? 'yes' : 'no'} onChange={(e) => setUseCalibrationTemplate(e.target.value === 'yes')}><option value="yes">Sì, usa template salvato</option><option value="no">No, layout automatico</option></select></div>
-              <div className="field"><label>Tipologia telefono</label><select className="select" value={selectedCalibrationPhone} onChange={(e) => refreshCalibrationTemplate(e.target.value)} disabled={!useCalibrationTemplate}>{calibrationPhoneOptions.map((p) => <option key={p} value={p}>{p}</option>)}</select></div><div className="field"><label>Nome template</label><select className="select" value={selectedCalibrationTemplate} onChange={(e) => refreshCalibrationTemplate(selectedCalibrationPhone, e.target.value)} disabled={!useCalibrationTemplate}>{calibrationTemplateOptions.map((p) => <option key={p} value={p}>{p}</option>)}</select><small className="muted">Esempio: CED, Postazione, Dominio.</small></div>
+              <div className="field"><label>Template OCR</label><select className="select" value={selectedCalibrationTemplate} onChange={(e) => refreshCalibrationTemplate('default', e.target.value)} disabled={!useCalibrationTemplate}>{calibrationTemplateOptions.map((p) => <option key={p} value={p}>{p}</option>)}</select><small className="muted">Default o template salvato da Calibrazione.</small></div>
               <div className="field"><label>Modo template</label><select className="select" value={calibrationMode} onChange={(e) => setCalibrationMode(e.target.value as 'table_lock' | 'content_frame' | 'strict_image')} disabled={!useCalibrationTemplate}><option value="content_frame">Content frame consigliato</option><option value="table_lock">Table-lock fallback</option><option value="strict_image">Coordinate immagine esatta</option></select><small className="muted">V4.6 invia anche il frame calcolato dal frontend: {activeFrame.reason} ({Math.round(activeFrame.x * 100)}%, {Math.round(activeFrame.y * 100)}%, {Math.round(activeFrame.w * 100)}% x {Math.round(activeFrame.h * 100)}%).</small></div>
               <div className="field"><label>Conferma nostro team</label><select className="select" value={ourTeam} onChange={(e) => setOurTeam(e.target.value as 'blue' | 'red')}><option value="blue">Blu / sinistra</option><option value="red">Rosso / destra</option></select></div>
             </div>
@@ -1245,7 +1260,7 @@ function ImportMatchEditor() {
             <div className="grid grid-2"><div className="field"><label>Tipo partita</label><select className="select" value={matchType} onChange={(e) => setMatchType(e.target.value as MatchType)}>{types.map((m) => <option key={m}>{m}</option>)}</select></div><div className="field"><label>Modalità</label><select className="select" value={mode} onChange={(e) => setMode(e.target.value as GameMode)}>{modes.map((m) => <option key={m} value={m}>{modeLabel(m)}</option>)}</select></div></div>
             <div className="grid grid-2"><div className="field"><label>Mappa</label><input className="input" value={mapName} onChange={(e) => setMapName(e.target.value)} /></div><div className="field"><label>Data/ora partita</label><input className="input" type="datetime-local" value={matchDateLocal} onChange={(e) => setMatchDateLocal(e.target.value)} /><small className="muted">Testo OCR: {matchDateText || 'non letto'} </small></div></div>
             <div className="ak-import-mode-card"><div className="field"><label>Nostro team nello screenshot</label><select className="select" value={ourTeam} onChange={(e) => setOurTeam(e.target.value as 'blue' | 'red')}><option value="blue">Noi siamo BLU / sinistra</option><option value="red">Noi siamo ROSSI / destra</option></select></div><p className="muted">L'OCR importerà solo la squadra scelta. Puoi cambiare BLU/ROSSO anche dopo una lettura e premere di nuovo Importa risultati per ricalcolare.</p></div><div className="grid grid-2"><div className="field"><label>Clan avversario</label><input className="input" value={opponent} onChange={(e) => { setOpponent(e.target.value); setRows((current) => current.map((r) => r.teamSide === 'ENEMY' && (!r.playerClanName || r.playerClanName === 'Avversari') ? { ...r, playerClanName: e.target.value } : r)); }} placeholder="AP / clan avversario" /></div><div className="field"><label>Squadra vincente</label><select className="select" value={winningTeam} onChange={(e) => setWinningTeam(e.target.value as 'blue' | 'red' | 'draw' | '')}><option value="">Da verificare</option><option value="blue">Blu / sinistra</option><option value="red">Rosso / destra</option><option value="draw">Pareggio</option></select></div></div>
-            <div className="grid grid-3"><div className="field"><label>Esito nostro team</label><select className="select" value={result} onChange={(e) => setResult(e.target.value as MatchResult)}><option>WIN</option><option>LOSE</option><option>DRAW</option></select></div><div className="field"><label>Score blu</label><input className="input" value={teamScore} onChange={(e) => setTeamScore(e.target.value)} /></div><div className="field"><label>Score rosso</label><input className="input" value={enemyScore} onChange={(e) => setEnemyScore(e.target.value)} /></div></div>
+            <div className="grid grid-3"><div className="field"><label>Esito nostro team</label><select className="select" value={result} onChange={(e) => setResult(e.target.value as MatchResult)}><option>WIN</option><option>LOSE</option><option>DRAW</option></select></div></div>
             <div className="field"><label>Note partita</label><textarea className="input" rows={4} value={matchNotes} onChange={(e) => setMatchNotes(e.target.value)} placeholder="Note scrim, correzioni OCR, contestazioni, strategia, ecc." /></div>
             <div className="notice"><strong>Manuale/ospite:</strong> se scrivi un nome che non è nel roster, l'app crea un player provvisorio e salva le sue statistiche. In futuro potrai completarlo/associarlo al profilo registrato.</div>
           </div>
@@ -1253,11 +1268,11 @@ function ImportMatchEditor() {
       </section>
 
       <section className="card top-gap">
-        <h2>Statistiche nostro team — Score + Kill / Death / Assist</h2>
+        <h2>Statistiche nostro team — Kill / Death / Assist</h2>
         <p className="muted">Vengono salvati solo i player del tuo clan. Ora importiamo anche il punteggio player oltre a K/D/A. Dell'avversario restano solo nome clan, score team ed esito partita.</p>
         <div className="team-grid ak-ally-only-table ak-full-width-import-table">
           {renderRowsTable('ALLY', ourTeam === 'blue' ? '🔵 Nostro team: blu / sinistra' : '🔴 Nostro team: rosso / destra', allyRows, ourTeam === 'blue' ? 'team-blue' : 'team-red')}
-          <div className="ak-opponent-summary"><strong>Avversario:</strong> {opponent || 'da compilare'}<br /><span>Score avversario: {enemyScore || '-'} • Esito nostro: {result}</span><br /><small>Le statistiche dei player avversari non vengono importate né salvate.</small></div>
+          <div className="ak-opponent-summary"><strong>Avversario:</strong> {opponent || 'da compilare'}<br /><span>Esito nostro: {result}</span><br /><small>Le statistiche dei player avversari non vengono importate né salvate.</small></div>
         </div>
         <div className="top-gap save-row">
           <button className="btn" onClick={saveMatch}>💾 Salva partita, ranking e statistiche</button>

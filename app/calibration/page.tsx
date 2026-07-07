@@ -27,7 +27,7 @@ import {
 import { FULL_IMAGE_FRAME, detectImageContentFrameFromUrl, frameToStyle, imagePointToFrameNorm, regionToImageStyle, type ImageContentFrame } from '@/lib/imageFrame';
 
 const kinds: Array<{ value: CalibrationKind; label: string; help: string }> = [
-  { value: 'scoreboard_ced', label: 'Scoreboard / punteggio CED', help: 'Risultato alto, data, mappa, score blu/rosso, team blu/rosso e celle K/D/A.' },
+  { value: 'scoreboard_ced', label: 'Scoreboard CED', help: 'Data, mappa, team blu/rosso e celle Nick/K/D/A. Punteggio, impatto e vittoria sono esclusi.' },
   { value: 'profile_base', label: 'Profilo base', help: 'Nickname, livello, UID, like e rank nel profilo base.' }
 ];
 
@@ -87,11 +87,12 @@ function CalibrationEditor() {
       setActiveUserContext(user?.id || 'anonymous', String(name || ''));
       const activePhone = getActivePhoneProfile(kind);
       const split = splitCalibrationProfileKey(activePhone);
-      setPhoneProfile(activePhone);
-      setPhoneDevice(split.phone);
-      setTemplateSlot(split.template);
-      setTemplateSource(split.phone === 'default' && split.template === 'default' ? 'default' : split.template === 'default' ? 'phone' : 'saved');
-      const bundle = loadCalibrationBundle(kind, activePhone);
+      const normalizedProfile = makeCalibrationProfileKey('default', split.template || 'default');
+      setPhoneProfile(normalizedProfile);
+      setPhoneDevice('default');
+      setTemplateSlot(split.template || 'default');
+      setTemplateSource((split.template || 'default') === 'default' ? 'default' : 'saved');
+      const bundle = loadCalibrationBundle(kind, normalizedProfile);
       setRegions(bundle.regions);
       setTemplateName(bundle.meta.templateName);
       setProfiles(listCalibrationPhoneProfiles(kind));
@@ -103,18 +104,19 @@ function CalibrationEditor() {
   function loadTemplate(nextKind: CalibrationKind, nextPhone = getActivePhoneProfile(nextKind)) {
     setKind(nextKind);
     const split = splitCalibrationProfileKey(nextPhone);
-    setPhoneProfile(nextPhone);
-    setPhoneDevice(split.phone);
-    setTemplateSlot(split.template);
-    setTemplateSource(split.phone === 'default' && split.template === 'default' ? 'default' : split.template === 'default' ? 'phone' : 'saved');
-    setActivePhoneProfile(nextKind, nextPhone);
-    const bundle = loadCalibrationBundle(nextKind, nextPhone);
+    const normalizedProfile = makeCalibrationProfileKey('default', split.template || 'default');
+    setPhoneProfile(normalizedProfile);
+    setPhoneDevice('default');
+    setTemplateSlot(split.template || 'default');
+    setTemplateSource((split.template || 'default') === 'default' ? 'default' : 'saved');
+    setActivePhoneProfile(nextKind, normalizedProfile);
+    const bundle = loadCalibrationBundle(nextKind, normalizedProfile);
     setRegions(bundle.regions);
     setTemplateName(bundle.meta.templateName);
     setSelectedName(bundle.regions[0]?.name || '');
     setProfiles(listCalibrationPhoneProfiles(nextKind));
     setPhoneOptions(listCalibrationPhones(nextKind));
-    setTemplateOptions(listCalibrationTemplatesForPhone(nextKind, split.phone));
+    setTemplateOptions(listCalibrationTemplatesForPhone(nextKind, 'default'));
     setMessage(`Template ${nextKind} / telefono ${split.phone} / template ${split.template} caricato. Puoi trascinare i riquadri o ridimensionarli dagli angoli.`);
   }
 
@@ -179,7 +181,7 @@ function CalibrationEditor() {
     setPhoneOptions(listCalibrationPhones(kind));
     setTemplateOptions(Array.from(new Set([...listCalibrationTemplatesForPhone(kind, split.phone), split.template])).sort());
     saveCalibration(kind, defaults, next, `${kind === 'profile_base' ? 'Profilo base' : 'Scoreboard CED'} ${next}`, ownerName);
-    setMessage(`Nuovo template ${next}. Formato: telefono__template. Regola i riquadri e premi Salva template.`);
+    setMessage(`Nuovo template ${next}. Regola i riquadri e premi Salva template.`);
   }
 
   async function onFile(file?: File | null) {
@@ -260,29 +262,27 @@ function CalibrationEditor() {
   }
 
   function save() {
-    const cleanPhoneDevice = softSlug(phoneDevice);
-    const cleanTemplateSlot = softSlug(templateSlot);
-    const nextPhone = templateSource === 'default'
-      ? makeCalibrationProfileKey('default', 'default')
-      : makeCalibrationProfileKey(cleanPhoneDevice || 'default', templateSource === 'phone' ? 'default' : (cleanTemplateSlot || 'default'));
+    const cleanTemplateSlot = softSlug(templateSlot) || 'default';
+    const nextPhone = makeCalibrationProfileKey('default', cleanTemplateSlot);
     const split = splitCalibrationProfileKey(nextPhone);
     setPhoneProfile(nextPhone);
-    setPhoneDevice(split.phone);
+    setPhoneDevice('default');
     setTemplateSlot(split.template);
+    setTemplateSource(split.template === 'default' ? 'default' : 'saved');
     setActivePhoneProfile(kind, nextPhone);
-    const cleanTemplateName = split.template !== 'default' ? split.template : (templateName || split.template || 'default');
+    const cleanTemplateName = split.template || 'default';
     saveCalibration(kind, regions, nextPhone, cleanTemplateName, ownerName);
     setProfiles(listCalibrationPhoneProfiles(kind));
-    setPhoneOptions(listCalibrationPhones(kind));
-    setTemplateOptions(listCalibrationTemplatesForPhone(kind, split.phone));
-    setMessage(`Template salvato correttamente: telefono ${split.phone} / template ${split.template}. In Import scegli prima il telefono e poi vedrai questo nome template.`);
+    setPhoneOptions(['default']);
+    setTemplateOptions(listCalibrationTemplatesForPhone(kind, 'default'));
+    setMessage(`Template salvato correttamente: ${cleanTemplateName}. In Import selezioni solo questo nome template.`);
   }
   function reset() {
     resetCalibration(kind, phoneProfile);
     const defaults = defaultCalibration(kind);
     setRegions(defaults);
     setSelectedName(defaults[0]?.name || '');
-    setMessage('Template riportato ai valori di fabbrica per questo telefono.');
+    setMessage('Template riportato ai valori di fabbrica.');
   }
   function exportJson() {
     const exported = exportCalibration(kind, phoneProfile);
@@ -319,20 +319,18 @@ function CalibrationEditor() {
         <p className="muted">
           Ora i riquadri sono riferiti al content frame dell'immagine, non al bordo nero. Puoi trascinarli liberamente, ridimensionarli dagli angoli e salvarli per telefono/login. Questo riduce lo spostamento tra screenshot diversi dello stesso telefono.
         </p>
-        <div className="grid grid-4 calibration-template-flow">
+        <div className="grid grid-2 calibration-template-flow">
           <div className="field"><label>Tipo template</label><select className="select" value={kind} onChange={(e) => changeKind(e.target.value as CalibrationKind)}>{kinds.map((entry) => <option key={entry.value} value={entry.value}>{entry.label}</option>)}</select><small className="muted">{kinds.find((e) => e.value === kind)?.help}</small></div>
-          <div className="field"><label>Origine template</label><select className="select" value={templateSource} onChange={(e) => applyTemplateSource(e.target.value as 'default' | 'phone' | 'saved')}><option value="default">Default generale</option><option value="phone">Per tipologia telefono</option><option value="saved">Nome template salvato</option></select><small className="muted">Scegli sempre se vuoi default, telefono o template nominato.</small></div>
-          <div className="field"><label>Tipologia telefono</label><div className="cal-template-picker-stack"><select className="select" value={phoneOptions.includes(phoneDevice) ? phoneDevice : ""} onChange={(e) => changePhoneDevice(e.target.value)}><option value="">Scegli telefono salvato...</option>{phoneOptions.map((p) => <option key={p} value={p}>{p}</option>)}</select><input className="input" value={phoneDevice} onChange={(e) => setPhoneDevice(e.target.value)} onBlur={() => changePhoneDevice(phoneDevice)} placeholder="iPhone 15 Pro Max - Mirza 🔥" /></div><small className="muted">Lista sempre visibile sopra; sotto puoi scrivere nomi liberi con maiuscole, spazi e simboli.</small></div>
-          <div className="field"><label>Nome template</label><div className="cal-template-picker-stack"><select className="select" value={templateOptions.includes(templateSlot) ? templateSlot : ""} onChange={(e) => changeTemplateSlot(e.target.value)}><option value="">Scegli template salvato...</option>{templateOptions.map((p) => <option key={p} value={p}>{p}</option>)}</select><input className="input" value={templateSlot} onChange={(e) => setTemplateSlot(e.target.value)} onBlur={() => changeTemplateSlot(templateSlot)} placeholder="CED Torneo 2026 - Layout Principale" /></div><small className="muted">Puoi usare maiuscole, spazi e simboli. Il sistema crea internamente una chiave sicura.</small></div>
+          <div className="field"><label>Template</label><div className="cal-template-picker-stack"><select className="select" value={templateOptions.includes(templateSlot) ? templateSlot : ""} onChange={(e) => changeTemplateSlot(e.target.value)}><option value="default">default</option>{templateOptions.filter((p) => p !== 'default').map((p) => <option key={p} value={p}>{p}</option>)}</select><input className="input" value={templateSlot} onChange={(e) => setTemplateSlot(e.target.value)} onBlur={() => changeTemplateSlot(templateSlot || 'default')} placeholder="default oppure nome template" /></div><small className="muted">Un solo nome template. Lascia default oppure salva un nome tuo; puoi usare maiuscole, spazi e simboli.</small></div>
         </div>
         <div className="grid grid-2 top-gap">
-          <div className="field"><label>Login/profilo collegato</label><input className="input" value={ownerName} onChange={(e) => setOwnerName(e.target.value)} placeholder="Nome login" /><small className="muted">Chiave attiva: {phoneProfile}</small></div>
-          <div className="notice"><b>Flusso template:</b> puoi caricare il default generale, un default per tipologia telefono, oppure un template salvato per nome. Il campo descrizione opzionale è stato rimosso.</div>
+          <div className="field"><label>Login/profilo collegato</label><input className="input" value={ownerName} onChange={(e) => setOwnerName(e.target.value)} placeholder="Nome login" /><small className="muted">Chiave tecnica: {phoneProfile}</small></div>
+          <div className="notice"><b>Flusso template semplificato:</b> usi default oppure un solo nome template selezionabile. Non c'è più doppio nome telefono/template.</div>
         </div>
         <div className="grid grid-3 top-gap">
           <div className="field"><label>Screenshot campione</label><input className="input" type="file" accept="image/*" onChange={(event) => onFile(event.target.files?.[0] || null)} /></div>
           <div className="field"><label>Comandi</label><div className="cal-buttons"><button className="btn small" type="button" onClick={save}>Salva template</button><button className="btn small secondary" type="button" onClick={reset}>Reset</button><button className="btn small secondary" type="button" onClick={exportJson}>Esporta</button></div></div>
-          <div className="notice">V8.2: puoi usare nomi telefono/template con maiuscole, spazi e simboli. Calibrazione e Import usano lo stesso content frame per mantenere identiche coordinate e riquadri.</div>
+          <div className="notice">V8.2C: un solo nome template; esclusi Vittoria, punteggio e impatto. Calibrazione e Import usano lo stesso content frame.</div>
         </div>
         {message && <div className="notice top-gap">{message}</div>}
       </section>
@@ -372,7 +370,7 @@ function CalibrationEditor() {
           <div className="field top-gap"><label>Campo</label><select className="select" value={selectedName} onChange={(e) => setSelectedName(e.target.value)}>{groups.map((group) => <optgroup key={group} label={group}>{regions.filter((r) => (r.group || 'Altro') === group).map((r) => <option key={r.name} value={r.name}>{r.label || r.name}</option>)}</optgroup>)}</select></div>
           {selected && <>
             <div className="grid grid-4 top-gap">{(['x', 'y', 'w', 'h'] as const).map((key) => <div className="field" key={key}><label>{key.toUpperCase()}</label><input className="input mini" value={selected[key].toFixed(4)} onChange={(e) => updateSelected({ [key]: Number(e.target.value) } as Partial<CalibratedRegion>)} /></div>)}</div>
-            <small className="muted">Per punteggio CED: Score Blue deve coprire solo il numero blu; Score Red solo il numero rosso. Match Datetime deve coprire solo la riga data/ora. Mode Map solo modalità + mappa. Per profilo: i campi Leggendario MG/BR/DMZ/Zombie devono coprire solo il numero accanto al simbolo, non l'icona.</small>
+            <small className="muted">Per Scoreboard CED: usa solo data/ora, mappa/modalità, nickname e K/D/A. Vittoria, punteggio e impatto sono esclusi. Per profilo: i campi Leggendario MG/BR/DMZ/Zombie devono coprire solo il numero accanto al simbolo, non l'icona.</small>
           </>}
           <details className="top-gap"><summary>Importa / esporta JSON template</summary><textarea className="textarea" value={jsonBox} onChange={(e) => setJsonBox(e.target.value)} placeholder="Incolla qui JSON template" /><div className="cal-buttons top-gap"><button className="btn small" type="button" onClick={importJson}>Importa JSON</button><button className="btn small secondary" type="button" onClick={exportJson}>Genera JSON</button></div></details>
         </div>

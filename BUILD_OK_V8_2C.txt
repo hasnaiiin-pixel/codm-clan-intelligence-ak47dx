@@ -1,0 +1,15 @@
+CLAN MANAGER AK47DX V8.2C - BUILD OK
+
+Verifiche eseguite:
+- npm ci --legacy-peer-deps: OK
+- npx tsc --noEmit: OK
+- npm run build: OK
+- Next.js route generate: 36/36
+
+Correzioni principali:
+- Import risultati: rimossi riquadri Vittoria, Punteggio e Impatto.
+- Import risultati: layout menu dentro pagina, non più fuori viewport.
+- Template OCR: un solo nome template, default oppure salvato.
+- Calibrazione/Import: stessa geometria content frame.
+- Eventi: link manuali, niente calendar automatico.
+- Telegram: messaggio evento cancellato evidenziato.

@@ -1627,7 +1627,7 @@ export default function EventsPage() {
         <div className="ak-event-list top-gap">
           {visibleEvents.map((event) => {
             const eventPlan = normalizePlan(event.event_plan || emptyPlan());
-            const manualLink = eventPlan.lobbyLink || eventPlan.discordLink || event.google_calendar_url || "";
+            const manualLink = eventPlan.lobbyLink || eventPlan.discordLink || "";
             return (
               <article key={event.id} className="ak-event-card">
                 <div className="ak-event-copy">

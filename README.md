@@ -1,23 +1,16 @@
 # CLAN MANAGER AK47DX
 
-PWA/Next.js per gestione clan CODM: eventi, scrim/tornei, roster, import risultati, calibrazione OCR, notifiche app e Telegram.
+PWA CLAN MANAGER per CODM AK47DX: eventi, roster, import risultati, calibrazione OCR, Telegram e statistiche.
 
-## Versione
+Versione corrente: **V8.2C_IMPORT_CLEAN_TEMPLATE_TELEGRAM_DELETE_FIX**.
 
-**V8.2A PRO TELEGRAM REMINDERS TEMPLATES UI**
+## Note principali V8.2C
 
-Marker deploy: `V8_2A_HOBBY_CRON_EXTERNAL_OK`
+- Import risultati semplificato: rimossi riquadri Vittoria, Punteggio e Impatto.
+- Un solo nome template OCR: `default` oppure template salvato.
+- Menu import sistemato dentro pagina.
+- Calibrazione e Import usano lo stesso content frame.
+- Link evento solo manuali.
+- Telegram evento cancellato evidenziato.
 
-## Principi stabili
-
-- Eventi solo su Supabase `public.codm_events` tramite API Vercel.
-- Nessun evento locale PWA.
-- Service role obbligatoria per crea/modifica/cancella eventi.
-- Telegram con messaggi HTML professionali e reminder cron.
-- App branding: **CLAN MANAGER**.
-
-## File Supabase utili
-
-- `supabase/FINAL_SCHEMA_CLAN_MANAGER.sql`
-- `supabase/CHECK_DATABASE_HEALTH.sql`
-- `supabase/RESET_CLAN_MANAGER_KEEP_AUTH.sql`
+Vedi `README_INSTALLAZIONE.md` e `README_INSTALLAZIONE_COMPLETA_V8_2C.md`.

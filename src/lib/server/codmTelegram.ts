@@ -198,7 +198,7 @@ function eventNotes(event: TelegramEvent) {
 }
 
 function eventLink(event: TelegramEvent, plan: MatchPlan) {
-  return String(event.google_calendar_url || plan.discordLink || plan.lobbyLink || '').trim();
+  return String(plan.discordLink || plan.lobbyLink || '').trim();
 }
 
 export function renderProfessionalEventTelegram(
@@ -211,7 +211,7 @@ export function renderProfessionalEventTelegram(
   const lifecycle: Record<typeof mode, string> = {
     created: '🆕 Evento creato',
     updated: '✏️ Evento modificato',
-    deleted: '🗑️ Evento cancellato',
+    deleted: '🔴 EVENTO CANCELLATO',
     result: '🏆 Risultato aggiornato',
     reminder: options?.minutes ? `⏰ Reminder: mancano ${options.minutes} minuti` : '⏰ Reminder evento',
     started: '🚀 Evento iniziato',
@@ -220,7 +220,8 @@ export function renderProfessionalEventTelegram(
   const lines: string[] = [
     `🎮 <b>CLAN MANAGER AK47DX</b>`,
     '',
-    `<b>${escapeHtml(lifecycle[mode])}</b>`,
+    mode === 'deleted' ? '🔴🔴🔴 <b>EVENTO CANCELLATO</b> 🔴🔴🔴' : `<b>${escapeHtml(lifecycle[mode])}</b>`,
+    mode === 'deleted' ? '━━━━━━━━━━━━━━━━━━━━' : '',
     `<b>${escapeHtml(headline)}</b>`,
     '',
     `📅 <b>Data:</b> ${eventDate(event.starts_at)}`,
