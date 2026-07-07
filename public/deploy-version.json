@@ -1,10 +1,10 @@
 {
   "app": "CLAN MANAGER by MIRZA",
-  "version": "8.1A_SQL_COMPAT_FIX",
-  "marker": "V8_1_EVENTS_EDIT_DELETE_TELEGRAM_CLEAN_OK",
+  "version": "8.1C_CLIENT_UUID_DELETE_EDIT_FIX",
+  "marker": "V8_1C_CLIENT_UUID_DELETE_EDIT_FIX_OK",
   "backend_ocr": "2.0.10-v5-4-fastlane-import-stabile-ak47dx",
-  "notes": "Eventi centralizzati e puliti: crea/modifica/cancella solo via API server Vercel con service role, Telegram immediato su creazione/modifica/cancellazione, layout eventi compatto, debug visibile solo admin, branding CLAN MANAGER.",
-  "build": "CODM_AK47DX_V8_1_EVENTS_EDIT_DELETE_TELEGRAM_CLEAN_FINAL_BUILD",
+  "notes": "Fix client UUID nella pagina Eventi: modifica e cancellazione non rifiutano più UUID validi. Eventi solo su Supabase via API Vercel.",
+  "build": "CODM_AK47DX_V8_1C_CLIENT_UUID_DELETE_EDIT_FIX_BUILD",
   "date": "2026-07-07",
   "routes": [
     "/version",
@@ -22,6 +22,6 @@
     "/api/events/health",
     "/events-health"
   ],
-  "status": "V8_1B_UUID_REGEX_FIX_OK",
+  "status": "V8_1C_CLIENT_UUID_DELETE_EDIT_FIX_OK",
   "appName": "CLAN MANAGER"
 }
