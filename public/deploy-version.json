@@ -22,6 +22,6 @@
     "/api/events/health",
     "/events-health"
   ],
-  "status": "V8_1A_SQL_COMPAT_FIX_OK",
+  "status": "V8_1B_UUID_REGEX_FIX_OK",
   "appName": "CLAN MANAGER"
 }

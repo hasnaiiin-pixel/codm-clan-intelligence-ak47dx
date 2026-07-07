@@ -3,7 +3,7 @@ import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 export const MAIN_ADMIN_EMAIL = 'hasnaiiin@gmail.com';
 export const DEFAULT_CLAN_NAME = 'AK47DX';
 export const DEFAULT_CLAN_TAG = 'AK47DX';
-export const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{12}$/i;
+export const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 export const WRITER_ROLES = ['owner', 'coach', 'staff'] as const;
 
 export type CodmUserContext = {

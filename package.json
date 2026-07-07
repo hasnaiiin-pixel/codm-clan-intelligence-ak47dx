@@ -1,6 +1,6 @@
 {
   "name": "codm-clan-intelligence-ak47dx",
-  "version": "8.1.1-sql-compat-fix",
+  "version": "8.1.2-uuid-regex-fix",
   "private": true,
   "scripts": {
     "dev": "next dev",
