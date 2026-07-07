@@ -1,11 +1,5 @@
 {
   "installCommand": "npm ci --legacy-peer-deps",
   "buildCommand": "npm run build",
-  "framework": "nextjs",
-  "crons": [
-    {
-      "path": "/api/telegram/reminders",
-      "schedule": "*/10 * * * *"
-    }
-  ]
+  "framework": "nextjs"
 }

@@ -1,12 +1,12 @@
 {
   "version": "8.2_PRO_TELEGRAM_REMINDERS_TEMPLATES_UI",
-  "marker": "V8_2_PRO_TELEGRAM_REMINDERS_TEMPLATES_UI_OK",
+  "marker": "V8_2A_HOBBY_CRON_EXTERNAL_OK",
   "appName": "CLAN MANAGER",
   "app": "CLAN MANAGER by MIRZA",
   "notes": "Telegram professionale con reminder selezionabili, evento iniziato, riepilogo partite/BAN/titolari/riserve; calibrazione/import più coerenti; layout eventi compatto; pulizia progetto.",
-  "build": "CLAN_MANAGER_V8_2_PRO_TELEGRAM_REMINDERS_TEMPLATES_UI_BUILD",
+  "build": "CLAN_MANAGER_V8_2A_HOBBY_CRON_EXTERNAL_BUILD",
   "date": "2026-07-07",
-  "status": "V8_2_PRO_TELEGRAM_REMINDERS_TEMPLATES_UI_OK",
+  "status": "V8_2A_HOBBY_CRON_EXTERNAL_OK",
   "routes": [
     "/api/events/save",
     "/api/events/delete",

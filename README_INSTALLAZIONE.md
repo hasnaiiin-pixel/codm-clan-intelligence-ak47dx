@@ -1,4 +1,4 @@
-# Installazione CLAN MANAGER V8.2
+# Installazione CLAN MANAGER V8.2A
 
 1. Esegui su Supabase `supabase/FINAL_SCHEMA_CLAN_MANAGER.sql`.
 2. Controlla Vercel Environment Variables:
@@ -16,7 +16,7 @@
 npm ci --legacy-peer-deps
 npm run build
 git add -A
-git commit -m "CLAN MANAGER V8.2 pro telegram reminder template ui"
+git commit -m "CLAN MANAGER V8.2A pro telegram reminder template ui"
 git push origin main
 ```
 

@@ -4,9 +4,9 @@ PWA/Next.js per gestione clan CODM: eventi, scrim/tornei, roster, import risulta
 
 ## Versione
 
-**V8.2 PRO TELEGRAM REMINDERS TEMPLATES UI**
+**V8.2A PRO TELEGRAM REMINDERS TEMPLATES UI**
 
-Marker deploy: `V8_2_PRO_TELEGRAM_REMINDERS_TEMPLATES_UI_OK`
+Marker deploy: `V8_2A_HOBBY_CRON_EXTERNAL_OK`
 
 ## Principi stabili
 

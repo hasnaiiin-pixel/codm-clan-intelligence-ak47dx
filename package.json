@@ -1,6 +1,6 @@
 {
   "name": "clan-manager-ak47dx",
-  "version": "8.2.0-pro-telegram-reminders-templates-ui",
+  "version": "8.2.1-hobby-cron-external-fix",
   "private": true,
   "scripts": {
     "dev": "next dev",

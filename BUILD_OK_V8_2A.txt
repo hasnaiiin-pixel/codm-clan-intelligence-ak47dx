@@ -1,0 +1,1 @@
+V8.2A Hobby cron fix: vercel.json crons removed; use external cron for /api/telegram/reminders.
