@@ -1,17 +1,20 @@
 {
-  "version": "8.1C_CLIENT_UUID_DELETE_EDIT_FIX",
-  "marker": "V8_1C_CLIENT_UUID_DELETE_EDIT_FIX_OK",
-  "backend_ocr": "2.0.10-v5-4-fastlane-import-stabile-ak47dx",
-  "notes": "Fix client UUID nella pagina Eventi: modifica e cancellazione non rifiutano più UUID validi. Eventi solo su Supabase via API Vercel.",
-  "build": "CODM_AK47DX_V8_1C_CLIENT_UUID_DELETE_EDIT_FIX_BUILD",
-  "date": "2026-07-07",
-  "routes": [
-    "/api/events/detail",
-    "/api/events/update-result",
-    "/api/events/health",
-    "/events-health"
-  ],
-  "status": "V8_1C_CLIENT_UUID_DELETE_EDIT_FIX_OK",
+  "version": "8.2_PRO_TELEGRAM_REMINDERS_TEMPLATES_UI",
+  "marker": "V8_2_PRO_TELEGRAM_REMINDERS_TEMPLATES_UI_OK",
   "appName": "CLAN MANAGER",
-  "app": "CLAN MANAGER by MIRZA"
+  "app": "CLAN MANAGER by MIRZA",
+  "notes": "Telegram professionale con reminder selezionabili, evento iniziato, riepilogo partite/BAN/titolari/riserve; calibrazione/import più coerenti; layout eventi compatto; pulizia progetto.",
+  "build": "CLAN_MANAGER_V8_2_PRO_TELEGRAM_REMINDERS_TEMPLATES_UI_BUILD",
+  "date": "2026-07-07",
+  "status": "V8_2_PRO_TELEGRAM_REMINDERS_TEMPLATES_UI_OK",
+  "routes": [
+    "/api/events/save",
+    "/api/events/delete",
+    "/api/events/update-result",
+    "/api/telegram/reminders",
+    "/events",
+    "/calibration",
+    "/import/match",
+    "/events-health"
+  ]
 }

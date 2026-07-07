@@ -90,7 +90,7 @@ const OLD_PLAN_MARKERS = [
   "AK_EVENT_PLAN_V6_3::",
   "AK_EVENT_PLAN_V6_2::",
 ];
-const EVENTS_FORM_VERSION = "V7_6_DATABASE_ONLY_EVENTS";
+const EVENTS_FORM_VERSION = "V8_2_PRO_TELEGRAM_TEMPLATES";
 const LEGACY_EVENT_STORAGE_KEYS = [
   "clan_manager_event_editor_draft_v7_0",
   "clan_manager_events_cache_v7_0",
@@ -344,7 +344,7 @@ const eventTypes = [
 ];
 
 const DEFAULT_TELEGRAM_TEMPLATE =
-  "🎮 <b>Clan Manager Evento</b>\n\n<b>{title}</b>\n⏱️ Mancano {minutes} minuti\n🕒 {date}\n📍 {location}\n\n<b>Dettaglio partite:</b>\n{match_details}\n\n<b>Convocati:</b>\n{convocati}\n\n{description}";
+  "PROFESSIONAL_EVENT_SUMMARY_V8_2";
 
 function toLocalInputValue(date = new Date(Date.now() + 24 * 60 * 60 * 1000)) {
   const tzOffset = date.getTimezoneOffset() * 60000;
@@ -570,7 +570,9 @@ export default function EventsPage() {
     toLocalInputValue(new Date(Date.now() + 3 * 60 * 60 * 1000)),
   );
   const [telegramEnabled, setTelegramEnabled] = useState(true);
-  const [reminderMinutes, setReminderMinutes] = useState("120,60,30,10");
+  const [reminderMinutes, setReminderMinutes] = useState("10080,1440,360,120,60,30,10,0");
+  const [customReminderValue, setCustomReminderValue] = useState("45");
+  const [customReminderUnit, setCustomReminderUnit] = useState<"minutes" | "hours" | "days">("minutes");
   const [telegramTemplate, setTelegramTemplate] = useState(
     DEFAULT_TELEGRAM_TEMPLATE,
   );
@@ -691,10 +693,33 @@ export default function EventsPage() {
     const values = reminderMinutes
       .split(",")
       .map((x) => Number(x.trim()))
-      .filter((n) => Number.isFinite(n) && n > 0 && n <= 10080);
-    return Array.from(new Set(values.length ? values : [120, 10])).sort(
-      (a, b) => b - a,
-    );
+      .filter((n) => Number.isFinite(n) && n >= 0 && n <= 43200);
+    return Array.from(new Set(values.length ? values : [120, 30, 10, 0])).sort((a, b) => b - a);
+  }
+  function hasReminder(minutes: number) {
+    return parseReminderMinutes().includes(minutes);
+  }
+  function setReminderPreset(minutes: number, checked: boolean) {
+    const values = new Set(parseReminderMinutes());
+    if (checked) values.add(minutes);
+    else values.delete(minutes);
+    setReminderMinutes(Array.from(values).sort((a, b) => b - a).join(","));
+  }
+  function addCustomReminder() {
+    const base = Math.max(0, Number(customReminderValue || 0));
+    if (!Number.isFinite(base) || base <= 0) {
+      setMessage("Inserisci un valore reminder valido.");
+      return;
+    }
+    const minutes = customReminderUnit === "days" ? base * 1440 : customReminderUnit === "hours" ? base * 60 : base;
+    setReminderPreset(Math.round(minutes), true);
+    setMessage(`Reminder aggiunto: ${customReminderValue} ${customReminderUnit === "days" ? "giorni" : customReminderUnit === "hours" ? "ore" : "minuti"} prima.`);
+  }
+  function reminderHuman(minutes: number) {
+    if (minutes === 0) return "Evento iniziato";
+    if (minutes % 1440 === 0) return `${minutes / 1440} giorni prima`;
+    if (minutes % 60 === 0) return `${minutes / 60} ore prima`;
+    return `${minutes} minuti prima`;
   }
   function updateRound(index: number, patch: Partial<MatchRound>) {
     commitPlan((current) => ({
@@ -794,7 +819,7 @@ export default function EventsPage() {
     setStartsAt(toLocalInputValue(new Date(Date.now() + 60 * 60 * 1000)));
     setEndsAt(toLocalInputValue(new Date(Date.now() + 3 * 60 * 60 * 1000)));
     setTelegramEnabled(true);
-    setReminderMinutes("120,60,30,10");
+    setReminderMinutes("10080,1440,360,120,60,30,10,0");
     setTelegramTemplate(DEFAULT_TELEGRAM_TEMPLATE);
     setEventNotes("");
     commitPlan(emptyPlan(auth.clanName || "AK47DX"));
@@ -815,7 +840,7 @@ export default function EventsPage() {
     setStartsAt(toLocalInputValue(new Date(event.starts_at)));
     setEndsAt(event.ends_at ? toLocalInputValue(new Date(event.ends_at)) : "");
     setTelegramEnabled(event.telegram_enabled ?? true);
-    setReminderMinutes((event.reminder_minutes || [120, 60, 30, 10]).join(","));
+    setReminderMinutes((event.reminder_minutes || [10080, 1440, 360, 120, 60, 30, 10, 0]).join(","));
     setTelegramTemplate(
       event.telegram_message_template || DEFAULT_TELEGRAM_TEMPLATE,
     );
@@ -1498,46 +1523,68 @@ export default function EventsPage() {
                   onChange={(e) => setEventNotes(e.target.value)}
                 />
               </div>
-              <div className="event-notification-settings-block top-gap">
-                <h3>🔔 Impostazioni notifiche evento</h3>
-                <p className="muted">Promemoria e messaggio Telegram sono in basso per non bloccare la creazione rapida dell’evento.</p>
-                <div className="grid grid-2">
+              <div className="event-notification-settings-block top-gap pro-reminder-panel">
+                <h3>🔔 Telegram e reminder professionali</h3>
+                <p className="muted">Scegli quando avvisare il clan. Il messaggio Telegram viene generato in automatico con data, lobby, Partita 1/2/3, mappe, modalità, titolari, riserve, BAN, link e note.</p>
+                <label className="check-line ak-check-card">
+                  <input
+                    type="checkbox"
+                    checked={telegramEnabled}
+                    onChange={(e) => setTelegramEnabled(e.target.checked)}
+                  />{" "}
+                  Telegram attivo per questo evento
+                </label>
+                <div className="reminder-checkbox-grid top-gap">
+                  {[
+                    [10080, "7 giorni prima"],
+                    [4320, "3 giorni prima"],
+                    [1440, "1 giorno prima"],
+                    [360, "6 ore prima"],
+                    [120, "2 ore prima"],
+                    [60, "1 ora prima"],
+                    [30, "30 minuti prima"],
+                    [10, "10 minuti prima"],
+                    [0, "Evento iniziato"],
+                  ].map(([minutes, label]) => (
+                    <label className="check-line reminder-check" key={minutes}>
+                      <input
+                        type="checkbox"
+                        checked={hasReminder(Number(minutes))}
+                        onChange={(e) => setReminderPreset(Number(minutes), e.target.checked)}
+                      />{" "}
+                      {label}
+                    </label>
+                  ))}
+                </div>
+                <div className="grid grid-3 top-gap">
                   <div className="field">
-                    <label>Reminder minuti</label>
-                    <input
-                      className="input"
-                      value={reminderMinutes}
-                      onChange={(e) => setReminderMinutes(e.target.value)}
-                    />
+                    <label>Tempo personalizzato</label>
+                    <input className="input" type="number" min="1" value={customReminderValue} onChange={(e) => setCustomReminderValue(e.target.value)} />
                   </div>
-                  <label className="check-line ak-check-card">
-                    <input
-                      type="checkbox"
-                      checked={telegramEnabled}
-                      onChange={(e) => setTelegramEnabled(e.target.checked)}
-                    />{" "}
-                    Reminder Telegram attivo
-                  </label>
+                  <div className="field">
+                    <label>Unità</label>
+                    <select className="select" value={customReminderUnit} onChange={(e) => setCustomReminderUnit(e.target.value as "minutes" | "hours" | "days")}>
+                      <option value="minutes">Minuti prima</option>
+                      <option value="hours">Ore prima</option>
+                      <option value="days">Giorni prima</option>
+                    </select>
+                  </div>
+                  <div className="field">
+                    <label>Aggiungi</label>
+                    <button className="btn small secondary" type="button" onClick={addCustomReminder}>+ Reminder</button>
+                  </div>
                 </div>
-                <div className="field">
-                  <label>Messaggio Telegram</label>
-                  <textarea
-                    className="input"
-                    rows={7}
-                    value={telegramTemplate}
-                    onChange={(e) => setTelegramTemplate(e.target.value)}
-                  />
-                  <small className="muted">
-                    Usa <b>{"{match_details}"}</b> per inviare Partita 1, Partita
-                    2, ecc. con dettagli, orari e convocati.
-                  </small>
+                <div className="notice compact top-gap">
+                  <strong>Reminder attivi:</strong> {parseReminderMinutes().map(reminderHuman).join(" · ") || "Nessuno"}
                 </div>
-                <details className="notice">
-                  <summary>Anteprima dettaglio partite Telegram</summary>
-                  <pre className="telegram-preview-box">
-                    {telegramPreview || "Nessuna partita compilata."}
-                  </pre>
-                </details>
+                {isAdminUser && (
+                  <details className="notice">
+                    <summary>Anteprima admin dettaglio partite Telegram</summary>
+                    <pre className="telegram-preview-box">
+                      {telegramPreview || "Nessuna partita compilata."}
+                    </pre>
+                  </details>
+                )}
               </div>
               <button
                 className="btn event-save-button"

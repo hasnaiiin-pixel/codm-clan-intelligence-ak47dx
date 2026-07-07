@@ -25,9 +25,9 @@ function normalizeIso(value: unknown) {
 }
 
 function sanitizeReminderMinutes(value: unknown) {
-  if (!Array.isArray(value)) return [120, 60, 30, 10];
-  const nums = value.map((item) => Number(item)).filter((n) => Number.isFinite(n) && n > 0 && n <= 10080);
-  return Array.from(new Set(nums.length ? nums : [120, 60, 30, 10])).sort((a, b) => b - a);
+  if (!Array.isArray(value)) return [10080, 1440, 360, 120, 60, 30, 10, 0];
+  const nums = value.map((item) => Number(item)).filter((n) => Number.isFinite(n) && n >= 0 && n <= 43200);
+  return Array.from(new Set(nums.length ? nums : [120, 30, 10, 0])).sort((a, b) => b - a);
 }
 
 function normalizeEventPlan(event: Record<string, any>) {

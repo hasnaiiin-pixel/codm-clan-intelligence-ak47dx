@@ -1,4 +1,4 @@
-const CODM_CACHE = 'codm-ak47dx-pwa-v8-1c-client-uuid-delete-edit-fix';
+const CODM_CACHE = 'clan-manager-pwa-v8-2-pro-telegram-reminders-templates-ui';
 const CODM_OFFLINE_URL = '/offline.html';
 const CORE_ASSETS = [CODM_OFFLINE_URL, '/manifest.webmanifest', '/icons/icon-192.png', '/icons/icon-512.png', '/icons/icon-maskable-512.png'];
 

@@ -1138,8 +1138,15 @@ function ImportMatchEditor() {
             <span className="pill-chip">✅ Salvataggio diretto</span>
           </div>
         </div>
-        <div className="import-actions">
+        <div className="import-actions import-actions-pro">
           <input className="input" type="file" accept="image/*" onChange={(e) => onFileSelected(e.target.files?.[0] || null)} />
+          <select className="select" value={selectedCalibrationPhone} onChange={(e) => refreshCalibrationTemplate(e.target.value)} disabled={!useCalibrationTemplate} title="Telefono/profilo OCR attivo">
+            {calibrationPhoneOptions.map((p) => <option key={p} value={p}>{p}</option>)}
+          </select>
+          <select className="select" value={selectedCalibrationTemplate} onChange={(e) => refreshCalibrationTemplate(selectedCalibrationPhone, e.target.value)} disabled={!useCalibrationTemplate} title="Template OCR attivo">
+            {calibrationTemplateOptions.map((p) => <option key={p} value={p}>{p}</option>)}
+          </select>
+          <a className="btn secondary" href="/calibration">🎯 Calibrazione</a>
           <button className="btn import-main-btn" onClick={runBackendOcr} disabled={working || !file}>{working ? '⏳ Lettura in corso...' : '🚀 Importa risultati'}</button>
         </div>
       </section>
@@ -1192,7 +1199,7 @@ function ImportMatchEditor() {
             </div>
           )}
           <div className={`ak-template-status ${templateSaved ? 'ok' : 'warn'}`}>
-            <strong>Template import usato:</strong> {templateSummary} <br /><strong>V5.4:</strong> se hai salvato un template in Calibrazione, viene recuperato e inviato in FastLane; il controllo /health non blocca più l'import.
+            <strong>Profilo OCR attivo:</strong> 📱 {selectedCalibrationPhone} · 🧩 {selectedCalibrationTemplate} · {templateSummary} <br /><strong>Coordinate:</strong> stesso overlay Calibrazione/Import con content frame {activeFrame.reason}.
             <span> · Overlay locale visibile: {localTemplateRegions.length} riquadri. I riquadri sottili sono quelli salvati/calibrati; i riquadri spessi sono quelli realmente letti dal backend.</span>
           </div>
           <details className="top-gap" open>

@@ -33,7 +33,7 @@ const kinds: Array<{ value: CalibrationKind; label: string; help: string }> = [
 
 function pct(value: number) { return `${(value * 100).toFixed(2)}%`; }
 function slug(value: string) { return (value || 'default').toLowerCase().replace(/[^a-z0-9_-]+/g, '_').replace(/^_+|_+$/g, '') || 'default'; }
-function softSlug(value: string) { return (value || '').toLowerCase().replace(/[^a-z0-9_-]+/g, '_').replace(/^_+|_+$/g, ''); }
+function softSlug(value: string) { return String(value || '').trim().replace(/\s+/g, ' ').replace(/__/g, '_').slice(0, 90); }
 
 type DragMode = 'move' | 'resize';
 type DragState = { name: string; mode: DragMode; startX: number; startY: number; start: CalibratedRegion; handle?: 'se' | 'sw' | 'ne' | 'nw' } | null;
@@ -63,11 +63,21 @@ function CalibrationEditor() {
   const [contentFrame, setContentFrame] = useState<ImageContentFrame>(FULL_IMAGE_FRAME);
   const [message, setMessage] = useState('');
   const [jsonBox, setJsonBox] = useState('');
+  const [regionSearch, setRegionSearch] = useState('');
+  const [regionGroupFilter, setRegionGroupFilter] = useState('Tutti');
   const wrapRef = useRef<HTMLDivElement | null>(null);
   const dragRef = useRef<DragState>(null);
 
   const selected = regions.find((region) => region.name === selectedName) || regions[0];
   const groups = useMemo(() => Array.from(new Set(regions.map((region) => region.group || 'Altro'))), [regions]);
+  const filteredRegions = useMemo(() => {
+    const query = regionSearch.trim().toLowerCase();
+    return regions.filter((region) => {
+      const groupOk = regionGroupFilter === 'Tutti' || (region.group || 'Altro') === regionGroupFilter;
+      const text = `${region.name} ${region.label || ''} ${region.group || ''}`.toLowerCase();
+      return groupOk && (!query || text.includes(query));
+    });
+  }, [regions, regionGroupFilter, regionSearch]);
 
   useEffect(() => {
     supabase.auth.getUser().then(({ data }) => {
@@ -312,8 +322,8 @@ function CalibrationEditor() {
         <div className="grid grid-4 calibration-template-flow">
           <div className="field"><label>Tipo template</label><select className="select" value={kind} onChange={(e) => changeKind(e.target.value as CalibrationKind)}>{kinds.map((entry) => <option key={entry.value} value={entry.value}>{entry.label}</option>)}</select><small className="muted">{kinds.find((e) => e.value === kind)?.help}</small></div>
           <div className="field"><label>Origine template</label><select className="select" value={templateSource} onChange={(e) => applyTemplateSource(e.target.value as 'default' | 'phone' | 'saved')}><option value="default">Default generale</option><option value="phone">Per tipologia telefono</option><option value="saved">Nome template salvato</option></select><small className="muted">Scegli sempre se vuoi default, telefono o template nominato.</small></div>
-          <div className="field"><label>Tipologia telefono</label><input className="input" list="cal-phone-options" value={phoneDevice} onChange={(e) => setPhoneDevice(softSlug(e.target.value))} onBlur={() => changePhoneDevice(phoneDevice)} placeholder="iphone_17px" /><datalist id="cal-phone-options">{phoneOptions.map((p) => <option key={p} value={p} />)}</datalist><small className="muted">Se cancelli, resta vuoto: non torna più default da solo.</small></div>
-          <div className="field"><label>Nome template</label><input className="input" list="cal-template-options" value={templateSlot} onChange={(e) => setTemplateSlot(softSlug(e.target.value))} onBlur={() => changeTemplateSlot(templateSlot)} placeholder="default / ced / postazione / dominio" /><datalist id="cal-template-options">{templateOptions.map((p) => <option key={p} value={p} />)}</datalist><small className="muted">Nome usato anche nelle pagine Import dopo aver scelto il telefono.</small></div>
+          <div className="field"><label>Tipologia telefono</label><input className="input" list="cal-phone-options" value={phoneDevice} onChange={(e) => setPhoneDevice(e.target.value)} onBlur={() => changePhoneDevice(phoneDevice)} placeholder="iPhone 15 Pro Max - Mirza 🔥" /><datalist id="cal-phone-options">{phoneOptions.map((p) => <option key={p} value={p} />)}</datalist><small className="muted">Se cancelli, resta vuoto: non torna più default da solo.</small></div>
+          <div className="field"><label>Nome template</label><input className="input" list="cal-template-options" value={templateSlot} onChange={(e) => setTemplateSlot(e.target.value)} onBlur={() => changeTemplateSlot(templateSlot)} placeholder="CED Torneo 2026 - Layout Principale" /><datalist id="cal-template-options">{templateOptions.map((p) => <option key={p} value={p} />)}</datalist><small className="muted">Puoi usare maiuscole, spazi e simboli. Il sistema crea internamente una chiave sicura.</small></div>
         </div>
         <div className="grid grid-2 top-gap">
           <div className="field"><label>Login/profilo collegato</label><input className="input" value={ownerName} onChange={(e) => setOwnerName(e.target.value)} placeholder="Nome login" /><small className="muted">Chiave attiva: {phoneProfile}</small></div>
@@ -322,7 +332,7 @@ function CalibrationEditor() {
         <div className="grid grid-3 top-gap">
           <div className="field"><label>Screenshot campione</label><input className="input" type="file" accept="image/*" onChange={(event) => onFile(event.target.files?.[0] || null)} /></div>
           <div className="field"><label>Comandi</label><div className="cal-buttons"><button className="btn small" type="button" onClick={save}>Salva template</button><button className="btn small secondary" type="button" onClick={reset}>Reset</button><button className="btn small secondary" type="button" onClick={exportJson}>Esporta</button></div></div>
-          <div className="notice">V6.3: per più template sullo stesso telefono usa formato telefono__template, esempio iphone_17px__ced, iphone_17px__postazione, iphone_17px__dominio. Trascina il riquadro dal centro. Prendi un angolo per cambiare larghezza/altezza. Il salvataggio è automatico. Il bordo tratteggiato indica il content frame usato per non perdere coordinate tra immagini.</div>
+          <div className="notice">V8.2: puoi usare nomi telefono/template con maiuscole, spazi e simboli. Calibrazione e Import usano lo stesso content frame per mantenere identiche coordinate e riquadri.</div>
         </div>
         {message && <div className="notice top-gap">{message}</div>}
       </section>
@@ -335,7 +345,7 @@ function CalibrationEditor() {
             <div className="cal-image-wrap" ref={wrapRef}>
               <img src={imageUrl} alt="Calibrazione OCR" draggable={false} />
               <div className="cal-content-frame" style={frameToStyle(contentFrame)} title={`Content frame: ${contentFrame.reason}`} />
-              {regions.map((region) => (
+              {filteredRegions.map((region) => (
                 <div
                   key={region.name}
                   className={`cal-rect ${region.name === selectedName ? 'active' : ''} ${region.name.startsWith('RED') || region.name.includes('RED') ? 'red' : region.name.startsWith('BLUE') || region.name.includes('BLUE') ? 'blue' : ''}`}
@@ -354,7 +364,12 @@ function CalibrationEditor() {
 
         <div className="card">
           <h2>Riquadro selezionato</h2>
-          <div className="field"><label>Campo</label><select className="select" value={selectedName} onChange={(e) => setSelectedName(e.target.value)}>{groups.map((group) => <optgroup key={group} label={group}>{regions.filter((r) => (r.group || 'Altro') === group).map((r) => <option key={r.name} value={r.name}>{r.label || r.name}</option>)}</optgroup>)}</select></div>
+          <div className="grid grid-2">
+            <div className="field"><label>Filtro gruppo</label><select className="select" value={regionGroupFilter} onChange={(e) => setRegionGroupFilter(e.target.value)}><option value="Tutti">Tutti</option>{groups.map((group) => <option key={group} value={group}>{group}</option>)}</select></div>
+            <div className="field"><label>Cerca riquadro</label><div className="input-clear-row"><input className="input" value={regionSearch} onChange={(e) => setRegionSearch(e.target.value)} placeholder="BLUE_R1_NICK" /><button className="btn small secondary" type="button" onClick={() => setRegionSearch('')}>X</button></div></div>
+          </div>
+          <div className="cal-chip-row top-gap"><button className="btn small secondary" type="button" onClick={() => { setRegionGroupFilter('Tutti'); setRegionSearch(''); }}>Tutti</button>{groups.map((group) => <button key={group} className="btn small secondary" type="button" onClick={() => setRegionGroupFilter(group)}>{group}</button>)}</div>
+          <div className="field top-gap"><label>Campo</label><select className="select" value={selectedName} onChange={(e) => setSelectedName(e.target.value)}>{groups.map((group) => <optgroup key={group} label={group}>{regions.filter((r) => (r.group || 'Altro') === group).map((r) => <option key={r.name} value={r.name}>{r.label || r.name}</option>)}</optgroup>)}</select></div>
           {selected && <>
             <div className="grid grid-4 top-gap">{(['x', 'y', 'w', 'h'] as const).map((key) => <div className="field" key={key}><label>{key.toUpperCase()}</label><input className="input mini" value={selected[key].toFixed(4)} onChange={(e) => updateSelected({ [key]: Number(e.target.value) } as Partial<CalibratedRegion>)} /></div>)}</div>
             <small className="muted">Per punteggio CED: Score Blue deve coprire solo il numero blu; Score Red solo il numero rosso. Match Datetime deve coprire solo la riga data/ora. Mode Map solo modalità + mappa. Per profilo: i campi Leggendario MG/BR/DMZ/Zombie devono coprire solo il numero accanto al simbolo, non l'icona.</small>

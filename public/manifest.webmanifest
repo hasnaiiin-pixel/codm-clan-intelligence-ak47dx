@@ -1,14 +1,18 @@
 {
   "name": "CLAN MANAGER",
-  "short_name": "Clan Manager",
-  "description": "CLAN MANAGER AK47DX: eventi, roster, calendario, statistiche e scrim CODM.",
+  "short_name": "CLAN MANAGER",
+  "description": "CLAN MANAGER AK47DX - eventi, scrim, torneo, roster, Telegram e import risultati.",
   "start_url": "/",
   "scope": "/",
   "display": "standalone",
   "orientation": "portrait",
   "theme_color": "#080B12",
   "background_color": "#080B12",
-  "categories": ["games", "sports", "productivity"],
+  "categories": [
+    "games",
+    "sports",
+    "productivity"
+  ],
   "icons": [
     {
       "src": "/icons/icon-192.png",

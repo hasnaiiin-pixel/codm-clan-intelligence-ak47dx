@@ -1,6 +1,6 @@
 {
-  "name": "codm-clan-intelligence-ak47dx",
-  "version": "8.1.3-client-uuid-delete-edit-fix",
+  "name": "clan-manager-ak47dx",
+  "version": "8.2.0-pro-telegram-reminders-templates-ui",
   "private": true,
   "scripts": {
     "dev": "next dev",

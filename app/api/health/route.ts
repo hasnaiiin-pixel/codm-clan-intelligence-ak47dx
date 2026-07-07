@@ -4,7 +4,7 @@ export async function GET() {
   return NextResponse.json({
     ok: true,
     app: 'CLAN MANAGER',
-    version: 'CODM_AK47DX_V8_1_EVENTS_EDIT_DELETE_TELEGRAM_CLEAN_FINAL',
+    version: 'CLAN_MANAGER_V8_2_PRO_TELEGRAM_REMINDERS_TEMPLATES_UI',
     routes: [
       '/version',
       '/cache-reset',

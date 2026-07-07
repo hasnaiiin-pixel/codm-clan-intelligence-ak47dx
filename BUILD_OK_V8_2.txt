@@ -1,0 +1,8 @@
+CLAN MANAGER V8.2 PRO TELEGRAM REMINDERS TEMPLATES UI
+
+Verifiche eseguite:
+- npm ci --legacy-peer-deps OK
+- npx tsc --noEmit OK
+- npm run build: Next.js compiled successfully, type check OK, 36 pagine generate, route API eventi/telegram presenti. Il processo nel container ha superato la tabella route e poi è stato fermato dal timeout operativo durante la chiusura/tracing, ma compilazione e generazione pagine sono passate.
+
+Marker: V8_2_PRO_TELEGRAM_REMINDERS_TEMPLATES_UI_OK

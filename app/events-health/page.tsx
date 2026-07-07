@@ -9,7 +9,7 @@ export default function EventsHealthPage() {
 
   async function checkHealth() {
     try {
-      setStatus('Controllo eventi V8.1 in corso...');
+      setStatus('Controllo eventi V8.2 in corso...');
       const { data: sessionData } = await supabase.auth.getSession();
       let token = sessionData.session?.access_token;
       if (!token) {
@@ -37,7 +37,7 @@ export default function EventsHealthPage() {
     <main className="ak-login-page">
       <section className="ak-login-wrap">
         <div className="ak-login-card">
-          <div className="ak-pill">EVENTI V8.1 HEALTH</div>
+          <div className="ak-pill">EVENTI V8.2 HEALTH</div>
           <h1 className="ak-title">Controllo database unico eventi</h1>
           <p className="ak-lead">Verifica che PWA e browser usino lo stesso endpoint Vercel API + Supabase service role.</p>
           <button className="btn" type="button" onClick={checkHealth}>Controlla eventi</button>

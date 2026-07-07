@@ -53,7 +53,7 @@ export default function CacheResetPage() {
         <p style={{ color: '#22d3ee', fontWeight: 800, letterSpacing: 1, marginBottom: 8 }}>AK47DX CACHE RESET SICURO</p>
         <h1 style={{ fontSize: 32, lineHeight: 1.1, margin: '0 0 16px' }}>Pulisci versione vecchia senza perdere calibrazione</h1>
         <p style={{ color: '#cbd5e1' }}>
-          Usa questo pulsante se telefono o PWA continua a mostrare eventi vecchi o una versione precedente. Da V8.1 gli eventi locali vengono cancellati e la PWA legge solo Supabase; i template OCR salvati restano conservati.
+          Usa questo pulsante se telefono o PWA continua a mostrare eventi vecchi o una versione precedente. Da V8.2 gli eventi locali vengono cancellati e la PWA legge solo Supabase; i template OCR salvati restano conservati.
         </p>
         <button
           type="button"

@@ -133,12 +133,12 @@ export function defaultCalibration(kind: CalibrationKind): CalibratedRegion[] {
 }
 
 function slug(value: string) {
-  return (
-    (value || "default")
-      .toLowerCase()
-      .replace(/[^a-z0-9_-]+/g, "_")
-      .replace(/^_+|_+$/g, "") || "default"
-  );
+  const text = String(value || "default")
+    .trim()
+    .replace(/\s+/g, " ")
+    .replace(/__/g, "_")
+    .slice(0, 90);
+  return text || "default";
 }
 
 function templateSlugFromName(value?: string | null) {
