@@ -1,4 +1,4 @@
-const CODM_CACHE = 'codm-ak47dx-pwa-v8-0-single-database-events';
+const CODM_CACHE = 'codm-ak47dx-pwa-v8-1-events-edit-delete-telegram-clean';
 const CODM_OFFLINE_URL = '/offline.html';
 const CORE_ASSETS = [CODM_OFFLINE_URL, '/manifest.webmanifest', '/icons/icon-192.png', '/icons/icon-512.png', '/icons/icon-maskable-512.png'];
 

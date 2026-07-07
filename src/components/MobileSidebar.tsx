@@ -29,8 +29,9 @@ const navItems: NavItem[] = [
   { href: '/admin/users', label: 'Gestione utenti', emoji: '🔐', group: 'Owner', audience: 'owner' },
   { href: '/deploy', label: 'Deploy', emoji: '🚀', group: 'Owner', audience: 'owner' },
   { href: '/ocr-status', label: 'Stato OCR', emoji: '🤖', group: 'Owner', audience: 'owner' },
-  { href: '/version', label: 'Versione', emoji: '✅', group: 'Sistema', audience: 'system' },
-  { href: '/cache-reset', label: 'Reset cache', emoji: '🧹', group: 'Sistema', audience: 'system' },
+  { href: '/version', label: 'Versione', emoji: '✅', group: 'Sistema admin', audience: 'system' },
+  { href: '/events-health', label: 'Health eventi', emoji: '🩺', group: 'Sistema admin', audience: 'system' },
+  { href: '/cache-reset', label: 'Reset cache', emoji: '🧹', group: 'Sistema admin', audience: 'system' },
 ];
 
 export function MobileSidebar() {
@@ -88,7 +89,7 @@ export function MobileSidebar() {
       if (item.audience === 'player') return !!auth.user;
       if (item.audience === 'write') return auth.canWrite;
       if (item.audience === 'owner') return auth.canManageUsers;
-      if (item.audience === 'system') return auth.canWrite || auth.canManageUsers;
+      if (item.audience === 'system') return auth.canManageUsers;
       return false;
     });
   }, [auth.user, auth.canWrite, auth.canManageUsers]);

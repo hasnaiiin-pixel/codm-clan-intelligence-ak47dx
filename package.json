@@ -1,6 +1,6 @@
 {
   "name": "codm-clan-intelligence-ak47dx",
-  "version": "8.0.0-single-database-events-final",
+  "version": "8.1.1-sql-compat-fix",
   "private": true,
   "scripts": {
     "dev": "next dev",

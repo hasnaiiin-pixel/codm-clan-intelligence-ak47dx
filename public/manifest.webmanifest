@@ -1,7 +1,7 @@
 {
-  "name": "CODM Clan Intelligence",
-  "short_name": "CODM Clan",
-  "description": "Gestione clan, eventi, roster, calendario, statistiche e scrim CODM.",
+  "name": "CLAN MANAGER",
+  "short_name": "Clan Manager",
+  "description": "CLAN MANAGER AK47DX: eventi, roster, calendario, statistiche e scrim CODM.",
   "start_url": "/",
   "scope": "/",
   "display": "standalone",

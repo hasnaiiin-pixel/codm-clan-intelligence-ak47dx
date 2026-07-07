@@ -9,7 +9,7 @@ export default function EventsHealthPage() {
 
   async function checkHealth() {
     try {
-      setStatus('Controllo eventi V8.0 in corso...');
+      setStatus('Controllo eventi V8.1 in corso...');
       const { data: sessionData } = await supabase.auth.getSession();
       let token = sessionData.session?.access_token;
       if (!token) {
@@ -25,7 +25,7 @@ export default function EventsHealthPage() {
       const data = await response.json().catch(() => null);
       setJson(data);
       if (!response.ok || !data?.ok) throw new Error(data?.error || 'Health eventi non OK.');
-      setStatus(data.mode === 'service-role'
+      setStatus(String(data.mode || '').includes('service-role')
         ? `OK: service-role attiva, clan=${data.resolvedClanId || '-'}, eventi=${data.eventsCount ?? '-'}.`
         : 'ATTENZIONE: service role non attiva. Eventi non affidabili.');
     } catch (error) {
@@ -37,7 +37,7 @@ export default function EventsHealthPage() {
     <main className="ak-login-page">
       <section className="ak-login-wrap">
         <div className="ak-login-card">
-          <div className="ak-pill">EVENTI V8.0 HEALTH</div>
+          <div className="ak-pill">EVENTI V8.1 HEALTH</div>
           <h1 className="ak-title">Controllo database unico eventi</h1>
           <p className="ak-lead">Verifica che PWA e browser usino lo stesso endpoint Vercel API + Supabase service role.</p>
           <button className="btn" type="button" onClick={checkHealth}>Controlla eventi</button>

@@ -101,7 +101,7 @@ async function showBrowserNotification(item: CodmLocalNotification) {
     const registration = await navigator.serviceWorker?.getRegistration?.();
     if (registration?.showNotification) {
       await registration.showNotification(item.title, {
-        body: item.body || 'Apri CODM Clan Intelligence per i dettagli.',
+        body: item.body || 'Apri CLAN MANAGER per i dettagli.',
         icon: '/assets/mirza-app-icon-192.png',
         badge: '/assets/mirza-app-icon-192.png',
         data: { url: item.href || '/notifications' },

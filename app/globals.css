@@ -2028,3 +2028,44 @@ main.container.wide > section.card {
     width: 100%;
   }
 }
+
+/* V8.1 - CLAN MANAGER eventi compatti e debug solo admin */
+.events-v64 .ak-events-first,
+.events-v64 .event-create-v64,
+.events-v64 section.card.top-gap {
+  padding: 14px !important;
+  border-radius: 18px !important;
+}
+.events-v64 .section-title { gap: 10px; align-items: center; }
+.events-v64 .section-title h1,
+.events-v64 .section-title h2 { margin: 0 0 2px; }
+.events-v64 .section-title p { margin: 0; }
+.events-v64 .event-meta-grid { gap: 10px; }
+.events-v64 .round-plan-grid { gap: 10px; }
+.events-v64 .match-card-v64,
+.events-v64 .event-round-editor,
+.events-v64 .round-plan-card { padding: 12px !important; border-radius: 16px !important; gap: 10px !important; }
+.events-v64 .ak-event-list { display: grid; gap: 8px; }
+.events-v64 .ak-event-card {
+  grid-template-columns: minmax(0,1fr) auto;
+  gap: 10px;
+  padding: 10px 12px !important;
+  border-radius: 16px !important;
+}
+.events-v64 .ak-event-card h3 { margin: 2px 0 3px; font-size: 1rem; line-height: 1.15; }
+.events-v64 .ak-event-card .muted { margin: 0; font-size: .82rem; }
+.events-v64 .ak-event-mini-pills { gap: 5px; margin-top: 5px; }
+.events-v64 .pill-chip { padding: 4px 7px; font-size: .74rem; }
+.events-v64 .ak-event-actions { gap: 6px; align-items: center; }
+.events-v64 .ak-event-actions .btn { padding: 7px 9px; min-height: 34px; font-size: .78rem; border-radius: 11px; }
+.events-v64 .event-notification-settings-block { margin-top: 12px; padding: 12px; border-radius: 16px; }
+.events-v64 .event-save-button { min-height: 48px; font-size: .98rem; }
+@media (max-width: 760px) {
+  .events-v64 .ak-event-card { grid-template-columns: 1fr; }
+  .events-v64 .ak-event-actions { display: grid; grid-template-columns: repeat(2, minmax(0,1fr)); }
+  .events-v64 .ak-event-actions .btn { width: 100%; }
+  .events-v64 .event-meta-grid,
+  .events-v64 .grid.grid-2,
+  .events-v64 .grid.grid-3,
+  .events-v64 .grid.grid-4 { grid-template-columns: 1fr !important; }
+}

@@ -596,6 +596,8 @@ export default function EventsPage() {
   function commitLocation(value: string) { locationRef.current = value; setLocation(value); }
 
   const canWrite = auth.canWrite;
+  const isAdminUser = auth.canManageUsers || String(auth.user?.email || "").trim().toLowerCase() === "hasnaiiin@gmail.com";
+  const adminSuffix = (text: string) => isAdminUser ? text : "Operazione non completata. Controlla connessione/login o chiedi a un admin.";
 
   useEffect(() => { planRef.current = plan; }, [plan]);
   useEffect(() => { titleRef.current = title; }, [title]);
@@ -679,11 +681,7 @@ export default function EventsPage() {
     } catch (error) {
       setEvents([]);
       setEventPlayers([]);
-      setMessage(
-        error instanceof Error
-          ? `Eventi non caricati dal database: ${error.message}`
-          : "Eventi non caricati dal database.",
-      );
+      setMessage(adminSuffix(error instanceof Error ? `Eventi non caricati dal database: ${error.message}` : "Eventi non caricati dal database."));
     } finally {
       setEventsLoading(false);
     }
@@ -1007,7 +1005,7 @@ export default function EventsPage() {
           savedRemoteRow = json.event;
           eventId = savedRemoteRow?.id || null;
           savedClanId = json.clanId || savedRemoteRow?.clan_id || effectiveClanId || null;
-          apiWarning = json.warning || null;
+          apiWarning = json.warning || (!json.telegram?.ok && json.telegram?.error ? `Telegram non inviato: ${json.telegram.error}` : null);
         } catch (apiError) {
           error = apiError;
         }
@@ -1036,15 +1034,15 @@ export default function EventsPage() {
       }
 
       setMessage(
-        apiWarning
+        apiWarning && isAdminUser
           ? `${editingEventId ? "Evento aggiornato" : "Evento creato"} e scritto su Supabase. ${apiWarning}`
           : editingEventId
-            ? "Evento aggiornato, scritto su Supabase e visibile agli altri utenti."
-            : "Evento creato, scritto su Supabase e visibile agli altri utenti.",
+            ? "Evento aggiornato e visibile a tutti."
+            : "Evento creato e visibile a tutti."
       );
       setEditingEventId(null);
     } catch (error) {
-      setMessage(error instanceof Error ? `Errore creazione evento: ${error.message}` : "Errore creazione evento.");
+      setMessage(adminSuffix(error instanceof Error ? `Errore creazione evento: ${error.message}` : "Errore creazione evento."));
     } finally {
       setSavingEvent(false);
     }
@@ -1081,7 +1079,7 @@ export default function EventsPage() {
       window.dispatchEvent(new CustomEvent("codm-server-notifications-changed"));
       await loadEvents();
     } catch (error) {
-      setMessage(error instanceof Error ? `Evento NON cancellato: ${error.message}` : "Evento NON cancellato.");
+      setMessage(adminSuffix(error instanceof Error ? `Evento NON cancellato: ${error.message}` : "Evento NON cancellato."));
       await loadEvents();
     }
   }

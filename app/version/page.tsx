@@ -4,9 +4,9 @@ export default function VersionPage() {
       <section className="ak-login-wrap">
         <div className="ak-login-card">
           <div className="ak-pill">CLAN MANAGER DEPLOY CHECK</div>
-          <h1 className="ak-title">Clan Manager</h1>
-          <p className="ak-lead">Versione V8.0 SINGLE DATABASE EVENTS FINAL: eventi centralizzati solo via Vercel API + Supabase service role. Nessun evento locale, nessun clan_id dal client, nessun fallback RLS per eventi.</p>
-          <div className="notice top-gap"><strong>Marker:</strong> V8_0_SINGLE_DATABASE_EVENTS_OK</div>
+          <h1 className="ak-title">CLAN MANAGER</h1>
+          <p className="ak-lead">Versione V8.1: eventi su database unico Supabase tramite API Vercel, modifica/cancellazione confermate dal server, Telegram immediato su creazione/modifica/cancellazione, debug solo admin.</p>
+          <div className="notice top-gap"><strong>Marker:</strong> V8_1_EVENTS_EDIT_DELETE_TELEGRAM_CLEAN_OK</div>
           <div className="notice top-gap"><strong>Admin principale:</strong> hasnaiiin@gmail.com</div>
           <div className="notice top-gap"><strong>Eventi:</strong> public.codm_events via API server unica · service role obbligatoria · browser e PWA stesso endpoint</div>
           <div className="ak-quick-links">

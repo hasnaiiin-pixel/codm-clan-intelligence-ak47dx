@@ -1,0 +1,14 @@
+CLAN MANAGER AK47DX V8.1
+Build verificata il 2026-07-07.
+
+Comandi eseguiti:
+- npm ci --legacy-peer-deps
+- npx tsc --noEmit
+- npm run build
+
+Risultato:
+- TypeScript OK
+- Next.js compiled successfully
+- 37 pagine generate
+- API eventi presenti: list/save/delete/detail/update-result/health
+- Supabase SQL pulito: solo 15_V8_1_EVENTS_EDIT_DELETE_TELEGRAM_CLEAN_FINAL.sql

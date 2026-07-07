@@ -1,91 +1,32 @@
-# Clan Manager CODM AK47DX - V7.0 Full PWA Mobile
+# CLAN MANAGER AK47DX — V8.1 Final
 
-Build ufficiale stabile con gestione utenti reale, sync roster e icona PWA MIRZA.
+Build pulita con eventi su database unico Supabase tramite API Vercel.
 
-## Prima esecuzione
+## Regola eventi
 
-```powershell
-npm ci --legacy-peer-deps
-npm run build
-npm run dev
-```
+- Creazione: `/api/events/save`
+- Modifica: `/api/events/save`
+- Cancellazione: `/api/events/delete`
+- Lettura: `/api/events/list`
+- Risultati/import collegati: `/api/events/update-result`
+- Database unico: `public.codm_events`
+- Nessun salvataggio locale eventi nella PWA
+- Telegram immediato su creazione, modifica, cancellazione e risultati evento
 
-## Supabase obbligatorio
+## SQL Supabase
 
-Usa ancora lo SQL V6.9 per utenti/roster/ruoli. Questa V7.0 cambia PWA/mobile, non richiede una nuova migrazione Supabase. Esegui in Supabase SQL Editor se non lo hai già fatto:
-
-```text
-supabase/08_V6_9_OFFICIAL_STABLE_USERS_ROSTER_PERFORMANCE.sql
-```
-
-Su Vercel devono essere configurate:
+Eseguire solo:
 
 ```text
-NEXT_PUBLIC_SUPABASE_URL
-NEXT_PUBLIC_SUPABASE_ANON_KEY
-SUPABASE_SERVICE_ROLE_KEY
+supabase/15_V8_1_EVENTS_EDIT_DELETE_TELEGRAM_CLEAN_FINAL.sql
 ```
 
-## Verifica rilascio
+## Deploy
 
-- `/version` deve mostrare marker V7_0.
-- `/admin/users` deve mostrare gli utenti registrati.
-- Premere `Sincronizza Auth → Roster` per allineare Auth, profili, roster e ruoli.
-- Sul telefono l'icona installata deve essere MIRZA.
-
----
-
-# Clan Manager — CODM AK47DX V6.8
-
-Build preparata partendo da `CODM_AK47DX_V6_7_CLAN_HQ_RULES_MAP_BAN_FLOW_BUILD.zip`.
-
-## Controllo eseguito
-- `npm ci --legacy-peer-deps` OK.
-- `npm run build` OK fino a `Compiled successfully` e `Generating static pages`.
-- Nel sandbox Next può restare lungo su `Collecting build traces`, comportamento già visto nelle build precedenti. Su PC/Vercel verificare con Node 24.x.
-
-## Cambi principali V6.8
-- Admin principale impostato: `hasnaiiin@gmail.com`.
-- Se fai login con `hasnaiiin@gmail.com`, l'app assegna ruolo frontend **Owner/Admin**.
-- Aggiunto endpoint `/api/admin/ensure-main-owner` per assegnare automaticamente l'owner nel database con `SUPABASE_SERVICE_ROLE_KEY`.
-- Aggiunto SQL Supabase `supabase/07_MAIN_ADMIN_HASNAIIN_OWNER_FIX.sql` per rendere permanente il permesso admin anche lato RLS.
-- Clan principale confermato su `AK47DX`.
-- Corretto seed owner precedente che aveva email non quotata e tag legacy.
-
-## Passaggio importante Supabase
-Dopo aver caricato la build, entra in Supabase SQL Editor ed esegui una volta:
-
-```sql
-supabase/07_MAIN_ADMIN_HASNAIIN_OWNER_FIX.sql
-```
-
-Se su Vercel è già configurata `SUPABASE_SERVICE_ROLE_KEY`, la app prova anche ad assegnare automaticamente il ruolo owner dopo il login.
-
-## Comandi consigliati
 ```bash
 npm ci --legacy-peer-deps
 npm run build
-npm run dev
-```
-
-## Commit suggerito
-```bash
 git add -A
-git commit -m "fix: CODM v6.8 main admin owner permissions"
+git commit -m "CODM AK47DX V8.1 eventi edit delete telegram clean finale"
 git push origin main
 ```
-
-
-## V7.0 Full PWA Mobile
-
-Questa release completa la parte PWA per telefono:
-
-- service worker registrato lato client;
-- manifest PWA completo con icona MIRZA;
-- offline page;
-- install prompt Android e guida iPhone;
-- bottom navigation mobile;
-- badge notifiche PWA;
-- fix Crea Evento su telefono con fallback locale se Supabase non risponde.
-
-Marker verifica: `V7_0_FULL_PWA_MOBILE_NOTIFICATIONS_OK`.

@@ -4,10 +4,10 @@ import { MobileSidebar } from '@/components/MobileSidebar';
 import { PwaInstaller } from '@/components/PwaInstaller';
 
 export const metadata: Metadata = {
-  title: 'CODM Clan Intelligence',
-  description: 'CODM Clan Intelligence by MIRZA: eventi, roster, calendario, notifiche, risultati e statistiche CODM.',
+  title: 'CLAN MANAGER',
+  description: 'CLAN MANAGER by MIRZA: eventi, roster, calendario, notifiche, risultati e statistiche CODM.',
   manifest: '/manifest.webmanifest',
-  appleWebApp: { capable: true, title: 'CODM MIRZA', statusBarStyle: 'black-translucent' },
+  appleWebApp: { capable: true, title: 'CLAN MANAGER', statusBarStyle: 'black-translucent' },
   icons: {
     icon: [
       { url: '/assets/mirza-app-icon-192.png', sizes: '192x192', type: 'image/png' },

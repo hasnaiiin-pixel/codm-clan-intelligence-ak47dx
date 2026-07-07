@@ -190,9 +190,10 @@ export default function NotificationsPage() {
     );
   }
 
+  const isAdminUser = auth.canManageUsers || String(auth.user?.email || "").trim().toLowerCase() === "hasnaiiin@gmail.com";
   const unreadServer = notifications.filter((row) => !row.read_at).length;
   const unreadLocal = localNotifications.filter((row) => !row.readAt).length;
-  const unread = unreadServer + unreadLocal;
+  const unread = unreadServer + (isAdminUser ? unreadLocal : 0);
   const localStatus = useMemo(
     () =>
       permission === "granted"
@@ -239,41 +240,32 @@ export default function NotificationsPage() {
               Segna tutte lette
             </button>
           </div>
-          <p className="muted">
-            Non lette: {unread} • server {unreadServer} • badge locale{" "}
-            {unreadLocal}
-          </p>
-          <div className="notice top-gap">
-            <b>Badge icona PWA:</b> {localStatus}. Il numero sull’icona usa le
-            notifiche locali già disponibili nella PWA; le push server complete
-            richiedono dominio HTTPS e configurazione push dedicata.
-          </div>
-          <div className="auth-block-actions top-gap">
-            {permission === "default" && (
-              <button
-                className="btn small"
-                type="button"
-                onClick={() => void enableBrowserNotifications()}
-              >
-                Attiva notifiche telefono
-              </button>
-            )}
-            <button
-              className="btn small secondary"
-              type="button"
-              onClick={clearLocal}
-            >
-              Pulisci badge locale
-            </button>
-          </div>
+          <p className="muted">Non lette: {unreadServer}</p>
+          {isAdminUser && (
+            <>
+              <div className="notice top-gap">
+                <b>Diagnostica badge PWA:</b> {localStatus} • locali non lette {unreadLocal}.
+              </div>
+              <div className="auth-block-actions top-gap">
+                {permission === "default" && (
+                  <button className="btn small" type="button" onClick={() => void enableBrowserNotifications()}>
+                    Attiva notifiche telefono
+                  </button>
+                )}
+                <button className="btn small secondary" type="button" onClick={clearLocal}>
+                  Pulisci badge locale
+                </button>
+              </div>
+            </>
+          )}
           {loading && <p className="muted top-gap">Caricamento...</p>}
           <div className="ak-notification-list top-gap">
             {!loading &&
               notifications.length === 0 &&
-              localNotifications.length === 0 && (
+              (!isAdminUser || localNotifications.length === 0) && (
                 <div className="notice">Nessuna notifica ancora.</div>
               )}
-            {localNotifications.map((row) => (
+            {isAdminUser && localNotifications.map((row) => (
               <article
                 key={row.id}
                 className={`ak-notification-card ${row.readAt ? "" : "unread"}`}

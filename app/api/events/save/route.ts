@@ -1,33 +1,16 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { type SupabaseClient } from '@supabase/supabase-js';
-import { getUserContext, resolveClanId, isUuid } from '@/lib/server/codmEventsApi';
+import { getUserContext, resolveOfficialClanId, isUuid, noStoreHeaders } from '@/lib/server/codmEventsApi';
+import { sendTelegramEventLifecycle } from '@/lib/server/codmTelegram';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
 
-type EventPlayerInput = {
-  player_id?: string | null;
-  nickname?: string | null;
-  status?: string | null;
-};
-
-type EventSaveBody = {
-  id?: string | null;
-  mode?: 'created' | 'updated';
-  event?: Record<string, any>;
-  players?: EventPlayerInput[];
-};
+type EventPlayerInput = { player_id?: string | null; nickname?: string | null; status?: string | null };
+type EventSaveBody = { id?: string | null; mode?: 'created' | 'updated'; event?: Record<string, any>; players?: EventPlayerInput[] };
 
 function noStoreJson(body: unknown, init?: ResponseInit) {
-  return NextResponse.json(body, {
-    ...init,
-    headers: {
-      'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate, max-age=0',
-      Pragma: 'no-cache',
-      Expires: '0',
-      ...(init?.headers || {})
-    }
-  });
+  return NextResponse.json(body, { ...init, headers: noStoreHeaders(init?.headers) });
 }
 
 function cleanText(value: unknown, fallback = '') {
@@ -47,13 +30,21 @@ function sanitizeReminderMinutes(value: unknown) {
   return Array.from(new Set(nums.length ? nums : [120, 60, 30, 10])).sort((a, b) => b - a);
 }
 
+function normalizeEventPlan(event: Record<string, any>) {
+  const plan = event.event_plan && typeof event.event_plan === 'object' ? { ...event.event_plan } : {};
+  const teamA = cleanText(plan.teamAName, 'AK47DX');
+  const teamB = cleanText(plan.teamBName || plan.opponentName, 'Clan avversario');
+  return { ...plan, teamAName: teamA, teamBName: teamB };
+}
+
 function buildEventPayload(body: EventSaveBody, clanId: string, userId: string, mode: 'created' | 'updated') {
   const event = body.event || {};
+  const eventPlan = normalizeEventPlan(event);
   const startsAt = normalizeIso(event.starts_at) || normalizeIso(event.start_at);
   const endsAt = normalizeIso(event.ends_at);
   const payload: Record<string, unknown> = {
     clan_id: clanId,
-    title: cleanText(event.title, 'Evento CODM'),
+    title: cleanText(event.title, `Scrim ${eventPlan.teamAName} vs ${eventPlan.teamBName}`),
     description: cleanText(event.description, '') || null,
     location: cleanText(event.location, '') || null,
     event_type: cleanText(event.event_type, 'scrim'),
@@ -61,7 +52,7 @@ function buildEventPayload(body: EventSaveBody, clanId: string, userId: string, 
     visibility: cleanText(event.visibility, 'public'),
     telegram_enabled: event.telegram_enabled ?? true,
     google_calendar_url: cleanText(event.google_calendar_url, '') || null,
-    event_plan: event.event_plan && typeof event.event_plan === 'object' ? event.event_plan : {},
+    event_plan: eventPlan,
     convocations: Array.isArray(event.convocations) ? event.convocations : [],
     convocations_text: cleanText(event.convocations_text, '') || null,
     reminder_minutes: sanitizeReminderMinutes(event.reminder_minutes),
@@ -79,8 +70,12 @@ function buildEventPayload(body: EventSaveBody, clanId: string, userId: string, 
 }
 
 async function saveEventPlayers(db: SupabaseClient, eventId: string, clanId: string, players: EventPlayerInput[] = []) {
-  const { error: deleteError } = await db.from('codm_event_players').delete().eq('event_id', eventId);
-  if (deleteError) throw deleteError;
+  try {
+    const { error: deleteError } = await db.from('codm_event_players').delete().eq('event_id', eventId);
+    if (deleteError && deleteError.code !== '42P01') throw deleteError;
+  } catch (error: any) {
+    if (error?.code !== '42P01') throw error;
+  }
 
   const rows = players
     .map((player) => ({
@@ -99,12 +94,8 @@ async function saveEventPlayers(db: SupabaseClient, eventId: string, clanId: str
 }
 
 async function notifyClanMembers(admin: SupabaseClient, clanId: string, eventId: string, eventTitle: string, startsAt: string, mode: 'created' | 'updated') {
-  const { data: members, error: membersError } = await admin
-    .from('clan_members')
-    .select('user_id')
-    .eq('clan_id', clanId);
+  const { data: members, error: membersError } = await admin.from('clan_members').select('user_id').eq('clan_id', clanId);
   if (membersError) throw membersError;
-
   const rows = (members || [])
     .map((member: any) => member.user_id)
     .filter((id: unknown): id is string => isUuid(String(id)))
@@ -112,14 +103,13 @@ async function notifyClanMembers(admin: SupabaseClient, clanId: string, eventId:
       clan_id: clanId,
       user_id: userId,
       type: 'event',
-      title: mode === 'updated' ? 'Evento aggiornato' : 'Nuovo evento creato',
+      title: mode === 'updated' ? 'Evento modificato' : 'Nuovo evento creato',
       body: `${eventTitle} · ${new Date(startsAt).toLocaleString('it-IT')}`,
       metadata: { event_id: eventId, href: '/events' },
       dedupe_key: `event-${mode}-${eventId}`,
       read_at: null,
       created_at: new Date().toISOString()
     }));
-
   if (!rows.length) return 0;
   const { error } = await admin.from('codm_notifications').upsert(rows, { onConflict: 'user_id,dedupe_key' });
   if (error) throw error;
@@ -130,54 +120,36 @@ export async function POST(request: NextRequest) {
   try {
     const token = (request.headers.get('authorization') || '').replace(/^Bearer\s+/i, '').trim();
     const ctx = await getUserContext(token);
-    if (!ctx.admin) {
-      throw new Error('SUPABASE_SERVICE_ROLE_KEY mancante su Vercel: salvataggio eventi bloccato. Configura la chiave service_role e redeploy.');
-    }
-
+    const clanId = await resolveOfficialClanId(ctx, true);
     const body = (await request.json()) as EventSaveBody;
-    // V8.0: il client non può scegliere clan_id. Il clan ufficiale viene risolto solo lato server.
-    const clanId = await resolveClanId(ctx, null, true);
-    if (!isUuid(clanId)) throw new Error('Clan Supabase non valido per salvataggio evento.');
-
     const remoteEventId = isUuid(body.id) ? body.id : isUuid(body.event?.id) ? body.event?.id : null;
     const mode: 'created' | 'updated' = remoteEventId ? 'updated' : 'created';
     const payload = buildEventPayload(body, clanId, ctx.userId, mode);
 
     let savedEvent: any = null;
     if (remoteEventId) {
-      const { data, error } = await ctx.admin
+      const { data, error } = await ctx.admin!
         .from('codm_events')
         .update(payload)
         .eq('id', remoteEventId)
         .eq('clan_id', clanId)
         .select('*')
-        .single();
+        .maybeSingle();
       if (error) throw error;
+      if (!data?.id) throw new Error('Evento non trovato nel database ufficiale AK47DX: aggiorna lista eventi e riprova.');
       savedEvent = data;
     } else {
-      const { data, error } = await ctx.admin
-        .from('codm_events')
-        .insert(payload)
-        .select('*')
-        .single();
+      const { data, error } = await ctx.admin!.from('codm_events').insert(payload).select('*').single();
       if (error) throw error;
       savedEvent = data;
     }
 
     if (!savedEvent?.id) throw new Error('Evento non salvato su Supabase.');
-    const playersCount = await saveEventPlayers(ctx.admin, savedEvent.id, clanId, body.players || []);
-    const notificationsCount = await notifyClanMembers(ctx.admin, clanId, savedEvent.id, savedEvent.title, savedEvent.starts_at, mode);
+    const playersCount = await saveEventPlayers(ctx.admin!, savedEvent.id, clanId, body.players || []);
+    const notificationsCount = await notifyClanMembers(ctx.admin!, clanId, savedEvent.id, savedEvent.title, savedEvent.starts_at, mode);
+    const telegram = await sendTelegramEventLifecycle(mode, savedEvent);
 
-    return noStoreJson({
-      ok: true,
-      event: savedEvent,
-      playersCount,
-      notificationsCount,
-      clanId,
-      shared: true,
-      serverMode: 'service-role',
-      clientClanIdAccepted: false
-    });
+    return noStoreJson({ ok: true, event: savedEvent, playersCount, notificationsCount, telegram, clanId, shared: true, serverMode: 'service-role', clientClanIdAccepted: false });
   } catch (error) {
     return noStoreJson({ ok: false, error: error instanceof Error ? error.message : 'Errore salvataggio evento.' }, { status: 500 });
   }

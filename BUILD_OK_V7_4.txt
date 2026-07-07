@@ -1,9 +1,0 @@
-CODM AK47DX V7.4 PWA MOBILE EVENT FORM SYNC FINAL
-- Fix definitivo differenza Chrome desktop / PWA installata
-- Service worker network-first per pagine, Next chunks e dati dinamici
-- API mai cache per eventi/notifiche
-- Cache vecchie codm-* eliminate in activate
-- Form mobile evento stabilizzato: pulsante non sticky, niente spostamenti con keyboard/bottom nav
-- Plan evento letto da ref sincronizzato, team names presi anche su PWA/mobile
-- Immagini evento compresse prima del salvataggio e localStorage protetto da quota
-- Eventi condivisi via /api/events/save e codm_events

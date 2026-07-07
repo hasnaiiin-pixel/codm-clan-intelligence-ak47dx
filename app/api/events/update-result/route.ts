@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getUserContext, isClanWriter, isUuid } from '@/lib/server/codmEventsApi';
+import { getUserContext, resolveOfficialClanId, isUuid, noStoreHeaders } from '@/lib/server/codmEventsApi';
+import { sendTelegramEventLifecycle } from '@/lib/server/codmTelegram';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
@@ -7,37 +8,17 @@ export const revalidate = 0;
 type Body = { id?: string | null; event_plan?: any; event_notes?: string | null };
 
 function noStoreJson(body: unknown, init?: ResponseInit) {
-  return NextResponse.json(body, {
-    ...init,
-    headers: {
-      'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate, max-age=0',
-      Pragma: 'no-cache',
-      Expires: '0',
-      ...(init?.headers || {})
-    }
-  });
+  return NextResponse.json(body, { ...init, headers: noStoreHeaders(init?.headers) });
 }
 
 export async function POST(request: NextRequest) {
   try {
     const token = (request.headers.get('authorization') || '').replace(/^Bearer\s+/i, '').trim();
     const ctx = await getUserContext(token);
-    if (!ctx.admin) throw new Error('SUPABASE_SERVICE_ROLE_KEY mancante su Vercel: aggiornamento risultato evento bloccato.');
-
+    const clanId = await resolveOfficialClanId(ctx, true);
     const body = (await request.json().catch(() => ({}))) as Body;
     const eventId = isUuid(body.id) ? body.id : null;
     if (!eventId) return noStoreJson({ ok: false, error: 'ID evento non valido.' }, { status: 400 });
-
-    const { data: existing, error: readError } = await ctx.admin
-      .from('codm_events')
-      .select('id,clan_id,title')
-      .eq('id', eventId)
-      .maybeSingle();
-    if (readError) throw readError;
-    if (!existing?.id || !isUuid(existing.clan_id)) return noStoreJson({ ok: false, error: 'Evento non trovato.' }, { status: 404 });
-
-    const canWrite = await isClanWriter(ctx, existing.clan_id);
-    if (!canWrite) return noStoreJson({ ok: false, error: 'Permesso mancante: solo owner, coach o staff possono aggiornare evento.' }, { status: 403 });
 
     const updatePayload = {
       event_plan: body.event_plan && typeof body.event_plan === 'object' ? body.event_plan : {},
@@ -48,15 +29,18 @@ export async function POST(request: NextRequest) {
       updated_at: new Date().toISOString()
     };
 
-    const { data: event, error } = await ctx.admin
+    const { data: event, error } = await ctx.admin!
       .from('codm_events')
       .update(updatePayload)
       .eq('id', eventId)
+      .eq('clan_id', clanId)
       .select('*')
-      .single();
+      .maybeSingle();
     if (error) throw error;
+    if (!event?.id) throw new Error('Evento non trovato nel database ufficiale AK47DX.');
 
-    return noStoreJson({ ok: true, event, serverMode: 'service-role' });
+    const telegram = await sendTelegramEventLifecycle('result', event);
+    return noStoreJson({ ok: true, event, telegram, serverMode: 'service-role' });
   } catch (error) {
     return noStoreJson({ ok: false, error: error instanceof Error ? error.message : 'Errore aggiornamento risultato evento.' }, { status: 500 });
   }

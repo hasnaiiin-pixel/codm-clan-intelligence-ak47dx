@@ -126,7 +126,7 @@ export default function DashboardPage() {
       <section className="ak-hero card gaming-panel">
         <div>
           <p className="eyebrow">🐺 AK47DX definitive platform</p>
-          <h1>Clan Intelligence 2.0</h1>
+          <h1>CLAN MANAGER</h1>
           <p className="clan-motto">Una piattaforma unica per importare risultati, consultare prove screenshot, gestire clan, invitare player e leggere statistiche reali.</p>
           <div className="home-trust-row">
             <span className="pill-chip">📊 Dashboard live</span>

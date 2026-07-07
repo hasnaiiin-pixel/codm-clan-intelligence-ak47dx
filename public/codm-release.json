@@ -1,14 +1,16 @@
 {
-  "version": "V8.0_SINGLE_DATABASE_EVENTS_FINAL",
-  "marker": "V8_0_SINGLE_DATABASE_EVENTS_OK",
+  "version": "8.1A_SQL_COMPAT_FIX",
+  "marker": "V8_1_EVENTS_EDIT_DELETE_TELEGRAM_CLEAN_OK",
   "backend_ocr": "2.0.10-v5-4-fastlane-import-stabile-ak47dx",
-  "notes": "Eventi centralizzati: zero localStorage eventi, zero clan_id dal client, zero fallback RLS. Browser e PWA leggono/scrivono/cancellano solo via Vercel API con SUPABASE_SERVICE_ROLE_KEY verso public.codm_events.",
-  "build": "CODM_AK47DX_V8_0_SINGLE_DATABASE_EVENTS_FINAL_BUILD",
+  "notes": "Eventi centralizzati e puliti: crea/modifica/cancella solo via API server Vercel con service role, Telegram immediato su creazione/modifica/cancellazione, layout eventi compatto, debug visibile solo admin, branding CLAN MANAGER.",
+  "build": "CODM_AK47DX_V8_1_EVENTS_EDIT_DELETE_TELEGRAM_CLEAN_FINAL_BUILD",
   "date": "2026-07-07",
   "routes": [
     "/api/events/detail",
     "/api/events/update-result",
     "/api/events/health",
     "/events-health"
-  ]
+  ],
+  "status": "V8_1A_SQL_COMPAT_FIX_OK",
+  "appName": "CLAN MANAGER"
 }
