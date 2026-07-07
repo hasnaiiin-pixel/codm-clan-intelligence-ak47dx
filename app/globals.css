@@ -2083,3 +2083,47 @@ main.container.wide > section.card {
 .event-presentation-card, .event-match-summary { margin-block: 8px; }
 .telegram-preview-box { max-height: 260px; overflow:auto; white-space: pre-wrap; }
 @media (max-width: 820px) { .import-actions-pro { grid-template-columns: 1fr; } .reminder-checkbox-grid { grid-template-columns: 1fr; } }
+
+
+/* CLAN MANAGER V8.2B - Calibrazione/Import: stesso frame reale, niente deformazione */
+.import-match-geometry-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.35fr) minmax(360px, .65fr);
+  gap: 18px;
+  align-items: start;
+}
+.import-image-card { min-width: 0; }
+.import-ocr-same-frame {
+  display: block !important;
+  width: 100% !important;
+  max-width: 100% !important;
+  line-height: 0;
+  background: rgba(0,0,0,.45);
+  border: 1px solid var(--border);
+  border-radius: 18px;
+  overflow: hidden;
+}
+.import-ocr-same-frame .ocr-overlay-image,
+.import-ocr-same-frame img {
+  display: block !important;
+  width: 100% !important;
+  height: auto !important;
+  max-height: none !important;
+  object-fit: initial !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  background: transparent !important;
+}
+.import-ocr-same-frame .ocr-template-layer,
+.import-ocr-same-frame .ocr-overlay-layer {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+.import-ocr-same-frame .ocr-template-box.cal-rect { line-height: 1; }
+.cal-template-picker-stack { display:grid; gap:8px; }
+.cal-template-picker-stack .select { min-height: 42px; }
+@media (max-width: 1100px) {
+  .import-match-geometry-grid { grid-template-columns: 1fr; }
+}

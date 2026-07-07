@@ -1,6 +1,6 @@
 {
   "name": "clan-manager-ak47dx",
-  "version": "8.2.1-hobby-cron-external-fix",
+  "version": "8.2.2-import-calibration-link-fix",
   "private": true,
   "scripts": {
     "dev": "next dev",

@@ -3,7 +3,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { supabase, isSupabaseConfigured } from "@/lib/supabaseClient";
 import { useCodmAuth } from "@/lib/authRoles";
-import { buildGoogleCalendarUrl } from "@/lib/googleCalendar";
 
 type MatchRound = {
   n: number;
@@ -934,13 +933,7 @@ export default function EventsPage() {
         matchDetailsText ? `Dettaglio partite:\n${matchDetailsText}` : "",
       ].filter(Boolean).join("\n\n");
       const fullDescription = [currentDescription, convocationsText].filter(Boolean).join("\n\n");
-      const googleUrl = buildGoogleCalendarUrl({
-        title: finalTitle,
-        description: fullDescription,
-        location: currentLocation,
-        startsAt: startIso,
-        endsAt: endIso,
-      });
+      // V8.2B: non genero più link Google Calendar automatico. I link evento sono solo quelli inseriti manualmente (Discord/Lobby/Note).
 
       // V8.0: il clan non viene più passato dal client. Lo risolve solo la API server.
       const effectiveClanId = null;
@@ -963,7 +956,7 @@ export default function EventsPage() {
         reminder_minutes: parseReminderMinutes(),
         telegram_message_template: telegramTemplate || DEFAULT_TELEGRAM_TEMPLATE,
         event_notes: planNote(effectivePlan, eventNotes),
-        google_calendar_url: googleUrl,
+        google_calendar_url: null,
         convocations: convocati
           .map((p) => ({ id: p.id, nickname: p.nickname, role: "titolare" }))
           .concat(reserves.map((p) => ({ id: p.id, nickname: p.nickname, role: "riserva" }))),
@@ -1633,15 +1626,8 @@ export default function EventsPage() {
         </div>
         <div className="ak-event-list top-gap">
           {visibleEvents.map((event) => {
-            const googleUrl =
-              event.google_calendar_url ||
-              buildGoogleCalendarUrl({
-                title: event.title,
-                description: event.description || "",
-                location: event.location || "",
-                startsAt: event.starts_at,
-                endsAt: event.ends_at,
-              });
+            const eventPlan = normalizePlan(event.event_plan || emptyPlan());
+            const manualLink = eventPlan.lobbyLink || eventPlan.discordLink || event.google_calendar_url || "";
             return (
               <article key={event.id} className="ak-event-card">
                 <div className="ak-event-copy">
@@ -1669,14 +1655,16 @@ export default function EventsPage() {
                   >
                     Duplica
                   </button>
-                  <a
-                    href={googleUrl}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="btn secondary"
-                  >
-                    Google Calendar
-                  </a>
+                  {manualLink ? (
+                    <a
+                      href={manualLink}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="btn secondary"
+                    >
+                      Apri link evento
+                    </a>
+                  ) : null}
                   {canWrite && (
                     <button
                       className="btn danger secondary"

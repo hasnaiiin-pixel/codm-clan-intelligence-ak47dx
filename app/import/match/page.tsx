@@ -1165,12 +1165,12 @@ function ImportMatchEditor() {
         </section>
       )}
 
-      <section className="grid grid-2 top-gap">
-        <div className="card">
+      <section className="grid import-match-geometry-grid top-gap">
+        <div className="card import-image-card">
           <h2>Screenshot prova</h2>
           {imageUrl ? (
-            <div className="ocr-image-wrap" ref={imageWrapRef}>
-              <img className="preview ocr-overlay-image" src={imageUrl} alt="Scoreboard" />
+            <div className="cal-image-wrap ocr-image-wrap import-ocr-same-frame" ref={imageWrapRef}>
+              <img className="ocr-overlay-image" src={imageUrl} alt="Scoreboard" draggable={false} />
               {useCalibrationTemplate && !!localTemplateRegions.length && (
                 <div className="ocr-template-layer editable" aria-label="Template salvato applicato localmente">
                   {localTemplateRegions.map((region) => (
@@ -1202,7 +1202,7 @@ function ImportMatchEditor() {
             <strong>Profilo OCR attivo:</strong> 📱 {selectedCalibrationPhone} · 🧩 {selectedCalibrationTemplate} · {templateSummary} <br /><strong>Coordinate:</strong> stesso overlay Calibrazione/Import con content frame {activeFrame.reason}.
             <span> · Overlay locale visibile: {localTemplateRegions.length} riquadri. I riquadri sottili sono quelli salvati/calibrati; i riquadri spessi sono quelli realmente letti dal backend.</span>
           </div>
-          <details className="top-gap" open>
+          <details className="top-gap">
             <summary>🎯 Centratura manuale immagine risultati</summary>
             <div className="cal-buttons top-gap">
               <button className="btn small secondary" type="button" onClick={() => setFrameNudge((v) => ({ ...v, y: v.y - 0.005 }))}>↑ Su</button>
