@@ -663,8 +663,7 @@ export default function EventsPage() {
         setMessage("Eventi non caricati: serve login Supabase. La PWA non usa più dati locali.");
         return;
       }
-      const params = isUuid(auth.clanId) ? `?clan_id=${encodeURIComponent(auth.clanId)}` : "";
-      const response = await fetch(`/api/events/list${params}`, {
+      const response = await fetch(`/api/events/list`, {
         method: "GET",
         cache: "no-store",
         headers: {
@@ -920,7 +919,8 @@ export default function EventsPage() {
         endsAt: endIso,
       });
 
-      const effectiveClanId = isUuid(auth.clanId) ? auth.clanId : null;
+      // V8.0: il clan non viene più passato dal client. Lo risolve solo la API server.
+      const effectiveClanId = null;
       const remoteEditingId = isUuid(editingEventId) ? editingEventId : null;
       if (editingEventId && !isUuid(editingEventId)) {
         setMessage("Questo evento era locale da una vecchia PWA e non può essere aggiornato. Cancella cache PWA e ricrealo nel database.");
@@ -995,7 +995,6 @@ export default function EventsPage() {
             },
             body: JSON.stringify({
               id: remoteEditingId,
-              clan_id: effectiveClanId,
               mode: remoteEditingId ? "updated" : "created",
               event: payloadWithPlan,
               players: serverPlayers,

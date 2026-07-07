@@ -1,8 +1,14 @@
 {
-  "version": "V7.6_DATABASE_ONLY_EVENTS_FINAL",
-  "marker": "V7_6_DATABASE_ONLY_EVENTS_OK",
+  "version": "V8.0_SINGLE_DATABASE_EVENTS_FINAL",
+  "marker": "V8_0_SINGLE_DATABASE_EVENTS_OK",
   "backend_ocr": "2.0.10-v5-4-fastlane-import-stabile-ak47dx",
-  "notes": "Reset architetturale eventi: database unico Supabase via API server. La PWA non legge, non salva e non conserva eventi/bozze locali. Cache eventi legacy cancellata automaticamente.",
-  "build": "CODM_AK47DX_V7_6_DATABASE_ONLY_EVENTS_FINAL_BUILD",
-  "date": "2026-07-06"
+  "notes": "Eventi centralizzati: zero localStorage eventi, zero clan_id dal client, zero fallback RLS. Browser e PWA leggono/scrivono/cancellano solo via Vercel API con SUPABASE_SERVICE_ROLE_KEY verso public.codm_events.",
+  "build": "CODM_AK47DX_V8_0_SINGLE_DATABASE_EVENTS_FINAL_BUILD",
+  "date": "2026-07-07",
+  "routes": [
+    "/api/events/detail",
+    "/api/events/update-result",
+    "/api/events/health",
+    "/events-health"
+  ]
 }

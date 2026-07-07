@@ -544,6 +544,18 @@ function ImportMatchEditor() {
     setRoster((data || []) as Player[]);
   }
 
+  async function readSessionToken() {
+    const { data: sessionData } = await supabase.auth.getSession();
+    let token = sessionData.session?.access_token;
+    if (!token) {
+      const { data: refreshed } = await supabase.auth.refreshSession();
+      token = refreshed.session?.access_token;
+    }
+    if (!token) throw new Error('Login richiesto: fai logout/login e riprova.');
+    return token;
+  }
+
+
   async function loadLinkedEventFromQuery() {
     try {
       const params = new URLSearchParams(window.location.search);
@@ -551,12 +563,18 @@ function ImportMatchEditor() {
       const roundParam = Number(params.get('round') || '1');
       const matchCodeParam = params.get('matchCode') || '';
       if (!eventId) return;
-      const { data, error } = await supabase.from('codm_events').select('*').eq('id', eventId).single();
-      if (error || !data) {
-        setMessage(`Import da eventi non caricato: ${error?.message || 'evento non trovato'}`);
+      const token = await readSessionToken();
+      const response = await fetch(`/api/events/detail?id=${encodeURIComponent(eventId)}`, {
+        method: 'GET',
+        cache: 'no-store',
+        headers: { Authorization: `Bearer ${token}`, 'Cache-Control': 'no-store, max-age=0', Pragma: 'no-cache' }
+      });
+      const json = await response.json().catch(() => null);
+      if (!response.ok || !json?.ok || !json.event) {
+        setMessage(`Import da eventi non caricato: ${json?.error || 'evento non trovato'}`);
         return;
       }
-      const event = data as LinkedCodmEvent;
+      const event = json.event as LinkedCodmEvent;
       const plan = readLinkedPlan(event);
       const index = Math.max(0, Math.min((Number.isFinite(roundParam) ? roundParam : 1) - 1, Math.max(0, plan.rounds.length - 1)));
       const round = plan.rounds[index] || emptyLinkedRound(index + 1);
@@ -899,12 +917,17 @@ function ImportMatchEditor() {
     } : round);
     const updatedPlan = { ...linkedEventPlan, teamBName: opponent || linkedEventPlan.teamBName, rounds: updatedRounds, totalMatches: updatedRounds.length };
     const baseNotes = `${stripLinkedPlan(linkedEvent.event_notes || '')}\n\nRisultato importato da /import/match: evento=${linkedEvent.title}; partita=${(linkedRoundIndex || 0) + 1}; codice=${linkedEventPlan.rounds[linkedRoundIndex || 0]?.matchCode || '-'}; match_id=${matchId}; screenshot=${screenshotUrl || '-'}`.trim();
-    const payloadWithPlan = { event_plan: updatedPlan, event_notes: linkedPlanNote(updatedPlan, baseNotes) } as Record<string, unknown>;
-    const update = await supabase.from('codm_events').update(payloadWithPlan).eq('id', linkedEvent.id);
-    if (update.error && /event_plan|column/i.test(update.error.message)) {
-      await supabase.from('codm_events').update({ event_notes: linkedPlanNote(updatedPlan, baseNotes) }).eq('id', linkedEvent.id);
-    }
+    const token = await readSessionToken();
+    const response = await fetch('/api/events/update-result', {
+      method: 'POST',
+      cache: 'no-store',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}`, 'Cache-Control': 'no-store, max-age=0', Pragma: 'no-cache' },
+      body: JSON.stringify({ id: linkedEvent.id, event_plan: updatedPlan, event_notes: linkedPlanNote(updatedPlan, baseNotes) })
+    });
+    const json = await response.json().catch(() => null);
+    if (!response.ok || !json?.ok) throw new Error(json?.error || 'Aggiornamento evento collegato non confermato dal database.');
     setLinkedEventPlan(updatedPlan);
+    if (json.event) setLinkedEvent(json.event as LinkedCodmEvent);
   }
 
   async function saveMatch() {

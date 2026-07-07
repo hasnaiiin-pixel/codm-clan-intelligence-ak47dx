@@ -22,7 +22,7 @@ export async function saveCodmEvent({ supabase, event, players = [] }) {
       'Cache-Control': 'no-store, max-age=0',
       Pragma: 'no-cache',
     },
-    body: JSON.stringify({ id: event?.id || null, clan_id: event?.clan_id || null, event, players }),
+    body: JSON.stringify({ id: event?.id || null, event, players }),
   });
   const json = await response.json().catch(() => null);
   if (!response.ok || !json?.ok) throw new Error(json?.error || 'Database non ha confermato il salvataggio evento.');

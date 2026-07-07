@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
-import { supabase } from '@/lib/supabaseClient';
+import { supabase, isSupabaseConfigured } from '@/lib/supabaseClient';
 import { kdRatio, winRate } from '@/lib/statistics';
 
 const HOME_QUERY_LIMIT = 6;
@@ -34,12 +34,11 @@ export default function HomePage() {
     setLoading(true);
     setMessage('');
     try {
-      const [clanResult, matchResult, statResult, rowResult, eventResult] = await Promise.all([
+      const [clanResult, matchResult, statResult, rowResult] = await Promise.all([
         supabase.from('clans').select('*').order('created_at', { ascending: true }).limit(1),
         supabase.from('matches').select('id,result,mode,match_type').order('match_date', { ascending: false }).limit(500),
         supabase.from('match_player_stats').select('kills,deaths,assists').limit(5000),
-        supabase.from('match_scoreboard_rows').select('nickname_resolved,nickname_raw,team_rank,mvp_type,assists,players(nickname,clan_name)').limit(5000),
-        supabase.from('codm_events').select('id,title,starts_at,event_type,location,event_plan,event_notes').gte('starts_at', new Date(Date.now() - 60 * 60 * 1000).toISOString()).order('starts_at', { ascending: true }).limit(HOME_QUERY_LIMIT)
+        supabase.from('match_scoreboard_rows').select('nickname_resolved,nickname_raw,team_rank,mvp_type,assists,players(nickname,clan_name)').limit(5000)
       ]);
 
       const activeClan = (clanResult.data || [])[0] as ClanRow | undefined;
@@ -55,7 +54,22 @@ export default function HomePage() {
       setMatches((matchResult.data || []) as MatchRow[]);
       setStats((statResult.data || []) as StatRow[]);
       setScoreRows((rowResult.data || []) as ScoreRow[]);
-      setEvents(normalizeHomeEvents((eventResult.data || []) as EventRow[]));
+
+      let dbEvents: EventRow[] = [];
+      if (isSupabaseConfigured) {
+        const { data: sessionData } = await supabase.auth.getSession();
+        const token = sessionData.session?.access_token;
+        if (token) {
+          const response = await fetch('/api/events/list', {
+            method: 'GET',
+            cache: 'no-store',
+            headers: { Authorization: `Bearer ${token}`, 'Cache-Control': 'no-store, max-age=0', Pragma: 'no-cache' }
+          });
+          const json = await response.json().catch(() => null);
+          if (response.ok && json?.ok) dbEvents = (json.events || []) as EventRow[];
+        }
+      }
+      setEvents(normalizeHomeEvents(dbEvents));
     } catch (error) {
       setMessage(error instanceof Error ? error.message : 'Errore caricamento home.');
     } finally {
