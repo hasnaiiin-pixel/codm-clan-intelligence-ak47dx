@@ -15,7 +15,6 @@ type MatchRound = {
   players: string;
   reserves: string;
   lobbyOpen: string;
-  meetingTime: string;
   startTime: string;
   bans: string;
   status?: string;
@@ -376,7 +375,6 @@ function emptyRound(n = 1): MatchRound {
     players: "",
     reserves: "",
     lobbyOpen: "",
-    meetingTime: "",
     startTime: "",
     bans: "",
     status: "Da giocare",
@@ -513,7 +511,7 @@ function buildMatchDetails(plan: MatchPlan) {
       return [
         `<b>Partita ${round.n}</b> · Codice ${round.matchCode || "auto"} · ${mode.icon} ${mode.label.replace(/^\S+\s/, "")}`,
         `Dettagli: mappa ${round.map || "Da decidere"} · ${round.scoreType || "Punteggio round"} · target ${round.target || "-"}`,
-        `Orari: ritrovo ${round.meetingTime || "-"} · lobby ${round.lobbyOpen || normalized.lobbyTime || "-"} · start ${round.startTime || "-"}`,
+        `Orari: lobby ${round.lobbyOpen || normalized.lobbyTime || "-"} · partita ${round.startTime || "-"}`,
         `Stato: ${getMatchStatus(round)}${outcome ? ` · Esito: ${outcome}` : ""}${round.ourScore || round.opponentScore ? ` · Score ${round.ourScore || "-"}-${round.opponentScore || "-"}` : ""}`,
         round.players ? `Titolari: ${round.players}` : "Titolari: da scegliere",
         round.reserves ? `Riserve: ${round.reserves}` : "Riserve: da scegliere",
@@ -527,6 +525,23 @@ function buildMatchDetails(plan: MatchPlan) {
 }
 function draftPayload(args: Record<string, unknown>) {
   return JSON.stringify({ savedAt: new Date().toISOString(), ...args });
+}
+function resolveRosterPlayersFromPlan(plan: MatchPlan, availablePlayers: PlayerRow[]) {
+  const lookup = new Map(availablePlayers.map((player) => [player.nickname.trim().toLowerCase(), player]));
+  const entries = plan.rounds.flatMap((round) => [
+    ...listFromText(round.players).map((nickname) => ({ nickname, role: "titolare" as const })),
+    ...listFromText(round.reserves).map((nickname) => ({ nickname, role: "riserva" as const })),
+  ]);
+  const resolved = new Map<string, { id: string; nickname: string; role: "titolare" | "riserva" }>();
+  for (const entry of entries) {
+    const key = entry.nickname.trim().toLowerCase();
+    const player = lookup.get(key);
+    if (!player?.id) continue;
+    if (!resolved.has(player.id)) {
+      resolved.set(player.id, { id: player.id, nickname: player.nickname, role: entry.role });
+    }
+  }
+  return Array.from(resolved.values());
 }
 
 export default function EventsPage() {
@@ -560,8 +575,6 @@ export default function EventsPage() {
     DEFAULT_TELEGRAM_TEMPLATE,
   );
   const [eventNotes, setEventNotes] = useState("");
-  const [selectedPlayers, setSelectedPlayers] = useState<string[]>([]);
-  const [reservePlayers, setReservePlayers] = useState<string[]>([]);
   const [plan, setPlan] = useState<MatchPlan>(() => emptyPlan("AK47DX"));
   const planRef = useRef<MatchPlan>(plan);
   const teamAInputRef = useRef<HTMLInputElement | null>(null);
@@ -686,14 +699,6 @@ export default function EventsPage() {
       (a, b) => b - a,
     );
   }
-  function toggle(
-    setter: (fn: (current: string[]) => string[]) => void,
-    id: string,
-  ) {
-    setter((current) =>
-      current.includes(id) ? current.filter((x) => x !== id) : [...current, id],
-    );
-  }
   function updateRound(index: number, patch: Partial<MatchRound>) {
     commitPlan((current) => ({
       ...current,
@@ -795,8 +800,6 @@ export default function EventsPage() {
     setReminderMinutes("120,60,30,10");
     setTelegramTemplate(DEFAULT_TELEGRAM_TEMPLATE);
     setEventNotes("");
-    setSelectedPlayers([]);
-    setReservePlayers([]);
     commitPlan(emptyPlan(auth.clanName || "AK47DX"));
     if (clearDraft) cleanupLegacyEventStorage();
     setMessage(
@@ -821,16 +824,6 @@ export default function EventsPage() {
     );
     setEventNotes(stripOldPlan(event.event_notes || ""));
     commitPlan(normalizePlan(eventPlan));
-    const starters = eventPlayers
-      .filter((r) => r.event_id === event.id && r.status === "titolare")
-      .map((r) => r.player_id)
-      .filter(Boolean) as string[];
-    const reserves = eventPlayers
-      .filter((r) => r.event_id === event.id && r.status === "riserva")
-      .map((r) => r.player_id)
-      .filter(Boolean) as string[];
-    setSelectedPlayers(starters);
-    setReservePlayers(reserves);
     setMessage(
       duplicate
         ? "Evento duplicato nell’editor: modifica data/orari e salva come nuovo evento."
@@ -908,9 +901,10 @@ export default function EventsPage() {
 
       const startIso = startDate.toISOString();
       const endIso = endDate ? endDate.toISOString() : null;
-      const convocati = players.filter((p) => selectedPlayers.includes(p.id));
-      const reserves = players.filter((p) => reservePlayers.includes(p.id));
       const effectivePlan = normalizePlan(currentPlan);
+      const resolvedRosters = resolveRosterPlayersFromPlan(effectivePlan, players);
+      const convocati = resolvedRosters.filter((entry) => entry.role === "titolare");
+      const reserves = resolvedRosters.filter((entry) => entry.role === "riserva");
       const matchDetailsText = buildMatchDetails(effectivePlan).replace(/<[^>]*>/g, "");
       const convocationsText = [
         convocati.length ? `Titolari evento:\n${convocati.map((p) => `• ${p.nickname}`).join("\n")}` : "",
@@ -1157,12 +1151,19 @@ export default function EventsPage() {
   return (
     <main className="container wide ak-page-compact events-v64 events-v65">
       <section className="card ak-section-head events-compact-hero">
-        <p className="eyebrow">📅 Clan Manager Event Center</p>
-        <h1>Eventi, calendario e partite CODM</h1>
-        <p className="muted">
-          Lista mappe CODM, BAN selezionabili, badge stato, modifica/duplica
-          evento e import risultato collegato all’evento.
-        </p>
+        <div className="events-hero-meta">
+          <p className="eyebrow">📅 Clan Manager Event Center</p>
+          <h1>Eventi, calendario e partite CODM</h1>
+          <p className="muted">
+            Lista mappe CODM, BAN selezionabili, badge stato, modifica/duplica
+            evento e import risultato collegato all’evento.
+          </p>
+          <div className="events-hero-pills">
+            <span className="pill-chip">⚡ Creazione rapida</span>
+            <span className="pill-chip">🧠 Sync Supabase</span>
+            <span className="pill-chip">📱 Mobile ready</span>
+          </div>
+        </div>
         {message && <div className="notice top-gap">{message}</div>}
         {canWrite && (
           <button
@@ -1427,49 +1428,41 @@ export default function EventsPage() {
                   <small className="muted">Immagine grande evento.</small>
                 </div>
               </div>
-              <div className="grid grid-4">
-                <div className="field">
-                  <label>Tempo lobby generale</label>
-                  <input
-                    className="input"
-                    value={plan.lobbyTime}
-                    onChange={(e) =>
-                      commitPlan((p) => ({ ...p, lobbyTime: e.target.value }))
-                    }
-                    placeholder="es. 21:45"
-                  />
+              <details className="top-gap">
+                <summary>⚙️ Dettagli extra</summary>
+                <div className="grid grid-4 top-gap">
+                  <div className="field">
+                    <label>Numero stanza</label>
+                    <input
+                      className="input"
+                      value={plan.roomNumber}
+                      onChange={(e) =>
+                        commitPlan((p) => ({ ...p, roomNumber: e.target.value }))
+                      }
+                    />
+                  </div>
+                  <div className="field">
+                    <label>Link Discord</label>
+                    <input
+                      className="input"
+                      value={plan.discordLink}
+                      onChange={(e) =>
+                        commitPlan((p) => ({ ...p, discordLink: e.target.value }))
+                      }
+                    />
+                  </div>
+                  <div className="field">
+                    <label>Link lobby</label>
+                    <input
+                      className="input"
+                      value={plan.lobbyLink}
+                      onChange={(e) =>
+                        commitPlan((p) => ({ ...p, lobbyLink: e.target.value }))
+                      }
+                    />
+                  </div>
                 </div>
-                <div className="field">
-                  <label>Numero stanza</label>
-                  <input
-                    className="input"
-                    value={plan.roomNumber}
-                    onChange={(e) =>
-                      commitPlan((p) => ({ ...p, roomNumber: e.target.value }))
-                    }
-                  />
-                </div>
-                <div className="field">
-                  <label>Link Discord</label>
-                  <input
-                    className="input"
-                    value={plan.discordLink}
-                    onChange={(e) =>
-                      commitPlan((p) => ({ ...p, discordLink: e.target.value }))
-                    }
-                  />
-                </div>
-                <div className="field">
-                  <label>Link lobby</label>
-                  <input
-                    className="input"
-                    value={plan.lobbyLink}
-                    onChange={(e) =>
-                      commitPlan((p) => ({ ...p, lobbyLink: e.target.value }))
-                    }
-                  />
-                </div>
-              </div>
+              </details>
             </div>
 
             <div className="round-plan-grid top-gap">
@@ -1496,19 +1489,8 @@ export default function EventsPage() {
                   onChange={(e) => commitDescription(e.target.value)}
                 />
               </div>
-              <div className="grid grid-2">
-                <PlayerPicker
-                  title="Titolari evento"
-                  players={players}
-                  selected={selectedPlayers}
-                  toggle={(id) => toggle(setSelectedPlayers, id)}
-                />
-                <PlayerPicker
-                  title="Riserve evento"
-                  players={players}
-                  selected={reservePlayers}
-                  toggle={(id) => toggle(setReservePlayers, id)}
-                />
+              <div className="notice top-gap">
+                <strong>Selezione roster</strong>: titolari e riserve si impostano direttamente dentro ogni partita, così l’editor resta più rapido e senza doppie richieste.
               </div>
               <div className="field">
                 <label>Note interne</label>
@@ -1618,13 +1600,17 @@ export default function EventsPage() {
               });
             return (
               <article key={event.id} className="ak-event-card">
-                <div>
+                <div className="ak-event-copy">
                   <div className="eyebrow">{event.event_type || "evento"}</div>
                   <h3>{event.title}</h3>
                   <p className="muted">
                     {new Date(event.starts_at).toLocaleString("it-IT")}{" "}
                     {event.location ? `• ${event.location}` : ""}
                   </p>
+                  <div className="ak-event-mini-pills">
+                    <span className="pill-chip">🗓️ {new Date(event.starts_at).toLocaleDateString('it-IT')}</span>
+                    {event.location ? <span className="pill-chip">📍 {event.location}</span> : null}
+                  </div>
                 </div>
                 <div className="ak-event-actions">
                   <button
@@ -1711,37 +1697,6 @@ function buildLocalEventFromPayload(payload: Record<string, any>): CodmEvent {
     event_notes: payload.event_notes || null,
     event_plan: payload.event_plan || emptyPlan("AK47DX"),
   };
-}
-function PlayerPicker({
-  title,
-  players,
-  selected,
-  toggle,
-}: {
-  title: string;
-  players: PlayerRow[];
-  selected: string[];
-  toggle: (id: string) => void;
-}) {
-  return (
-    <div className="field">
-      <label>{title}</label>
-      <div className="ak-player-pick-list">
-        {players.map((player) => (
-          <label key={player.id} className="ak-player-pick">
-            <input
-              type="checkbox"
-              checked={selected.includes(player.id)}
-              onChange={() => toggle(player.id)}
-            />
-            <span>{player.nickname}</span>
-            <small>{player.clan_name || "AK47DX"}</small>
-          </label>
-        ))}
-        {!players.length && <p className="muted">Nessun player nel roster.</p>}
-      </div>
-    </div>
-  );
 }
 function RoundRosterPicker({
   title,
@@ -1969,18 +1924,7 @@ function MatchRoundEditor({
           />
         </div>
       </div>
-      <div className="grid grid-3 top-gap">
-        <div className="field">
-          <label>Orario ritrovo</label>
-          <input
-            className="input"
-            value={round.meetingTime}
-            onChange={(e) =>
-              updateRound(index, { meetingTime: e.target.value })
-            }
-            placeholder="21:30"
-          />
-        </div>
+      <div className="grid grid-2 top-gap">
         <div className="field">
           <label>Apertura lobby</label>
           <input
@@ -2174,8 +2118,7 @@ function EventPresentation({
                   {round.target ? `(${round.target})` : ""}
                 </p>
                 <p>
-                  <strong>Orari:</strong> ritrovo {round.meetingTime || "-"} ·
-                  lobby {round.lobbyOpen || normalizedPlan.lobbyTime || "-"} ·
+                  <strong>Orari:</strong> lobby {round.lobbyOpen || normalizedPlan.lobbyTime || "-"} ·
                   partita {round.startTime || "-"}
                 </p>
                 <p>
@@ -2209,18 +2152,6 @@ function EventPresentation({
             </div>
           );
         })}
-      </div>
-      <div className="grid grid-2 top-gap">
-        <div className="notice">
-          <b>Titolari evento</b>
-          <br />
-          {starters.length ? starters.join(", ") : "Da scegliere"}
-        </div>
-        <div className="notice">
-          <b>Riserve evento</b>
-          <br />
-          {reserves.length ? reserves.join(", ") : "Da scegliere"}
-        </div>
       </div>
       {canWrite && (
         <div className="event-card-actions-v65">

@@ -11,6 +11,7 @@ import { calculatePlayerRating } from '@/lib/statistics';
 import { clampRegion, getBestCalibrationPhoneProfile, hasSavedCalibration, listCalibrationPhones, listCalibrationTemplatesForPhone, loadCalibrationBundle, makeCalibrationProfileKey, saveCalibration, setActivePhoneProfile, setActiveUserContext, splitCalibrationProfileKey, type CalibratedRegion } from '@/lib/calibration';
 import { ACCEPTED_OCR_BACKEND_VERSIONS, EXPECTED_OCR_BACKEND_VERSION, getOcrBackendCandidates } from '@/lib/ocrBackend';
 import { FULL_IMAGE_FRAME, detectImageContentFrameFromUrl, imagePointToFrameNorm, regionToImageStyle, type ImageContentFrame } from '@/lib/imageFrame';
+import { deleteEphemeralValue, getEphemeralValue, setEphemeralValue } from '@/lib/ephemeralStore';
 import type { GameMode, MatchResult, MatchType, Player, TeamSide } from '@/lib/types';
 
 const modes: GameMode[] = ['CED', 'TDM', 'PRIMA_LINEA', 'DOMINIO', 'POSTAZIONE', 'KILL_CONFIRMED', 'BR_SOLO', 'BR_DUO', 'BR_SQUAD'];
@@ -175,7 +176,6 @@ type LinkedEventRound = {
   players: string;
   reserves: string;
   lobbyOpen: string;
-  meetingTime: string;
   startTime: string;
   bans: string;
   status?: string;
@@ -214,7 +214,7 @@ const IMPORT_OLD_PLAN_MARKERS = ['AK_EVENT_PLAN_V6_6::', 'AK_EVENT_PLAN_V6_5::',
 const IMPORT_DRAFT_KEY = 'clan_manager_import_match_draft_v6_7';
 
 function emptyLinkedRound(n = 1): LinkedEventRound {
-  return { n, matchCode: `CM-IMPORT-${String(n).padStart(2, '0')}`, mode: 'CED', map: '', scoreType: 'Punteggio round', target: '', players: '', reserves: '', lobbyOpen: '', meetingTime: '', startTime: '', bans: '', status: 'Da giocare', result: '', ourScore: '', opponentScore: '', mvp: '' };
+  return { n, matchCode: `CM-IMPORT-${String(n).padStart(2, '0')}`, mode: 'CED', map: '', scoreType: 'Punteggio round', target: '', players: '', reserves: '', lobbyOpen: '', startTime: '', bans: '', status: 'Da giocare', result: '', ourScore: '', opponentScore: '', mvp: '' };
 }
 function emptyLinkedPlan(): LinkedEventPlan {
   return { teamAName: 'AK47DX', teamBName: 'Clan avversario', totalMatches: 1, lobbyTime: '', discordLink: '', lobbyLink: '', roomNumber: '', rounds: [emptyLinkedRound(1)] };
@@ -476,7 +476,7 @@ function ImportMatchEditor() {
   useEffect(() => {
     let restoredDraft = false;
     try {
-      const rawDraft = localStorage.getItem(IMPORT_DRAFT_KEY);
+      const rawDraft = getEphemeralValue(IMPORT_DRAFT_KEY) as string | undefined;
       if (rawDraft) {
         const draft = JSON.parse(rawDraft) as any;
         restoredDraft = true;
@@ -514,7 +514,7 @@ function ImportMatchEditor() {
   useEffect(() => {
     if (!importDraftReadyRef.current) return;
     try {
-      localStorage.setItem(IMPORT_DRAFT_KEY, JSON.stringify({
+      setEphemeralValue(IMPORT_DRAFT_KEY, JSON.stringify({
         savedAt: new Date().toISOString(), mode, matchType, result, mapName, matchDateText, matchDateLocal,
         opponent, matchNotes, teamScore, enemyScore, rows, rawText, imageUrl, ourTeam, winningTeam,
         linkedEvent, linkedEventPlan, linkedRoundIndex
@@ -1032,7 +1032,7 @@ function ImportMatchEditor() {
 
     await updateLinkedEventAfterSave(match.id, screenshotUrl);
     await loadRoster();
-    try { localStorage.removeItem(IMPORT_DRAFT_KEY); } catch {}
+    try { deleteEphemeralValue(IMPORT_DRAFT_KEY); } catch {}
     setMessage(`Partita salvata. ${linkedEvent ? `Aggiornato anche evento ${linkedEvent.title} · Partita ${(linkedRoundIndex || 0) + 1} con score e MVP automatici. ` : ''}Statistiche salvate per giocatori registrati e manuali: ${savedStats.join(', ') || 'nessuna riga'}. Screenshot allegato come prova.`);
   }
 
@@ -1105,10 +1105,15 @@ function ImportMatchEditor() {
   return (
     <main className="container wide">
       <section className="card import-hero">
-        <div>
+        <div className="import-hero-copy">
           <p className="eyebrow">⚡ Import risultati semplificato</p>
           <h1>Import partita CODM</h1>
           <p className="muted">Carica screenshot CED o Postazione, scegli se il tuo team è blu o rosso e importa solo i 5 player del tuo clan. Dell'avversario vengono salvati solo nome clan, score ed esito.</p>
+          <div className="import-hero-pills">
+            <span className="pill-chip">🖼️ Screenshot rapido</span>
+            <span className="pill-chip">⚙️ Template pronto</span>
+            <span className="pill-chip">✅ Salvataggio diretto</span>
+          </div>
         </div>
         <div className="import-actions">
           <input className="input" type="file" accept="image/*" onChange={(e) => onFileSelected(e.target.files?.[0] || null)} />

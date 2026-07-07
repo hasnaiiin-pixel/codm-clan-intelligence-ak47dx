@@ -5,6 +5,7 @@ import { supabase } from '@/lib/supabaseClient';
 import { kdRatio, winRate } from '@/lib/statistics';
 import { useCodmAuth } from '@/lib/authRoles';
 import { cacheClanIdentity, loadClanIdentity, clanDisplayName } from '@/lib/clanIdentity';
+import { getEphemeralValue, setEphemeralValue } from '@/lib/ephemeralStore';
 import type { Match, Player } from '@/lib/types';
 
 type ScoreboardRow = {
@@ -68,9 +69,9 @@ export default function ClanPage() {
   useEffect(() => { load(); }, []);
 
   async function load() {
-    const saved = typeof window !== 'undefined' ? window.localStorage.getItem('codm_clan_hq_profile_v2_0') || window.localStorage.getItem('codm_clan_hq_profile_v1_2') : null;
+    const saved = getEphemeralValue<Partial<ClanProfile> | string>('codm_clan_hq_profile_v2_0');
     if (saved) {
-      try { setProfile({ ...defaultProfile, ...JSON.parse(saved) as Partial<ClanProfile> }); } catch { /* ignore local backup */ }
+      try { setProfile({ ...defaultProfile, ...(typeof saved === 'string' ? JSON.parse(saved) : saved) as Partial<ClanProfile> }); } catch { /* ignore local backup */ }
     }
     try {
       const identity = await loadClanIdentity();
@@ -115,7 +116,7 @@ export default function ClanPage() {
       clan_name: profile.clan_name.trim() || 'AK47DX',
       tag: profile.tag.trim() || profile.clan_name.trim() || 'AK47DX'
     };
-    window.localStorage.setItem('codm_clan_hq_profile_v2_0', JSON.stringify(cleanProfile));
+    setEphemeralValue('codm_clan_hq_profile_v2_0', JSON.stringify(cleanProfile));
     cacheClanIdentity({ clanId: auth.clanId, clanName: cleanProfile.clan_name, clanTag: cleanProfile.tag, logoUrl: cleanProfile.logo_url });
 
     let clanSyncMessage = '';

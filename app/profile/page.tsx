@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { useCodmAuth } from '@/lib/authRoles';
 import { supabase } from '@/lib/supabaseClient';
 import { loadClanIdentity, clanDisplayName } from '@/lib/clanIdentity';
+import { getEphemeralValue, setEphemeralValue } from '@/lib/ephemeralStore';
 
 type NameHistoryEntry = { at: string; oldName: string; newName: string; source: string };
 type PlayerLite = { id: string; nickname: string; avatar_url?: string | null; uid_codm?: string | null };
@@ -54,7 +55,8 @@ export default function ProfilePage() {
     setSocialDiscord(String(meta.social_discord || ''));
     setProfileNotes(String(meta.profile_notes || ''));
     try {
-      setHistory(JSON.parse(localStorage.getItem(historyKey(auth.user.id)) || '[]'));
+      const raw = getEphemeralValue<string>(historyKey(auth.user.id), '[]');
+      setHistory(raw ? JSON.parse(raw) : []);
     } catch {
       setHistory([]);
     }
@@ -84,7 +86,7 @@ export default function ProfilePage() {
     const entry: NameHistoryEntry = { at: new Date().toISOString(), oldName, newName, source };
     const next = [entry, ...history].slice(0, 50);
     setHistory(next);
-    try { localStorage.setItem(historyKey(auth.user.id), JSON.stringify(next)); } catch {}
+    try { setEphemeralValue(historyKey(auth.user.id), JSON.stringify(next)); } catch {}
     // Tentativo opzionale: se la tabella non esiste non blocca la pagina.
     void supabase.from('player_name_history').insert({ user_id: auth.user.id, old_name: oldName, new_name: newName, source }).then(() => undefined);
   }

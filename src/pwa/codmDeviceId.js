@@ -1,4 +1,5 @@
 const DEVICE_KEY = 'codm_pwa_device_id';
+let cachedDeviceId = null;
 
 function fallbackUuid() {
   return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (char) => {
@@ -14,13 +15,18 @@ export function createCodmUuid() {
 }
 
 export function getCodmDeviceId() {
+  if (cachedDeviceId) return cachedDeviceId;
   try {
-    const existing = localStorage.getItem(DEVICE_KEY);
-    if (existing) return existing;
+    if (typeof window !== 'undefined' && window[DEVICE_KEY]) {
+      cachedDeviceId = window[DEVICE_KEY];
+      return cachedDeviceId;
+    }
     const created = createCodmUuid();
-    localStorage.setItem(DEVICE_KEY, created);
+    cachedDeviceId = created;
+    if (typeof window !== 'undefined') window[DEVICE_KEY] = created;
     return created;
   } catch (_) {
-    return createCodmUuid();
+    cachedDeviceId = createCodmUuid();
+    return cachedDeviceId;
   }
 }

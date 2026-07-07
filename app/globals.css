@@ -261,7 +261,8 @@ small.muted { display: block; }
 .card {
   background: linear-gradient(180deg, rgba(22,35,56,.86), rgba(11,17,29,.88));
   border: 1px solid rgba(255,255,255,.105);
-  box-shadow: 0 22px 70px rgba(0,0,0,.35), inset 0 1px 0 rgba(255,255,255,.05);
+  box-shadow: 0 22px 70px rgba(0,0,0,.32), inset 0 1px 0 rgba(255,255,255,.05);
+  backdrop-filter: blur(12px);
 }
 .btn {
   border: 1px solid rgba(255,255,255,.14);
@@ -351,6 +352,12 @@ select:disabled, .select:disabled { opacity: .62; background: rgba(255,255,255,.
 .hero-compact h1, .clan-hero h1 { margin: 0 0 10px; font-size: clamp(34px, 5vw, 62px); line-height: 1; }
 .clan-hero { display: grid; grid-template-columns: 1fr 210px; align-items: center; gap: 24px; padding: 28px; border-radius: 26px; border: 1px solid rgba(50,214,255,.22); background: linear-gradient(135deg, rgba(255,54,91,.16), rgba(50,214,255,.08) 45%, rgba(16,24,39,.94)); box-shadow: 0 24px 80px rgba(0,0,0,.34); }
 .clan-motto { font-size: 20px; color: #d7f7ff; margin: 0 0 16px; }
+.hero-actions { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 16px; }
+.home-trust-row { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 14px; }
+.pill-chip { display: inline-flex; align-items: center; gap: 6px; padding: 8px 11px; border-radius: 999px; border: 1px solid rgba(255,255,255,.12); background: rgba(255,255,255,.06); color: #dcefff; font-size: 12px; font-weight: 800; letter-spacing: .04em; text-transform: uppercase; }
+.home-stat-grid .kpi { min-height: 134px; }
+.home-stat-grid .kpi small { display: block; margin-top: 6px; color: var(--muted); }
+.player-mini:hover { transform: translateY(-1px); border-color: rgba(50,214,255,.28); background: rgba(50,214,255,.06); }
 .clan-emblem { width: 190px; height: 190px; border-radius: 44px; display: grid; place-items: center; margin-left: auto; background: radial-gradient(circle at 30% 20%, rgba(255,255,255,.20), transparent 28%), linear-gradient(135deg, #ff365b, #7c3cff 55%, #32d6ff); box-shadow: 0 0 50px rgba(50,214,255,.18), 0 0 60px rgba(255,54,91,.16); border: 1px solid rgba(255,255,255,.18); }
 .clan-emblem span { font-size: 54px; font-weight: 1000; letter-spacing: .04em; }
 .notice-card { border-color: rgba(255,209,102,.22); background: linear-gradient(180deg, rgba(255,209,102,.08), rgba(16,24,39,.88)); }
@@ -361,6 +368,13 @@ select:disabled, .select:disabled { opacity: .62; background: rgba(255,255,255,.
 .grid-5 .field { min-width: 0; }
 select::-ms-expand { background: #101827; color: var(--text); }
 @media (max-width: 1100px) { .grid-4, .grid-5, .clan-hero { grid-template-columns: 1fr; } .clan-emblem { margin: 0; width: 150px; height: 150px; } }
+@media (max-width: 720px) {
+  .hero-actions, .home-trust-row { flex-direction: column; align-items: stretch; }
+  .hero-actions a, .home-trust-row .pill-chip { width: 100%; justify-content: center; }
+  .home-stat-grid .kpi { min-height: auto; }
+  .home-clan-hero { padding: 18px; }
+  .clan-motto { font-size: 16px; }
+}
 
 /* 1.2 FIX2 - Postazione, ranking medals, player stats */
 .rank-medal {
@@ -485,6 +499,22 @@ select::-ms-expand { background: #101827; color: var(--text); }
 .action-layout-2-0 { grid-template-columns: minmax(0, 1.25fr) minmax(380px, .75fr); }
 .action-panel-card { border-color: rgba(255,209,102,.22); }
 .action-panel-grid { align-items: start; }
+.dashboard-skeleton-stack { display: grid; gap: 10px; padding: 6px 0 4px; }
+.dashboard-skeleton-stack.compact { gap: 8px; }
+.dashboard-skeleton-block,
+.dashboard-skeleton-line,
+.dashboard-skeleton-row {
+  border-radius: 14px;
+  background: linear-gradient(90deg, rgba(255,255,255,.06), rgba(255,255,255,.12), rgba(255,255,255,.06));
+  background-size: 200% 100%;
+  animation: dashboardSkeleton 1.25s linear infinite;
+}
+.dashboard-skeleton-block { min-height: 220px; }
+.dashboard-skeleton-block.large { min-height: 260px; }
+.dashboard-skeleton-line { min-height: 14px; width: 100%; }
+.dashboard-skeleton-line.short { width: 70%; }
+.dashboard-skeleton-row { min-height: 54px; }
+@keyframes dashboardSkeleton { from { background-position: 200% 0; } to { background-position: -200% 0; } }
 .action-screenshot {
   width: 100%;
   max-height: 470px;
@@ -744,6 +774,7 @@ button { cursor: pointer; }
   font-weight: 900;
   box-shadow: 0 18px 44px rgba(0,0,0,0.42), 0 0 28px rgba(34, 211, 238, 0.12);
   backdrop-filter: blur(14px);
+  transition: transform .16s ease, box-shadow .16s ease;
 }
 .ak-menu-button:hover { transform: translateY(-1px); border-color: rgba(34, 211, 238, 0.75); }
 .ak-sidebar-backdrop {
@@ -1218,6 +1249,12 @@ textarea,
 .ak-section-head { overflow: hidden; }
 .ak-calendar-grid { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 8px; }
 .ak-calendar-weekdays { margin: 12px 0 8px; color: #94a3b8; font-size: 12px; font-weight: 900; text-transform: uppercase; letter-spacing: .08em; }
+.events-compact-hero { display: flex; align-items: flex-start; justify-content: space-between; gap: 18px; flex-wrap: wrap; }
+.events-hero-meta { flex: 1 1 420px; }
+.events-hero-pills { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
+.ak-event-copy { display: grid; gap: 6px; }
+.ak-event-mini-pills { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 4px; }
+.ak-event-card:hover { transform: translateY(-1px); border-color: rgba(34,211,238,.28); background: linear-gradient(180deg, rgba(15,23,42,.82), rgba(10,16,28,.9)); }
 .ak-calendar-day { min-height: 92px; border: 1px solid rgba(255,255,255,.09); border-radius: 16px; padding: 9px; background: rgba(15,23,42,.62); overflow: hidden; }
 .ak-calendar-day strong { display: block; color: #e2e8f0; margin-bottom: 6px; }
 .ak-calendar-day span { display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-top: 4px; border-radius: 999px; padding: 4px 7px; background: rgba(34,211,238,.14); color: #cffafe; font-size: 11px; font-weight: 800; }
@@ -1245,6 +1282,10 @@ textarea,
   .ak-player-pick-list { grid-template-columns: 1fr; max-height: 240px; }
   .ak-event-card { grid-template-columns: 1fr; }
   .month-input { max-width: 100%; }
+  .events-compact-hero { flex-direction: column; align-items: stretch; }
+  .event-mobile-create-cta { width: 100%; }
+  .events-hero-pills { flex-direction: column; }
+  .ak-event-mini-pills .pill-chip { width: 100%; justify-content: center; }
 }
 
 /* V4.5 events/import refinements */
@@ -1488,9 +1529,13 @@ main.container.wide > section.card {
 .ocr-template-red { border-color:rgba(255,54,91,.9); background:rgba(255,54,91,.05); }
 .ocr-template-own { border-width:2px; box-shadow:0 0 0 1px rgba(255,255,255,.35); }
 .import-hero { display:grid; grid-template-columns: minmax(0, 1fr) minmax(280px, .55fr); gap:18px; align-items:center; }
-.import-actions { align-items: stretch; }
+.import-hero-copy { display:grid; gap:8px; }
+.import-hero-pills { display:flex; flex-wrap:wrap; gap:8px; margin-top:6px; }
+.import-actions { align-items: stretch; gap:12px; }
 .import-main-btn { width:100%; min-height:48px; }
+.import-actions .input { min-height: 48px; }
 @media (max-width: 900px) { .import-hero, .profile-import-layout { grid-template-columns: 1fr; } .container.wide { width: min(100vw - 16px, 1680px); } .card { padding: 16px; border-radius: 18px; } }
+@media (max-width: 720px) { .import-hero-pills { flex-direction: column; } .import-hero-pills .pill-chip { justify-content: center; } }
 
 /* V6.0 clean profile/events/import refinements */
 .profile-page-hero { display: flex; align-items: center; justify-content: space-between; gap: 18px; flex-wrap: wrap; }
@@ -1525,9 +1570,12 @@ main.container.wide > section.card {
 /* CODM V6.2 - home, eventi e profilo/import rifinitura */
 .home-clan-hero { display: grid; grid-template-columns: minmax(0, 1.4fr) minmax(220px, 0.6fr); gap: 1.5rem; align-items: center; }
 .home-clan-hero h1 { font-size: clamp(2.4rem, 7vw, 5rem); letter-spacing: .04em; text-transform: uppercase; }
-.home-clan-logo-card { display: grid; place-items: center; border: 1px solid rgba(34,211,238,.25); border-radius: 28px; padding: 1.2rem; background: radial-gradient(circle at top, rgba(34,211,238,.15), rgba(15,23,42,.65)); min-height: 260px; }
-.home-clan-logo-card img { max-width: 180px; max-height: 180px; object-fit: contain; filter: drop-shadow(0 0 24px rgba(34,211,238,.35)); border-radius: 22px; }
+.home-clan-logo-card { display: grid; place-items: center; border: 1px solid rgba(34,211,238,.25); border-radius: 28px; padding: 1.2rem; background: radial-gradient(circle at top, rgba(34,211,238,.15), rgba(15,23,42,.65)); min-height: 260px; position: relative; overflow: hidden; }
+.home-clan-logo-card::before { content: ''; position: absolute; inset: 0; background: radial-gradient(circle at top left, rgba(255,255,255,.08), transparent 45%); pointer-events: none; }
+.home-clan-logo-card img { max-width: 180px; max-height: 180px; object-fit: contain; filter: drop-shadow(0 0 24px rgba(34,211,238,.35)); border-radius: 22px; z-index: 1; }
 .home-clan-logo-card span { margin-top: .8rem; font-weight: 900; color: #dbeafe; letter-spacing: .12em; text-transform: uppercase; }
+.home-logo-badge { display: grid; gap: 2px; text-align: center; z-index: 1; }
+.home-logo-badge strong { color: #fff; font-size: 1rem; }
 .quick-action-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .75rem; margin-top: 1rem; }
 .ak-quick-action { border: 1px solid rgba(148,163,184,.25); border-radius: 18px; padding: 1rem; background: rgba(15,23,42,.72); color: #e2e8f0; font-weight: 800; text-decoration: none; }
 .ak-quick-action:hover { border-color: rgba(34,211,238,.55); }

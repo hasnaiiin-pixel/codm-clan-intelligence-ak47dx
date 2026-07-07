@@ -59,22 +59,30 @@ export default function DashboardPage() {
   const [scoreRows, setScoreRows] = useState<ScoreboardRow[]>([]);
   const [selectedMatchId, setSelectedMatchId] = useState<string>('');
   const [message, setMessage] = useState('');
+  const [loading, setLoading] = useState(true);
 
-  useEffect(() => { load(); }, []);
+  useEffect(() => { void load(); }, []);
 
   async function load() {
+    setLoading(true);
     setMessage('');
-    const { data: matchData, error: matchError } = await supabase.from('matches').select('*').order('match_date', { ascending: false }).limit(50);
-    const { data: playerData } = await supabase.from('players').select('*').order('nickname').limit(300);
-    const { data: statData } = await supabase.from('match_player_stats').select('*, players(nickname,clan_name,avatar_url), matches(mode,result,map_name,match_date)').limit(1000);
-    const { data: rowData } = await supabase.from('match_scoreboard_rows').select('*, players(nickname,clan_name)').order('team_rank', { ascending: true }).limit(1000);
-    if (matchError) setMessage(matchError.message);
-    const loadedMatches = (matchData || []) as Match[];
-    setMatches(loadedMatches);
-    setPlayers((playerData || []) as Player[]);
-    setStats((statData || []) as RowWithPlayer[]);
-    setScoreRows((rowData || []) as ScoreboardRow[]);
-    if (!selectedMatchId && loadedMatches[0]?.id) setSelectedMatchId(loadedMatches[0].id);
+    try {
+      const { data: matchData, error: matchError } = await supabase.from('matches').select('*').order('match_date', { ascending: false }).limit(50);
+      const { data: playerData } = await supabase.from('players').select('*').order('nickname').limit(300);
+      const { data: statData } = await supabase.from('match_player_stats').select('*, players(nickname,clan_name,avatar_url), matches(mode,result,map_name,match_date)').limit(1000);
+      const { data: rowData } = await supabase.from('match_scoreboard_rows').select('*, players(nickname,clan_name)').order('team_rank', { ascending: true }).limit(1000);
+      if (matchError) setMessage(matchError.message);
+      const loadedMatches = (matchData || []) as Match[];
+      setMatches(loadedMatches);
+      setPlayers((playerData || []) as Player[]);
+      setStats((statData || []) as RowWithPlayer[]);
+      setScoreRows((rowData || []) as ScoreboardRow[]);
+      if (!selectedMatchId && loadedMatches[0]?.id) setSelectedMatchId(loadedMatches[0].id);
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : 'Errore caricamento dashboard.');
+    } finally {
+      setLoading(false);
+    }
   }
 
   const selectedMatch = matches.find((m) => m.id === selectedMatchId) || matches[0] || null;
@@ -120,10 +128,16 @@ export default function DashboardPage() {
           <p className="eyebrow">🐺 AK47DX definitive platform</p>
           <h1>Clan Intelligence 2.0</h1>
           <p className="clan-motto">Una piattaforma unica per importare risultati, consultare prove screenshot, gestire clan, invitare player e leggere statistiche reali.</p>
+          <div className="home-trust-row">
+            <span className="pill-chip">📊 Dashboard live</span>
+            <span className="pill-chip">🧠 Dati Supabase</span>
+            <span className="pill-chip">📱 PWA aggiornata</span>
+          </div>
           <div className="hero-actions">
             <a className="btn import-main-btn" href="/import/match">⚡ Importa risultati</a>
             <a className="btn secondary" href="/invite">🔗 Crea link invito</a>
             <a className="btn secondary" href="/matches">🎞️ Storico partite</a>
+            <button className="btn secondary" type="button" onClick={() => void load()}>🔄 Aggiorna</button>
           </div>
         </div>
         <div className="operator-showcase" aria-label="Gaming showcase">
@@ -133,6 +147,7 @@ export default function DashboardPage() {
         </div>
       </section>
 
+      {loading && <div className="notice top-gap">Caricamento dashboard in corso…</div>}
       {message && <div className="notice top-gap">{message}</div>}
 
       <section className="grid grid-5 top-gap">
@@ -151,7 +166,13 @@ export default function DashboardPage() {
               {matches.map((m) => <option key={m.id} value={m.id}>{new Date(m.match_date).toLocaleDateString('it-IT')} · {m.mode} · {m.map_name || '-'}</option>)}
             </select>
           </div>
-          {!selectedMatch ? <div className="empty-state">Nessuna partita salvata. Importa un risultato per vedere la prova qui.</div> : (
+          {loading ? (
+            <div className="dashboard-skeleton-stack">
+              <div className="dashboard-skeleton-block large" />
+              <div className="dashboard-skeleton-line" />
+              <div className="dashboard-skeleton-line short" />
+            </div>
+          ) : !selectedMatch ? <div className="empty-state">Nessuna partita salvata. Importa un risultato per vedere la prova qui.</div> : (
             <div className="grid grid-2 action-panel-grid">
               <div>
                 {selectedMatch.screenshot_url ? (
@@ -179,7 +200,11 @@ export default function DashboardPage() {
           <p className="eyebrow">🏆 Top player</p>
           <h2>Ranking Oro / Argento / Bronzo / Legno / Olimpico</h2>
           <div className="player-mini-list">
-            {topPlayers.map((p, idx) => (
+            {loading ? (
+              <div className="dashboard-skeleton-stack compact">
+                {Array.from({ length: 4 }).map((_, idx) => <div key={idx} className="dashboard-skeleton-row" />)}
+              </div>
+            ) : topPlayers.length ? topPlayers.map((p, idx) => (
               <div className="player-mini" key={`${p.clan}-${p.name}`}>
                 <div className="avatar-placeholder small-avatar">{idx + 1}</div>
                 <div style={{ flex: 1 }}>
@@ -189,8 +214,7 @@ export default function DashboardPage() {
                 <span className="rank-medal medal-silver">🥈 {p.silver}</span>
                 <span className="rank-medal medal-bronze">🥉 {p.bronze}</span>
               </div>
-            ))}
-            {!topPlayers.length && <div className="empty-state">Nessun ranking disponibile.</div>}
+            )) : <div className="empty-state">Nessun ranking disponibile.</div>}
           </div>
         </div>
       </section>

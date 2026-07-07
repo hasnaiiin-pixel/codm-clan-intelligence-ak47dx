@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useCodmAuth } from '@/lib/authRoles';
 import { loadClanIdentity, clanDisplayName } from '@/lib/clanIdentity';
+import { getEphemeralValue, setEphemeralValue } from '@/lib/ephemeralStore';
 
 type RuleSection = {
   id: string;
@@ -147,7 +148,7 @@ export default function RulesPage() {
 
   useEffect(() => {
     try {
-      const saved = localStorage.getItem(RULES_KEY);
+      const saved = getEphemeralValue<string>(RULES_KEY);
       if (saved) setDoc(JSON.parse(saved) as RulesDocument);
     } catch {}
     loadClanIdentity().then((identity) => {
@@ -165,7 +166,7 @@ export default function RulesPage() {
 
   function save() {
     const next = { ...doc, updatedAt: new Date().toISOString() };
-    try { localStorage.setItem(RULES_KEY, JSON.stringify(next)); setDoc(next); setMessage('Regolamento salvato localmente con sezioni, immagini e loghi.'); setEdit(false); } catch { setMessage('Errore salvataggio regolamento.'); }
+    try { setEphemeralValue(RULES_KEY, JSON.stringify(next)); setDoc(next); setMessage('Regolamento salvato nella sessione corrente.'); setEdit(false); } catch { setMessage('Errore salvataggio regolamento.'); }
   }
 
   function updateSection(index: number, patch: Partial<RuleSection>) {

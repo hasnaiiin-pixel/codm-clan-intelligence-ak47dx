@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import { supabase } from '@/lib/supabaseClient';
 import { loadClanIdentity, clanDisplayName } from '@/lib/clanIdentity';
+import { setEphemeralValue } from '@/lib/ephemeralStore';
 
 type ClanRow = { id: string; name?: string | null; tag?: string | null };
 async function getFirstClan(): Promise<ClanRow | null> {
@@ -32,7 +33,7 @@ export default function JoinPage() {
   async function submit() {
     if (!nickname.trim()) { setMessage('Inserisci almeno il nickname CODM.'); return; }
     const payload = { invite_code: code, clan_tag: clan, full_name: fullName.trim() || null, email: email.trim() || null, nickname: nickname.trim(), uid_codm: uid.trim() || null, social_contact: social.trim() || email.trim() || null, status: 'active' };
-    localStorage.setItem(`ak47dx_join_${code || 'manual'}`, JSON.stringify(payload));
+    setEphemeralValue(`ak47dx_join_${code || 'manual'}`, JSON.stringify(payload));
     try { await supabase.from('clan_invite_requests').insert(payload); } catch {}
     try {
       const activeClan = await getFirstClan();

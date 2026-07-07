@@ -5,6 +5,7 @@ import { WriteAccessBlock } from '@/components/WriteAccessBlock';
 
 import { useEffect, useMemo, useState } from 'react';
 import { supabase } from '@/lib/supabaseClient';
+import { getEphemeralValue, setEphemeralValue } from '@/lib/ephemeralStore';
 
 function makeCode() {
   const part = Math.random().toString(36).slice(2, 8).toUpperCase();
@@ -30,18 +31,18 @@ function InviteEditor() {
 
   useEffect(() => {
     setOrigin(window.location.origin);
-    const saved = localStorage.getItem('ak47dx_last_invite');
+    const saved = getEphemeralValue<string>('ak47dx_last_invite');
     if (saved) setCode(saved); else {
       const c = makeCode();
       setCode(c);
-      localStorage.setItem('ak47dx_last_invite', c);
+      setEphemeralValue('ak47dx_last_invite', c);
     }
   }, []);
 
   async function createInvite() {
     const newCode = makeCode();
     setCode(newCode);
-    localStorage.setItem('ak47dx_last_invite', newCode);
+    setEphemeralValue('ak47dx_last_invite', newCode);
     setMessage('Link invito creato. Puoi copiarlo e mandarlo su WhatsApp, Discord o social.');
     try {
       await supabase.from('clan_invites').insert({ invite_code: newCode, clan_tag: clanTag, target_role: role, status: 'active' });

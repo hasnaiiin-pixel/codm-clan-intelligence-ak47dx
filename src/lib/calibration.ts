@@ -3,6 +3,7 @@ import {
   scoreboardRegions,
   type CropRegion,
 } from "./imagePreprocess";
+import { getEphemeralValue, setEphemeralValue } from "./ephemeralStore";
 
 export type CalibrationKind = "scoreboard_ced" | "profile_base";
 export type CalibratedRegion = CropRegion & {
@@ -157,38 +158,26 @@ function profileKeyFromMeta(phoneProfile?: string | null, templateName?: string 
   return makeCalibrationProfileKey(split.phone, template);
 }
 export function getActiveUserId() {
-  if (typeof window === "undefined") return "anonymous";
-  return window.localStorage.getItem(ACTIVE_USER_ID_KEY) || "anonymous";
+  return getEphemeralValue<string>(ACTIVE_USER_ID_KEY, "anonymous") || "anonymous";
 }
 export function getActiveUserName() {
-  if (typeof window === "undefined") return "";
-  return window.localStorage.getItem(ACTIVE_USER_NAME_KEY) || "";
+  return getEphemeralValue<string>(ACTIVE_USER_NAME_KEY, "") || "";
 }
 export function setActiveUserContext(
   userId?: string | null,
   displayName?: string | null,
 ) {
-  if (typeof window === "undefined") return;
-  if (userId) window.localStorage.setItem(ACTIVE_USER_ID_KEY, userId);
-  if (displayName)
-    window.localStorage.setItem(ACTIVE_USER_NAME_KEY, displayName);
+  if (userId) setEphemeralValue(ACTIVE_USER_ID_KEY, userId);
+  if (displayName) setEphemeralValue(ACTIVE_USER_NAME_KEY, displayName);
 }
 export function getActivePhoneProfile(kind: CalibrationKind) {
-  if (typeof window === "undefined") return "default";
-  return (
-    window.localStorage.getItem(`${ACTIVE_PHONE_KEY_PREFIX}${kind}`) ||
-    "default"
-  );
+  return getEphemeralValue<string>(`${ACTIVE_PHONE_KEY_PREFIX}${kind}`, "default") || "default";
 }
 export function setActivePhoneProfile(
   kind: CalibrationKind,
   phoneProfile: string,
 ) {
-  if (typeof window === "undefined") return;
-  window.localStorage.setItem(
-    `${ACTIVE_PHONE_KEY_PREFIX}${kind}`,
-    slug(phoneProfile),
-  );
+  setEphemeralValue(`${ACTIVE_PHONE_KEY_PREFIX}${kind}`, slug(phoneProfile));
 }
 function baseKey(kind: CalibrationKind) {
   return kind === "profile_base"
@@ -267,7 +256,6 @@ function readLatestSavedBundle(
   meta: CalibrationTemplateMeta,
   phone?: string,
 ): CalibrationTemplateBundle | null {
-  if (typeof window === "undefined") return null;
   const candidates: CalibrationTemplateBundle[] = [];
   const base = baseKey(kind);
   const prefixes = [
@@ -276,11 +264,13 @@ function readLatestSavedBundle(
     `${CALIBRATION_CANONICAL_PREFIX}${kind}`,
     `${CALIBRATION_LATEST_PREFIX}${kind}`,
   ];
-  for (let i = 0; i < window.localStorage.length; i += 1) {
-    const key = window.localStorage.key(i) || "";
+  const storageEntries = typeof window !== "undefined"
+    ? Array.from({ length: window.localStorage.length }, (_, index) => window.localStorage.key(index) || "")
+    : [];
+  for (const key of storageEntries) {
     if (!prefixes.some((prefix) => key.startsWith(prefix))) continue;
     const bundle = tryReadBundleValue(
-      window.localStorage.getItem(key),
+      window?.localStorage.getItem(key) || null,
       defaults,
       meta,
     );
@@ -393,7 +383,6 @@ export function saveCalibration(
   templateName?: string,
   ownerName?: string | null,
 ) {
-  if (typeof window === "undefined") return;
   const phone = slug(phoneProfile || getActivePhoneProfile(kind));
   setActivePhoneProfile(kind, phone);
   const bundle: CalibrationTemplateBundle = {
@@ -412,10 +401,12 @@ export function saveCalibration(
     regions: regions.map(clampRegion),
   };
   const serialized = JSON.stringify(bundle);
-  window.localStorage.setItem(storageKey(kind, phone), serialized);
-  window.localStorage.setItem(lastActiveKey(kind, phone), serialized);
-  window.localStorage.setItem(canonicalKey(kind), serialized);
-  window.localStorage.setItem(latestSavedKey(kind), serialized);
+  if (typeof window !== "undefined") {
+    window.localStorage.setItem(storageKey(kind, phone), serialized);
+    window.localStorage.setItem(lastActiveKey(kind, phone), serialized);
+    window.localStorage.setItem(canonicalKey(kind), serialized);
+    window.localStorage.setItem(latestSavedKey(kind), serialized);
+  }
 }
 export function resetCalibration(kind: CalibrationKind, phoneProfile?: string) {
   if (typeof window === "undefined") return;

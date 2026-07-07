@@ -11,6 +11,8 @@ export const DEFAULT_CLAN_NAME = 'AK47DX';
 export const DEFAULT_CLAN_TAG = 'AK47DX';
 export const CLAN_IDENTITY_CACHE_KEY = 'clan_manager_active_clan_identity_v6_7';
 
+const identityCache = new Map<string, ClanIdentity>();
+
 function clean(value?: string | null) {
   return String(value || '').trim();
 }
@@ -20,21 +22,7 @@ export function clanDisplayName(identity?: Partial<ClanIdentity> | null) {
 }
 
 function readLocalIdentity(): Partial<ClanIdentity> | null {
-  if (typeof window === 'undefined') return null;
-  try {
-    const direct = JSON.parse(window.localStorage.getItem(CLAN_IDENTITY_CACHE_KEY) || 'null');
-    if (direct) return direct as Partial<ClanIdentity>;
-  } catch {}
-  try {
-    const profile = JSON.parse(window.localStorage.getItem('codm_clan_hq_profile_v2_0') || 'null');
-    if (profile) {
-      return {
-        clanName: clean(profile.clan_name),
-        clanTag: clean(profile.tag),
-        logoUrl: clean(profile.logo_url) || null
-      };
-    }
-  } catch {}
+  if (identityCache.has(CLAN_IDENTITY_CACHE_KEY)) return identityCache.get(CLAN_IDENTITY_CACHE_KEY)!;
   return null;
 }
 
@@ -77,20 +65,17 @@ export async function loadClanIdentity(): Promise<ClanIdentity> {
     logoUrl
   };
 
-  if (typeof window !== 'undefined') {
-    try { window.localStorage.setItem(CLAN_IDENTITY_CACHE_KEY, JSON.stringify(identity)); } catch {}
-  }
+  identityCache.set(CLAN_IDENTITY_CACHE_KEY, identity);
 
   return identity;
 }
 
 export function cacheClanIdentity(identity: Partial<ClanIdentity>) {
-  if (typeof window === 'undefined') return;
   const normalized: ClanIdentity = {
     clanId: clean(identity.clanId) || null,
     clanName: clean(identity.clanName) || DEFAULT_CLAN_NAME,
     clanTag: clean(identity.clanTag) || clean(identity.clanName) || DEFAULT_CLAN_TAG,
     logoUrl: clean(identity.logoUrl) || null
   };
-  try { window.localStorage.setItem(CLAN_IDENTITY_CACHE_KEY, JSON.stringify(normalized)); } catch {}
+  identityCache.set(CLAN_IDENTITY_CACHE_KEY, normalized);
 }

@@ -31,7 +31,7 @@ export function registerCodmServiceWorker() {
   navigator.serviceWorker.addEventListener('message', (event) => {
     if (event.data?.type === 'CODM_SW_UPDATED') {
       try {
-        localStorage.setItem('codm_sw_version', event.data.version || 'updated');
+        window.__codm_sw_version = event.data.version || 'updated';
       } catch {}
     }
   });

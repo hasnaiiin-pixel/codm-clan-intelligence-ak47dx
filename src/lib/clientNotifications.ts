@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
+import { getEphemeralValue, setEphemeralValue } from './ephemeralStore';
 
 export type CodmLocalNotification = {
   id: string;
@@ -15,14 +16,10 @@ export type CodmLocalNotification = {
 export const CODM_LOCAL_NOTIFICATIONS_KEY = 'codm_pwa_notifications_v7_0';
 export const CODM_NOTIFICATION_EVENT = 'codm-notifications-changed';
 
-function canUseStorage() {
-  return typeof window !== 'undefined' && typeof window.localStorage !== 'undefined';
-}
-
 export function loadLocalNotifications(): CodmLocalNotification[] {
-  if (!canUseStorage()) return [];
+  if (typeof window === 'undefined') return [];
   try {
-    const raw = window.localStorage.getItem(CODM_LOCAL_NOTIFICATIONS_KEY);
+    const raw = getEphemeralValue<string>(CODM_LOCAL_NOTIFICATIONS_KEY, '[]');
     const parsed = raw ? JSON.parse(raw) : [];
     return Array.isArray(parsed) ? parsed.filter((item) => item && item.id && item.title) : [];
   } catch {
@@ -31,13 +28,13 @@ export function loadLocalNotifications(): CodmLocalNotification[] {
 }
 
 export function saveLocalNotifications(items: CodmLocalNotification[]) {
-  if (!canUseStorage()) return;
+  if (typeof window === 'undefined') return;
   try {
     const ordered = items
       .slice()
       .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
       .slice(0, 120);
-    window.localStorage.setItem(CODM_LOCAL_NOTIFICATIONS_KEY, JSON.stringify(ordered));
+    setEphemeralValue(CODM_LOCAL_NOTIFICATIONS_KEY, JSON.stringify(ordered));
     window.dispatchEvent(new CustomEvent(CODM_NOTIFICATION_EVENT));
     void setCodmAppBadge(unreadLocalNotifications(ordered));
   } catch {

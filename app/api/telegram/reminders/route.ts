@@ -28,7 +28,6 @@ type MatchRound = {
   players?: string;
   reserves?: string;
   lobbyOpen?: string;
-  meetingTime?: string;
   startTime?: string;
   bans?: string;
   status?: string;
@@ -133,7 +132,7 @@ function buildMatchDetailsHtml(event: EventRow) {
     const lines = [
       `<b>Partita ${n}</b> · ID ${safeHtml(round.matchCode || '-')} · ${mode}`,
       `Mappa: ${safeHtml(round.map || 'Da decidere')}`,
-      `Ritrovo: ${safeHtml(round.meetingTime || '-')} · Lobby: ${safeHtml(round.lobbyOpen || plan?.lobbyTime || '-')} · Start: ${safeHtml(round.startTime || '-')}`,
+      `Lobby: ${safeHtml(round.lobbyOpen || plan?.lobbyTime || '-')} · Start: ${safeHtml(round.startTime || '-')}`,
       `Stato: ${safeHtml(matchStatus(round))}${outcome ? ` · Esito: ${safeHtml(outcome)}` : ''}`,
       round.ourScore || round.opponentScore ? `Score: ${safeHtml(round.ourScore || '-')} - ${safeHtml(round.opponentScore || '-')}` : '',
       round.players ? `Titolari: ${safeHtml(round.players)}` : '',
