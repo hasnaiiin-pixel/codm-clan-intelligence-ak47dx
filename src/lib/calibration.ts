@@ -36,13 +36,14 @@ export const CALIBRATION_CANONICAL_PREFIX = "codm_ocr_canonical_template_";
 export const CALIBRATION_LATEST_PREFIX = "codm_ocr_latest_saved_template_";
 
 const importantScoreboardNames = [
-  // V8.2C: import risultati semplificato. Non usiamo più i riquadri
-  // Vittoria/Sconfitta, punteggio player e impatto perché creavano confusione
-  // e non servono al flusso salvataggio partita richiesto.
+  // V8.2E: import risultati pulito. Manteniamo SOLO risultato partita
+  // (SCOREBOARD_SCORE_BLUE/COLON/RED), data/mappa e celle Nick/K/D/A.
+  // Escludiamo Vittoria, riquadri grandi team, Impatto e punteggio player.
+  "SCOREBOARD_SCORE_BLUE",
+  "SCOREBOARD_SCORE_COLON",
+  "SCOREBOARD_SCORE_RED",
   "SCOREBOARD_MATCH_DATETIME",
   "SCOREBOARD_MODE_MAP",
-  "TEAM_BLUE_TABLE_FULL",
-  "TEAM_RED_TABLE_FULL",
   "BLUE_R1_NICK",
   "BLUE_R1_KDA",
   "BLUE_R2_NICK",

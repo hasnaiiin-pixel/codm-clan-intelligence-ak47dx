@@ -1,6 +1,6 @@
 {
   "name": "clan-manager-ak47dx",
-  "version": "8.2.3-import-clean-template-telegram-delete-fix",
+  "version": "8.2.5-pwa-cache-result-score-fix",
   "private": true,
   "scripts": {
     "dev": "next dev",

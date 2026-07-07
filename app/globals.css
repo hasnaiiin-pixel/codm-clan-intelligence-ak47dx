@@ -2164,3 +2164,42 @@ html, body { overflow-x: hidden; }
   .import-actions-pro.import-actions-simple { grid-template-columns: 1fr !important; }
   .ak-menu-button { left: 10px !important; top: 10px !important; }
 }
+
+/* CLAN MANAGER V8.2E - Dashboard pulita, template unico, import risultato partita e cache PWA */
+.dashboard-clean-head {
+  padding: 18px 20px !important;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+.dashboard-clean-head h1 {
+  margin: 0;
+  font-size: clamp(24px, 4vw, 42px);
+  letter-spacing: .08em;
+  text-transform: uppercase;
+}
+.dashboard-clean-head .eyebrow { margin: 0 0 4px; }
+.single-template-picker {
+  display: grid !important;
+  grid-template-columns: minmax(0, 1fr) auto !important;
+  align-items: center;
+  gap: 8px;
+}
+.single-template-picker .btn { white-space: nowrap; }
+@media (max-width: 720px) {
+  .dashboard-clean-head { padding: 14px !important; }
+  .single-template-picker { grid-template-columns: 1fr !important; }
+  .ak-score-card {
+    padding: 12px !important;
+    border-radius: 14px !important;
+    gap: 8px !important;
+  }
+  .ak-score-card-head strong { font-size: 14px; line-height: 1.2; }
+  .ak-score-card label { font-size: 11px !important; letter-spacing: .02em !important; }
+  .ak-score-grid { grid-template-columns: repeat(3, minmax(0, 1fr)) !important; gap: 7px !important; }
+  .ak-score-grid .input { min-height: 40px !important; text-align: center; padding: 8px !important; }
+  .ak-mobile-score-cards { gap: 10px !important; }
+  .team-title { gap: 8px !important; }
+  .team-title .btn { width: auto !important; padding: 8px 10px !important; }
+}

@@ -8,13 +8,20 @@ const HOME_QUERY_LIMIT = 6;
 
 type ClanRow = { id: string; name?: string | null; tag?: string | null; logo_url?: string | null; description?: string | null };
 type MatchRow = { id: string; result?: string | null; mode?: string | null; match_type?: string | null };
-type EventRow = { id: string; title: string; starts_at: string; event_type?: string | null; location?: string | null; event_plan?: any | null; event_notes?: string | null };
+type EventRow = { id: string; title: string; starts_at: string; ends_at?: string | null; event_type?: string | null; location?: string | null; event_plan?: any | null; event_notes?: string | null };
 type StatRow = { kills?: number | null; deaths?: number | null; assists?: number | null };
 type ScoreRow = { nickname_resolved?: string | null; nickname_raw?: string | null; team_rank?: number | null; mvp_type?: string | null; assists?: number | null; players?: { nickname?: string | null; clan_name?: string | null } | null };
 
+function eventEndTimestamp(event: EventRow) {
+  const end = event.ends_at ? new Date(event.ends_at).getTime() : NaN;
+  if (Number.isFinite(end)) return end;
+  const start = new Date(event.starts_at).getTime();
+  return Number.isFinite(start) ? start : 0;
+}
+
 function normalizeHomeEvents(remoteRows: EventRow[]) {
   return remoteRows
-    .filter((event) => new Date(event.starts_at).getTime() >= Date.now() - 60 * 60 * 1000)
+    .filter((event) => eventEndTimestamp(event) > Date.now())
     .sort((a, b) => new Date(a.starts_at).getTime() - new Date(b.starts_at).getTime())
     .slice(0, 6);
 }
@@ -108,30 +115,12 @@ export default function HomePage() {
 
   return (
     <main className="container wide home-v62">
-      <section className="card gaming-panel home-clan-hero">
-        <div className="home-clan-left">
-          <p className="eyebrow">🐺 Clan Manager</p>
-          <h1>{clanName}</h1>
-          <p className="clan-motto">{clan?.description || 'Dashboard ufficiale clan: risultati, statistiche, eventi, convocazioni e storico partite.'}</p>
-          {loading && <div className="notice top-gap">Caricamento dati in corso…</div>}
+      <section className="card dashboard-clean-head">
+        <div>
+          <p className="eyebrow">📊 Dashboard</p>
+          <h1>CLAN MANAGER</h1>
+          {loading && <div className="notice top-gap">Caricamento dati…</div>}
           {message && <div className="notice top-gap">{message}</div>}
-          <div className="home-trust-row">
-            <span className="pill-chip">⚡ Dati live</span>
-            <span className="pill-chip">📱 PWA pronta</span>
-            <span className="pill-chip">🧠 Sync Supabase</span>
-          </div>
-          <div className="hero-actions">
-            <a className="btn import-main-btn" href="/import/match">⚡ Importa risultato</a>
-            <a className="btn secondary" href="/events">📅 Eventi e scrim</a>
-            <a className="btn secondary" href="/matches">🎮 Consulta partite</a>
-          </div>
-        </div>
-        <div className="home-clan-logo-card">
-          <img src={clan?.logo_url || '/assets/ak47dx-logo.jpeg'} alt={`Logo ${clanName}`} />
-          <div className="home-logo-badge">
-            <span>Clan HQ</span>
-            <strong>AK47DX</strong>
-          </div>
         </div>
       </section>
 

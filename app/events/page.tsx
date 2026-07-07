@@ -1127,20 +1127,20 @@ export default function EventsPage() {
       };
     });
   }, [calendarMonth, eventsByDay]);
+
+  function eventEndTimestamp(event: CodmEvent) {
+    const end = event.ends_at ? new Date(event.ends_at).getTime() : NaN;
+    if (Number.isFinite(end)) return end;
+    const start = new Date(event.starts_at).getTime();
+    return Number.isFinite(start) ? start : 0;
+  }
+
   const futureEvents = useMemo(
-    () =>
-      events.filter(
-        (e) => new Date(e.starts_at).getTime() >= Date.now() - 60 * 60 * 1000,
-      ),
+    () => events.filter((event) => eventEndTimestamp(event) > Date.now()),
     [events],
   );
   const pastEvents = useMemo(
-    () =>
-      events
-        .filter(
-          (e) => new Date(e.starts_at).getTime() < Date.now() - 60 * 60 * 1000,
-        )
-        .reverse(),
+    () => events.filter((event) => eventEndTimestamp(event) <= Date.now()).reverse(),
     [events],
   );
   const visibleEvents =

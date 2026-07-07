@@ -382,8 +382,8 @@ function ImportMatchEditor() {
     const name = String(region.name || '').toUpperCase();
     if (!name) return false;
     if (name === 'SCOREBOARD_RESULT_LABEL' || name === 'SCOREBOARD_RESULT_FULL') return false;
-    if (name.startsWith('SCOREBOARD_SCORE')) return false;
-    if (name.endsWith('_SCORE') || name.endsWith('_IMPACT')) return false;
+    if (name === 'TEAM_BLUE_TABLE_FULL' || name === 'TEAM_RED_TABLE_FULL') return false;
+    if (name.endsWith('_IMPACT')) return false;
     return true;
   }
 
@@ -1215,7 +1215,7 @@ function ImportMatchEditor() {
           )}
           <div className={`ak-template-status ${templateSaved ? 'ok' : 'warn'}`}>
             <strong>Template OCR attivo:</strong> 🧩 {selectedCalibrationTemplate || 'default'} · {templateSummary} <br /><strong>Coordinate:</strong> stesso overlay Calibrazione/Import con content frame {activeFrame.reason}.
-            <span> · Overlay visibile: {visibleTemplateRegions.length} riquadri utili. Sono esclusi Vittoria, punteggio e impatto.</span>
+            <span> · Overlay visibile: {visibleTemplateRegions.length} riquadri utili. Sono esclusi Vittoria, riquadri grandi team e impatto. Il punteggio resta attivo.</span>
           </div>
           <details className="top-gap">
             <summary>🎯 Centratura manuale immagine risultati</summary>

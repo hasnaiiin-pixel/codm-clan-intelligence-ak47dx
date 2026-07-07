@@ -1,0 +1,2 @@
+CLAN MANAGER AK47DX V8.2E
+Fix cache PWA/versione C-D, risultato partita attivo, punteggio player escluso.

@@ -1,19 +1,19 @@
 {
-  "version": "8.2C_IMPORT_CLEAN_TEMPLATE_TELEGRAM_DELETE_FIX",
-  "marker": "V8_2C_IMPORT_CLEAN_TEMPLATE_TELEGRAM_DELETE_FIX_OK",
+  "version": "8.2E_PWA_CACHE_RESULT_SCORE_TEMPLATE_DASHBOARD_FIX",
+  "marker": "V8_2E_PWA_CACHE_RESULT_SCORE_TEMPLATE_DASHBOARD_FIX_OK",
   "appName": "CLAN MANAGER",
   "app": "CLAN MANAGER by MIRZA",
-  "notes": "Import risultati semplificato: rimossi riquadri Vittoria/Punteggio/Impatto, un solo nome template default/salvato, layout import dentro pagina, link evento solo manuali e messaggio Telegram cancellazione più evidente.",
-  "build": "CLAN_MANAGER_V8_2C_IMPORT_CLEAN_TEMPLATE_TELEGRAM_DELETE_FIX_BUILD",
+  "notes": "Fix cache PWA/versione, mantenuto risultato partita in import, esclusi punteggio player/Vittoria/riquadri grandi team/Impatto, template salvabile, dashboard pulita ed eventi scaduti tra precedenti.",
+  "build": "CLAN_MANAGER_V8_2E_PWA_CACHE_RESULT_SCORE_TEMPLATE_DASHBOARD_FIX_BUILD",
   "date": "2026-07-07",
-  "status": "V8_2C_IMPORT_CLEAN_TEMPLATE_TELEGRAM_DELETE_FIX_OK",
+  "status": "V8_2E_PWA_CACHE_RESULT_SCORE_TEMPLATE_DASHBOARD_FIX_OK",
   "routes": [
     "/events",
     "/calibration",
     "/import/match",
-    "/api/events/save",
+    "/dashboard",
+    "/api/events/list",
     "/api/events/delete",
-    "/api/telegram/reminders",
     "/events-health"
   ]
 }

@@ -1,16 +1,5 @@
-# CLAN MANAGER AK47DX
+# CLAN MANAGER AK47DX V8.2E
 
-PWA CLAN MANAGER per CODM AK47DX: eventi, roster, import risultati, calibrazione OCR, Telegram e statistiche.
+Build pulita CLAN MANAGER.
 
-Versione corrente: **V8.2C_IMPORT_CLEAN_TEMPLATE_TELEGRAM_DELETE_FIX**.
-
-## Note principali V8.2C
-
-- Import risultati semplificato: rimossi riquadri Vittoria, Punteggio e Impatto.
-- Un solo nome template OCR: `default` oppure template salvato.
-- Menu import sistemato dentro pagina.
-- Calibrazione e Import usano lo stesso content frame.
-- Link evento solo manuali.
-- Telegram evento cancellato evidenziato.
-
-Vedi `README_INSTALLAZIONE.md` e `README_INSTALLAZIONE_COMPLETA_V8_2C.md`.
+Correzioni principali: import punteggio ripristinato, rimossi solo Vittoria/riquadri grandi/Impatto, template salvabile con nome libero, dashboard pulita, eventi scaduti nei precedenti.

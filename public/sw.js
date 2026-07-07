@@ -1,4 +1,4 @@
-const CODM_CACHE = 'clan-manager-pwa-v8-2-pro-telegram-reminders-templates-ui';
+const CODM_CACHE = 'clan-manager-pwa-v8-2e-result-score-cache-fix';
 const CODM_OFFLINE_URL = '/offline.html';
 const CORE_ASSETS = [CODM_OFFLINE_URL, '/manifest.webmanifest', '/icons/icon-192.png', '/icons/icon-512.png', '/icons/icon-maskable-512.png'];
 
@@ -6,7 +6,7 @@ async function deleteOldCodmCaches() {
   const keys = await caches.keys();
   await Promise.all(
     keys
-      .filter((key) => key.startsWith('codm-') && key !== CODM_CACHE)
+      .filter((key) => (key.startsWith('codm-') || key.startsWith('clan-manager-pwa-')) && key !== CODM_CACHE)
       .map((key) => caches.delete(key))
   );
 }
@@ -105,7 +105,7 @@ self.addEventListener('push', (event) => {
     payload = { body: event.data ? event.data.text() : 'Nuova notifica CODM.' };
   }
 
-  const title = payload.title || 'CODM Clan';
+  const title = payload.title || 'CLAN MANAGER';
   const options = {
     body: payload.body || 'Nuovo aggiornamento disponibile.',
     icon: '/icons/icon-192.png',

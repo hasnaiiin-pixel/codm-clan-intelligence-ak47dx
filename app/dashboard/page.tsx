@@ -123,28 +123,9 @@ export default function DashboardPage() {
 
   return (
     <main className="container wide dashboard-2-0">
-      <section className="ak-hero card gaming-panel">
-        <div>
-          <p className="eyebrow">🐺 AK47DX definitive platform</p>
-          <h1>CLAN MANAGER</h1>
-          <p className="clan-motto">Una piattaforma unica per importare risultati, consultare prove screenshot, gestire clan, invitare player e leggere statistiche reali.</p>
-          <div className="home-trust-row">
-            <span className="pill-chip">📊 Dashboard live</span>
-            <span className="pill-chip">🧠 Dati Supabase</span>
-            <span className="pill-chip">📱 PWA aggiornata</span>
-          </div>
-          <div className="hero-actions">
-            <a className="btn import-main-btn" href="/import/match">⚡ Importa risultati</a>
-            <a className="btn secondary" href="/invite">🔗 Crea link invito</a>
-            <a className="btn secondary" href="/matches">🎞️ Storico partite</a>
-            <button className="btn secondary" type="button" onClick={() => void load()}>🔄 Aggiorna</button>
-          </div>
-        </div>
-        <div className="operator-showcase" aria-label="Gaming showcase">
-          <img src="/assets/ak47dx-logo.jpeg" alt="Logo AK47DX" />
-          <div className="weapon-silhouette">╾━╤デ╦︻</div>
-          <small>AK47DX · Tactical dashboard</small>
-        </div>
+      <section className="card dashboard-clean-head">
+        <p className="eyebrow">📊 Dashboard</p>
+        <h1>CLAN MANAGER</h1>
       </section>
 
       {loading && <div className="notice top-gap">Caricamento dashboard in corso…</div>}
@@ -222,7 +203,7 @@ export default function DashboardPage() {
       <section className="grid grid-3 top-gap">
         <div className="card stat-pie-card"><h2>Distribuzione risultati</h2><div className="big-pie" style={{ background: `conic-gradient(var(--ok) 0 ${summary.wr}%, var(--accent) ${summary.wr}% 100%)` }} /><p className="muted">Vittorie {summary.wins} · Sconfitte {summary.losses}</p></div>
         <div className="card"><h2>Kill / Death / Assist</h2><div className="grid grid-3"><div className="kpi"><span>Kill</span><strong>{summary.kills}</strong></div><div className="kpi"><span>Death</span><strong>{summary.deaths}</strong></div><div className="kpi"><span>Assist</span><strong>{summary.assists}</strong></div></div></div>
-        <div className="card"><h2>Clan e inviti</h2><p className="muted">Invita player con link o QR, poi assegna clan e ruolo. Player manuali possono essere collegati dopo a un profilo registrato.</p><a className="btn" href="/invite">🔗 Apri inviti</a></div>
+        <div className="card"><h2>Clan</h2><div className="kpi"><span>Giocatori registrati</span><strong>{summary.players}</strong></div></div>
       </section>
     </main>
   );
