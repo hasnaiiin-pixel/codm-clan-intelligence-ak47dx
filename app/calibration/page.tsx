@@ -205,6 +205,10 @@ function CalibrationEditor() {
     });
   }
   function updateSelected(patch: Partial<CalibratedRegion>) { if (selected) updateRegionByName(selected.name, patch, true); }
+  function nudgeSelected(dx = 0, dy = 0, dw = 0, dh = 0) {
+    if (!selected) return;
+    updateRegionByName(selected.name, { x: selected.x + dx, y: selected.y + dy, w: selected.w + dw, h: selected.h + dh }, true);
+  }
 
   function pointerToNorm(event: PointerEvent | React.PointerEvent) {
     const rect = wrapRef.current?.getBoundingClientRect();
@@ -318,7 +322,7 @@ function CalibrationEditor() {
         <div className="grid grid-3 top-gap">
           <div className="field"><label>Screenshot campione</label><input className="input" type="file" accept="image/*" onChange={(event) => onFile(event.target.files?.[0] || null)} /></div>
           <div className="field"><label>Comandi</label><div className="cal-buttons"><button className="btn small" type="button" onClick={save}>Salva template</button><button className="btn small secondary" type="button" onClick={reset}>Reset</button><button className="btn small secondary" type="button" onClick={exportJson}>Esporta</button></div></div>
-          <div className="notice">V8.2E: risultato partita attivo; esclusi Vittoria, riquadri grandi team, Impatto e punteggio player.</div>
+          <div className="notice">V8.2F: risultato partita alto ripristinato in Import; comandi touch PWA e template non resta più bloccato su default.</div>
         </div>
         {message && <div className="notice top-gap">{message}</div>}
       </section>
@@ -358,6 +362,7 @@ function CalibrationEditor() {
           <div className="field top-gap"><label>Campo</label><select className="select" value={selectedName} onChange={(e) => setSelectedName(e.target.value)}>{groups.map((group) => <optgroup key={group} label={group}>{regions.filter((r) => (r.group || 'Altro') === group).map((r) => <option key={r.name} value={r.name}>{r.label || r.name}</option>)}</optgroup>)}</select></div>
           {selected && <>
             <div className="grid grid-4 top-gap">{(['x', 'y', 'w', 'h'] as const).map((key) => <div className="field" key={key}><label>{key.toUpperCase()}</label><input className="input mini" value={selected[key].toFixed(4)} onChange={(e) => updateSelected({ [key]: Number(e.target.value) } as Partial<CalibratedRegion>)} /></div>)}</div>
+            <div className="pwa-cal-nudge-panel top-gap"><b>Comandi touch PWA</b><div className="cal-buttons top-gap"><button className="btn small secondary" type="button" onClick={() => nudgeSelected(0, -0.003)}>↑</button><button className="btn small secondary" type="button" onClick={() => nudgeSelected(-0.003, 0)}>←</button><button className="btn small secondary" type="button" onClick={() => nudgeSelected(0.003, 0)}>→</button><button className="btn small secondary" type="button" onClick={() => nudgeSelected(0, 0.003)}>↓</button><button className="btn small secondary" type="button" onClick={() => nudgeSelected(0, 0, 0.004, 0.004)}>Allarga</button><button className="btn small secondary" type="button" onClick={() => nudgeSelected(0, 0, -0.004, -0.004)}>Riduci</button></div><small className="muted">Da PWA puoi sistemare il riquadro anche senza prendere l'angolo con il dito.</small></div>
             <small className="muted">Per Scoreboard CED: usa risultato partita, data/ora, mappa/modalità, nickname e K/D/A. Vittoria, riquadri grandi team, impatto e punteggio player sono esclusi. Per profilo: i campi Leggendario MG/BR/DMZ/Zombie devono coprire solo il numero accanto al simbolo, non l'icona.</small>
           </>}
           <details className="top-gap"><summary>Importa / esporta JSON template</summary><textarea className="textarea" value={jsonBox} onChange={(e) => setJsonBox(e.target.value)} placeholder="Incolla qui JSON template" /><div className="cal-buttons top-gap"><button className="btn small" type="button" onClick={importJson}>Importa JSON</button><button className="btn small secondary" type="button" onClick={exportJson}>Genera JSON</button></div></details>

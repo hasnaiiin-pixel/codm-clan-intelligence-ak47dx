@@ -400,10 +400,12 @@ function ImportMatchEditor() {
     const phoneInput = 'default';
     const phoneOptions = ['default'];
     const templateOptions = listCalibrationTemplatesForPhone('scoreboard_ced', phoneInput);
-    const previousTemplate = selectedCalibrationTemplate || splitCalibrationProfileKey(getBestCalibrationPhoneProfile('scoreboard_ced')).template;
+    const activeTemplate = splitCalibrationProfileKey(getBestCalibrationPhoneProfile('scoreboard_ced')).template;
+    const previousTemplate = selectedCalibrationTemplate && selectedCalibrationTemplate !== 'default' ? selectedCalibrationTemplate : activeTemplate;
+    const savedTemplates = templateOptions.filter((t) => t !== 'default');
     const templateInput = templateRaw !== undefined
-      ? templateRaw
-      : (previousTemplate && previousTemplate !== 'default' && templateOptions.includes(previousTemplate) ? previousTemplate : (templateOptions.find((t) => t !== 'default') || 'default'));
+      ? (templateRaw || 'default')
+      : (previousTemplate && previousTemplate !== 'default' && templateOptions.includes(previousTemplate) ? previousTemplate : (savedTemplates[0] || 'default'));
     const key = makeCalibrationProfileKey(phoneInput, templateInput);
     setCalibrationPhoneOptions(['default']);
     setCalibrationTemplateOptions(Array.from(new Set(['default', ...templateOptions, templateInput])).sort());
@@ -1215,7 +1217,7 @@ function ImportMatchEditor() {
           )}
           <div className={`ak-template-status ${templateSaved ? 'ok' : 'warn'}`}>
             <strong>Template OCR attivo:</strong> 🧩 {selectedCalibrationTemplate || 'default'} · {templateSummary} <br /><strong>Coordinate:</strong> stesso overlay Calibrazione/Import con content frame {activeFrame.reason}.
-            <span> · Overlay visibile: {visibleTemplateRegions.length} riquadri utili. Sono esclusi Vittoria, riquadri grandi team e impatto. Il punteggio resta attivo.</span>
+            <span> · Overlay visibile: {visibleTemplateRegions.length} riquadri utili. Sono esclusi Vittoria, riquadri grandi team, impatto e punteggio player. Resta attivo solo il risultato partita alto.</span>
           </div>
           <details className="top-gap">
             <summary>🎯 Centratura manuale immagine risultati</summary>
@@ -1238,6 +1240,7 @@ function ImportMatchEditor() {
               <div className="field"><label>Riquadro selezionato</label><select className="select" value={selectedImportRegionName} onChange={(e) => setSelectedImportRegionName(e.target.value)}>{visibleTemplateRegions.map((r) => <option key={r.name} value={r.name}>{r.label || r.name}</option>)}</select></div>
               <div className="field"><label>Salvataggio</label><button className="btn small" type="button" onClick={() => saveImportTemplateRegions()}>💾 Salva template</button><small className="muted">Le modifiche vengono rilette anche dalla pagina Calibrazione.</small></div>
             </div>
+            <div className="pwa-cal-nudge-panel top-gap"><b>Comandi touch PWA</b><div className="cal-buttons top-gap"><button className="btn small secondary" type="button" onClick={() => nudgeImportRegion(selectedImportRegionName, 0, -0.003)}>↑</button><button className="btn small secondary" type="button" onClick={() => nudgeImportRegion(selectedImportRegionName, -0.003, 0)}>←</button><button className="btn small secondary" type="button" onClick={() => nudgeImportRegion(selectedImportRegionName, 0.003, 0)}>→</button><button className="btn small secondary" type="button" onClick={() => nudgeImportRegion(selectedImportRegionName, 0, 0.003)}>↓</button><button className="btn small secondary" type="button" onClick={() => nudgeImportRegion(selectedImportRegionName, 0, 0, 0.004, 0.004)}>Allarga</button><button className="btn small secondary" type="button" onClick={() => nudgeImportRegion(selectedImportRegionName, 0, 0, -0.004, -0.004)}>Riduci</button></div><small className="muted">Su telefono usa questi tasti se l'angolo del riquadro è difficile da prendere.</small></div>
           </details>
           {message && <div className="notice top-gap">{message}</div>}
           <details className="top-gap">
@@ -1260,7 +1263,7 @@ function ImportMatchEditor() {
             <div className="grid grid-2"><div className="field"><label>Tipo partita</label><select className="select" value={matchType} onChange={(e) => setMatchType(e.target.value as MatchType)}>{types.map((m) => <option key={m}>{m}</option>)}</select></div><div className="field"><label>Modalità</label><select className="select" value={mode} onChange={(e) => setMode(e.target.value as GameMode)}>{modes.map((m) => <option key={m} value={m}>{modeLabel(m)}</option>)}</select></div></div>
             <div className="grid grid-2"><div className="field"><label>Mappa</label><input className="input" value={mapName} onChange={(e) => setMapName(e.target.value)} /></div><div className="field"><label>Data/ora partita</label><input className="input" type="datetime-local" value={matchDateLocal} onChange={(e) => setMatchDateLocal(e.target.value)} /><small className="muted">Testo OCR: {matchDateText || 'non letto'} </small></div></div>
             <div className="ak-import-mode-card"><div className="field"><label>Nostro team nello screenshot</label><select className="select" value={ourTeam} onChange={(e) => setOurTeam(e.target.value as 'blue' | 'red')}><option value="blue">Noi siamo BLU / sinistra</option><option value="red">Noi siamo ROSSI / destra</option></select></div><p className="muted">L'OCR importerà solo la squadra scelta. Puoi cambiare BLU/ROSSO anche dopo una lettura e premere di nuovo Importa risultati per ricalcolare.</p></div><div className="grid grid-2"><div className="field"><label>Clan avversario</label><input className="input" value={opponent} onChange={(e) => { setOpponent(e.target.value); setRows((current) => current.map((r) => r.teamSide === 'ENEMY' && (!r.playerClanName || r.playerClanName === 'Avversari') ? { ...r, playerClanName: e.target.value } : r)); }} placeholder="AP / clan avversario" /></div><div className="field"><label>Squadra vincente</label><select className="select" value={winningTeam} onChange={(e) => setWinningTeam(e.target.value as 'blue' | 'red' | 'draw' | '')}><option value="">Da verificare</option><option value="blue">Blu / sinistra</option><option value="red">Rosso / destra</option><option value="draw">Pareggio</option></select></div></div>
-            <div className="grid grid-3"><div className="field"><label>Esito nostro team</label><select className="select" value={result} onChange={(e) => setResult(e.target.value as MatchResult)}><option>WIN</option><option>LOSE</option><option>DRAW</option></select></div></div>
+            <div className="grid grid-3 import-result-score-grid"><div className="field"><label>{ourTeam === 'blue' ? 'Risultato BLU / nostro team' : 'Risultato ROSSO / nostro team'}</label><input className="input score-input" inputMode="numeric" value={teamScore} onChange={(e) => setTeamScore(e.target.value.replace(/[^0-9]/g, ''))} placeholder="6" /></div><div className="field"><label>{ourTeam === 'blue' ? 'Risultato ROSSO / avversario' : 'Risultato BLU / avversario'}</label><input className="input score-input" inputMode="numeric" value={enemyScore} onChange={(e) => setEnemyScore(e.target.value.replace(/[^0-9]/g, ''))} placeholder="0" /></div><div className="field"><label>Esito nostro team</label><select className="select" value={result} onChange={(e) => setResult(e.target.value as MatchResult)}><option>WIN</option><option>LOSE</option><option>DRAW</option></select><small className="muted">Se inserisci 6 e 0 l'esito si aggiorna automaticamente.</small></div></div>
             <div className="field"><label>Note partita</label><textarea className="input" rows={4} value={matchNotes} onChange={(e) => setMatchNotes(e.target.value)} placeholder="Note scrim, correzioni OCR, contestazioni, strategia, ecc." /></div>
             <div className="notice"><strong>Manuale/ospite:</strong> se scrivi un nome che non è nel roster, l'app crea un player provvisorio e salva le sue statistiche. In futuro potrai completarlo/associarlo al profilo registrato.</div>
           </div>
@@ -1269,7 +1272,7 @@ function ImportMatchEditor() {
 
       <section className="card top-gap">
         <h2>Statistiche nostro team — Kill / Death / Assist</h2>
-        <p className="muted">Vengono salvati solo i player del tuo clan. Ora importiamo anche il punteggio player oltre a K/D/A. Dell'avversario restano solo nome clan, score team ed esito partita.</p>
+        <p className="muted">Vengono salvati solo i player del tuo clan. Importiamo nickname e K/D/A dei player del tuo clan. Il risultato partita alto resta manuale/modificabile qui sotto; l'avversario resta solo come clan, risultato ed esito.</p>
         <div className="team-grid ak-ally-only-table ak-full-width-import-table">
           {renderRowsTable('ALLY', ourTeam === 'blue' ? '🔵 Nostro team: blu / sinistra' : '🔴 Nostro team: rosso / destra', allyRows, ourTeam === 'blue' ? 'team-blue' : 'team-red')}
           <div className="ak-opponent-summary"><strong>Avversario:</strong> {opponent || 'da compilare'}<br /><span>Esito nostro: {result}</span><br /><small>Le statistiche dei player avversari non vengono importate né salvate.</small></div>

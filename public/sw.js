@@ -1,4 +1,4 @@
-const CODM_CACHE = 'clan-manager-pwa-v8-2e-result-score-cache-fix';
+const CODM_CACHE = 'clan-manager-pwa-v8-2f-calibration-touch-template-result-fix';
 const CODM_OFFLINE_URL = '/offline.html';
 const CORE_ASSETS = [CODM_OFFLINE_URL, '/manifest.webmanifest', '/icons/icon-192.png', '/icons/icon-512.png', '/icons/icon-maskable-512.png'];
 

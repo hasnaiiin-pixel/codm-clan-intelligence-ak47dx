@@ -2203,3 +2203,53 @@ html, body { overflow-x: hidden; }
   .team-title { gap: 8px !important; }
   .team-title .btn { width: auto !important; padding: 8px 10px !important; }
 }
+
+/* V8.2F - Calibrazione/Import touch professionale e risultato partita */
+.import-result-score-grid .score-input {
+  font-size: 1.35rem;
+  font-weight: 900;
+  text-align: center;
+  min-height: 54px;
+}
+.pwa-cal-nudge-panel {
+  border: 1px solid rgba(34, 211, 238, .25);
+  background: rgba(8, 47, 73, .20);
+  border-radius: 16px;
+  padding: 12px;
+}
+.pwa-cal-nudge-panel .cal-buttons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.pwa-cal-nudge-panel .btn {
+  min-width: 46px;
+  min-height: 42px;
+}
+@media (pointer: coarse), (max-width: 900px) {
+  .cal-handle {
+    width: 24px !important;
+    height: 24px !important;
+    border-radius: 8px !important;
+    border-width: 3px !important;
+    box-shadow: 0 0 0 3px rgba(0,0,0,.45), 0 0 18px rgba(34,211,238,.45) !important;
+  }
+  .cal-handle.nw { left: -14px !important; top: -14px !important; }
+  .cal-handle.ne { right: -14px !important; top: -14px !important; }
+  .cal-handle.sw { left: -14px !important; bottom: -14px !important; }
+  .cal-handle.se { right: -14px !important; bottom: -14px !important; }
+  .cal-rect.active { outline-width: 4px !important; }
+  .import-result-score-grid {
+    grid-template-columns: 1fr 1fr !important;
+  }
+  .import-result-score-grid .field:last-child {
+    grid-column: 1 / -1;
+  }
+  .ak-mobile-score-cards .input,
+  .ak-mobile-score-cards .select,
+  .import-result-score-grid .input,
+  .import-result-score-grid .select {
+    min-height: 52px;
+    font-size: 16px;
+  }
+}

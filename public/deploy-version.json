@@ -1,12 +1,12 @@
 {
-  "version": "8.2E_PWA_CACHE_RESULT_SCORE_TEMPLATE_DASHBOARD_FIX",
-  "marker": "V8_2E_PWA_CACHE_RESULT_SCORE_TEMPLATE_DASHBOARD_FIX_OK",
+  "version": "8.2F_PWA_CALIBRATION_TOUCH_TEMPLATE_IMPORT_RESULT_FIX",
+  "marker": "V8_2F_PWA_CALIBRATION_TOUCH_TEMPLATE_IMPORT_RESULT_FIX_OK",
   "appName": "CLAN MANAGER",
   "app": "CLAN MANAGER by MIRZA",
-  "notes": "Fix cache PWA/versione, mantenuto risultato partita in import, esclusi punteggio player/Vittoria/riquadri grandi team/Impatto, template salvabile, dashboard pulita ed eventi scaduti tra precedenti.",
-  "build": "CLAN_MANAGER_V8_2E_PWA_CACHE_RESULT_SCORE_TEMPLATE_DASHBOARD_FIX_BUILD",
+  "notes": "Ripristinato risultato partita manuale in Import, fix template salvato che restava default, comandi touch PWA per calibrazione/import e handle più grandi su telefono.",
+  "build": "CLAN_MANAGER_V8_2F_PWA_CALIBRATION_TOUCH_TEMPLATE_IMPORT_RESULT_FIX_BUILD",
   "date": "2026-07-07",
-  "status": "V8_2E_PWA_CACHE_RESULT_SCORE_TEMPLATE_DASHBOARD_FIX_OK",
+  "status": "V8_2F_PWA_CALIBRATION_TOUCH_TEMPLATE_IMPORT_RESULT_FIX_OK",
   "routes": [
     "/events",
     "/calibration",
