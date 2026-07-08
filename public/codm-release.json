@@ -1,12 +1,12 @@
 {
-  "version": "12.0_DEFINITIVE_EXCEL_PHOTO_SQL_IMPORT",
-  "marker": "V12_0_DEFINITIVE_EXCEL_PHOTO_SQL_IMPORT_OK",
+  "version": "12.1_EXCEL_PHOTO_PROOF_PLAYER_LINK",
+  "marker": "V12_1_EXCEL_PHOTO_PROOF_PLAYER_LINK_OK",
   "appName": "CLAN MANAGER",
   "app": "CLAN MANAGER by MIRZA",
-  "notes": "Release definitiva V12.0: import risultati Excel + foto allegate + SQL Supabase staging, batch multiplo per ID_PARTITA, selezione partita da Excel, template Excel definitivo e cartella foto_partite.",
-  "build": "CLAN_MANAGER_AK47DX_V12_0_DEFINITIVE_EXCEL_PHOTO_SQL_IMPORT_BUILD",
+  "notes": "Release definitiva V12.1: Excel + foto prova allegabile subito o dopo, import senza OCR, collegamento player a profilo reale registrato/email e template Excel aggiornato.",
+  "build": "CLAN_MANAGER_AK47DX_V12_1_EXCEL_PHOTO_PROOF_PLAYER_LINK_FINAL_BUILD",
   "date": "2026-07-08",
-  "status": "V12_0_DEFINITIVE_EXCEL_PHOTO_SQL_IMPORT_OK",
+  "status": "V12_1_EXCEL_PHOTO_PROOF_PLAYER_LINK_OK",
   "routes": [
     "/",
     "/tournament",

@@ -5,10 +5,10 @@ export default function VersionPage() {
         <div className="ak-login-card">
           <div className="ak-pill">CLAN MANAGER DEPLOY CHECK</div>
           <h1 className="ak-title">CLAN MANAGER</h1>
-          <p className="ak-lead">Release definitiva V12.0: Import risultati CODM con Excel + foto allegate + SQL Supabase staging. Mantiene anche import diretto da foto/OCR.</p>
-          <div className="notice top-gap"><strong>Marker:</strong> V12_0_DEFINITIVE_EXCEL_PHOTO_SQL_IMPORT_OK</div>
-          <div className="notice top-gap"><strong>Import:</strong> carichi Excel, selezioni ID_PARTITA se ci sono più partite, alleghi foto subito o dopo e salvi su Supabase.</div>
-          <div className="notice top-gap"><strong>SQL:</strong> incluso script supabase/IMPORT_RISULTATI_EXCEL_STAGING_V12.sql per caricamento staging/import batch.</div>
+          <p className="ak-lead">Release definitiva V12.1: Excel + foto prova allegabile subito o dopo, import senza OCR e collegamento giocatori ai profili reali registrati.</p>
+          <div className="notice top-gap"><strong>Marker:</strong> V12_1_EXCEL_PHOTO_PROOF_PLAYER_LINK_OK</div>
+          <div className="notice top-gap"><strong>Import:</strong> carichi Excel, selezioni ID_PARTITA, alleghi foto prova accanto alla tabella oppure dopo dalla partita registrata, colleghi player al profilo reale e salvi su Supabase.</div>
+          <div className="notice top-gap"><strong>SQL:</strong> inclusi SQL V12.1 per import staging e supporto foto/profili.</div>
           <div className="ak-quick-links">
             <a href="/cache-reset">Reset cache sicuro</a>
             <a href="/events-health">Health eventi</a>

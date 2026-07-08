@@ -2341,3 +2341,51 @@ select.pro-select {
 
 /* ===== CLAN MANAGER V11.0 Tournament Pro / Excel Import / Template Select ===== */
 .tournament-v11-page .pro-steps{margin:0;padding-left:1.2rem;display:grid;gap:.45rem}.tournament-v11-page .pro-steps li{padding:.25rem 0;color:#dbeafe}.tournament-bracket-board{display:flex;gap:1rem;overflow:auto;padding:.75rem;border:1px solid rgba(148,163,184,.22);border-radius:18px;background:linear-gradient(135deg,rgba(15,23,42,.9),rgba(17,24,39,.82))}.bracket-column{min-width:230px;display:grid;gap:.65rem;align-content:start}.bracket-column h3{margin:0;text-align:center;font-weight:900;color:#fff;letter-spacing:.02em}.bracket-match{display:grid;grid-template-columns:1fr 34px;gap:.35rem;align-items:center;text-align:left;border:1px solid rgba(148,163,184,.22);border-radius:14px;padding:.75rem;background:rgba(2,6,23,.72);color:#e5e7eb;cursor:pointer;box-shadow:0 10px 24px rgba(0,0,0,.25)}.bracket-match:hover{transform:translateY(-1px);border-color:rgba(34,211,238,.55)}.bracket-match span{padding:.25rem .35rem;border-radius:9px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.bracket-match b{text-align:center;background:rgba(15,23,42,.88);border-radius:8px;padding:.2rem .35rem}.bracket-match small{grid-column:1/3;color:#94a3b8}.bracket-match .winner{background:rgba(34,197,94,.22);color:#86efac;font-weight:900}.bracket-match .eliminated{background:rgba(239,68,68,.20);color:#fca5a5;text-decoration:line-through}.btn.danger{background:linear-gradient(135deg,#dc2626,#7f1d1d)!important;border-color:rgba(248,113,113,.55)!important;color:white!important}.clickable-card{cursor:pointer}.clickable-card:hover{border-color:rgba(34,211,238,.5);transform:translateY(-1px)}.import-excel-panel{padding:.75rem;border-radius:14px;border:1px solid rgba(34,211,238,.24);background:rgba(8,47,73,.22)}.import-template-toolbar-pro{align-items:center;gap:.55rem;flex-wrap:wrap}.import-template-toolbar-pro .pro-select{min-width:220px;background:#020617;color:#e5e7eb;border:1px solid rgba(34,211,238,.35);border-radius:12px}.template-toggle-line{display:inline-flex;align-items:center;gap:.5rem;border:1px solid rgba(148,163,184,.25);border-radius:999px;padding:.55rem .85rem;background:rgba(15,23,42,.8);color:#e5e7eb;font-weight:800}.template-toggle-line input{accent-color:#22d3ee}.ak-template-status.warn{border-color:rgba(245,158,11,.4);background:rgba(120,53,15,.25);color:#fde68a}.ak-template-status.ok{border-color:rgba(34,197,94,.35);background:rgba(20,83,45,.22);color:#bbf7d0}@media(max-width:760px){.tournament-bracket-board{padding:.5rem}.bracket-column{min-width:82vw}.bracket-match{font-size:.92rem}.import-template-toolbar-pro .pro-select{min-width:100%;width:100%}}
+
+/* V12.1 Excel + foto prova + profilo reale */
+.proof-photo-card {
+  border: 1px solid rgba(74, 222, 128, 0.28);
+  background: linear-gradient(135deg, rgba(6, 95, 70, 0.24), rgba(15, 23, 42, 0.92));
+  border-radius: 18px;
+  padding: 14px;
+}
+.proof-photo-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-bottom: 8px;
+}
+.profile-link-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin: 10px 0 14px;
+  padding: 10px 12px;
+  border: 1px solid rgba(56, 189, 248, 0.22);
+  border-radius: 14px;
+  background: rgba(15, 23, 42, 0.72);
+}
+.profile-linked-note {
+  display: block;
+  margin-top: 6px;
+  color: #86efac;
+  font-size: 0.78rem;
+  font-weight: 700;
+  word-break: break-word;
+}
+.roster-select {
+  min-width: 240px;
+}
+@media (max-width: 760px) {
+  .proof-photo-card .grid,
+  .profile-link-toolbar {
+    grid-template-columns: 1fr !important;
+    align-items: stretch;
+  }
+  .roster-select {
+    min-width: 100%;
+  }
+}

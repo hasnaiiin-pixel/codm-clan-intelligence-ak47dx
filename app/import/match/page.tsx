@@ -39,6 +39,8 @@ const ACCEPTED_BACKEND_VERSIONS = ACCEPTED_OCR_BACKEND_VERSIONS;
 
 type UiScoreRow = ParsedScoreRow & {
   playerClanName?: string | null;
+  profileEmail?: string | null;
+  uidCodm?: string | null;
   sourceColor?: 'blue' | 'red';
 };
 
@@ -67,6 +69,14 @@ type ExcelImportBatch = {
   label: string;
   photoFile?: string;
   photoUrl?: string;
+};
+
+type RosterPlayer = Player & {
+  user_id?: string | null;
+  profile_email?: string | null;
+  display_name?: string | null;
+  player_nickname?: string | null;
+  codm_uid?: string | null;
 };
 
 type BackendOcrBox = {
@@ -375,7 +385,7 @@ export default function ImportMatchPage() {
 }
 
 function ImportMatchEditor() {
-  const [roster, setRoster] = useState<Player[]>([]);
+  const [roster, setRoster] = useState<RosterPlayer[]>([]);
   const [clanId, setClanId] = useState('');
   const [clanName, setClanName] = useState('Nostro clan');
   const [imageUrl, setImageUrl] = useState('');
@@ -432,6 +442,9 @@ function ImportMatchEditor() {
   const [excelBatches, setExcelBatches] = useState<ExcelImportBatch[]>([]);
   const [selectedExcelBatchId, setSelectedExcelBatchId] = useState('');
   const [excelImportSummary, setExcelImportSummary] = useState('');
+  const [proofPhotoName, setProofPhotoName] = useState('');
+  const [proofPhotoUrl, setProofPhotoUrl] = useState('');
+  const [excelModeActive, setExcelModeActive] = useState(false);
 
   function isImportUsefulRegion(region: { name?: string }) {
     const name = String(region.name || '').toUpperCase();
@@ -584,6 +597,9 @@ function ImportMatchEditor() {
         if (draft.imageUrl) setImageUrl(draft.imageUrl);
         if (draft.ourTeam) setOurTeam(draft.ourTeam);
         if (draft.winningTeam !== undefined) setWinningTeam(draft.winningTeam || '');
+        if (draft.proofPhotoName !== undefined) setProofPhotoName(draft.proofPhotoName || '');
+        if (draft.proofPhotoUrl !== undefined) setProofPhotoUrl(draft.proofPhotoUrl || '');
+        if (draft.excelModeActive !== undefined) setExcelModeActive(!!draft.excelModeActive);
         if (draft.linkedEvent) setLinkedEvent(draft.linkedEvent);
         if (draft.linkedEventPlan) setLinkedEventPlan(draft.linkedEventPlan);
         if (typeof draft.linkedRoundIndex === 'number') setLinkedRoundIndex(draft.linkedRoundIndex);
@@ -606,10 +622,10 @@ function ImportMatchEditor() {
       setEphemeralValue(IMPORT_DRAFT_KEY, JSON.stringify({
         savedAt: new Date().toISOString(), mode, matchType, result, mapName, matchDateText, matchDateLocal,
         opponent, matchNotes, teamScore, enemyScore, rows, rawText, imageUrl, ourTeam, winningTeam,
-        linkedEvent, linkedEventPlan, linkedRoundIndex
+        linkedEvent, linkedEventPlan, linkedRoundIndex, proofPhotoName, proofPhotoUrl, excelModeActive
       }));
     } catch {}
-  }, [mode, matchType, result, mapName, matchDateText, matchDateLocal, opponent, matchNotes, teamScore, enemyScore, rows, rawText, imageUrl, ourTeam, winningTeam, linkedEvent, linkedEventPlan, linkedRoundIndex]);
+  }, [mode, matchType, result, mapName, matchDateText, matchDateLocal, opponent, matchNotes, teamScore, enemyScore, rows, rawText, imageUrl, ourTeam, winningTeam, linkedEvent, linkedEventPlan, linkedRoundIndex, proofPhotoName, proofPhotoUrl, excelModeActive]);
 
 
   useEffect(() => {
@@ -641,6 +657,62 @@ function ImportMatchEditor() {
     return String(value ?? '').replace(/[^0-9-]/g, '');
   }
 
+  function normalizeLookup(value: unknown) {
+    return String(value || '').trim().toLowerCase();
+  }
+
+  function rosterOptionLabel(player: RosterPlayer) {
+    const email = player.profile_email ? ` · ${player.profile_email}` : player.user_id ? ' · profilo collegato' : ' · non collegato';
+    const uid = player.uid_codm || player.codm_uid ? ` · UID ${player.uid_codm || player.codm_uid}` : '';
+    return `${player.nickname}${player.clan_name ? ` · ${player.clan_name}` : ''}${email}${uid}`;
+  }
+
+  function findRosterPlayer(nickname?: string | null, email?: string | null, uid?: string | null) {
+    const cleanEmail = normalizeLookup(email);
+    const cleanUid = normalizeLookup(uid);
+    const cleanNick = normalizeLookup(nickname);
+    if (cleanEmail) {
+      const byEmail = roster.find((player) => normalizeLookup(player.profile_email) === cleanEmail);
+      if (byEmail) return byEmail;
+    }
+    if (cleanUid) {
+      const byUid = roster.find((player) => normalizeLookup(player.uid_codm || player.codm_uid) === cleanUid);
+      if (byUid) return byUid;
+    }
+    if (cleanNick) {
+      const exact = roster.find((player) => normalizeLookup(player.nickname) === cleanNick);
+      if (exact) return exact;
+      return roster.find((player) => normalizeLookup(player.nickname).includes(cleanNick) || cleanNick.includes(normalizeLookup(player.nickname)));
+    }
+    return undefined;
+  }
+
+  function linkRowWithRoster(row: UiScoreRow): UiScoreRow {
+    if (row.playerId) return row;
+    const matched = findRosterPlayer(row.nickname, row.profileEmail, row.uidCodm);
+    if (!matched) return row;
+    return {
+      ...row,
+      playerId: matched.id,
+      nickname: matched.nickname || row.nickname,
+      playerClanName: matched.clan_name || row.playerClanName || clanName,
+      profileEmail: matched.profile_email || row.profileEmail || null,
+      uidCodm: matched.uid_codm || matched.codm_uid || row.uidCodm || null,
+      needsReview: false,
+      readStatus: 'ok'
+    };
+  }
+
+  function autoLinkRowsToRoster() {
+    let linked = 0;
+    setRows((current) => current.map((row) => {
+      const next = linkRowWithRoster(row);
+      if (!row.playerId && next.playerId) linked += 1;
+      return next;
+    }));
+    setMessage(linked ? `✅ Collegati ${linked} giocatori ai profili registrati.` : 'Nessun nuovo collegamento automatico. Usa il menu Profilo reale sulla riga per assegnare manualmente.');
+  }
+
   function firstValue(row: Record<string, any>, keys: string[]) {
     for (const key of keys) {
       const value = row[key];
@@ -656,6 +728,9 @@ function ImportMatchEditor() {
     const importedPhotoFile = String(firstValue(first, ['FOTO_FILE', 'FOTO', 'SCREENSHOT_FILE', 'SCREENSHOT_FILE_URL']) || '').trim();
     const importedPhotoUrl = String(firstValue(first, ['FOTO_URL', 'SCREENSHOT_URL', 'SCREENSHOT_FILE_URL']) || '').trim();
     const importedMatchId = String(firstValue(first, ['ID_PARTITA', 'MATCH_ID', 'CODICE_PARTITA']) || '').trim();
+    setExcelModeActive(true);
+    if (importedPhotoFile) setProofPhotoName(importedPhotoFile);
+    if (importedPhotoUrl) { setProofPhotoUrl(importedPhotoUrl); setImageUrl(importedPhotoUrl); }
 
     for (const [index, row] of records.entries()) {
       const map = String(firstValue(row, ['MAPPA_CODM', 'MAPPA']) || '').trim();
@@ -678,6 +753,9 @@ function ImportMatchEditor() {
       const teamRed = String(firstValue(row, ['TEAM_ROSSO', 'SQUADRA_ROSSO']) || '').trim();
       const opponentValue = String(firstValue(row, ['TEAM_AVVERSARIO_ROSSO', 'AVVERSARIO', 'OPPONENT']) || '').trim();
       const playerTeam = String(firstValue(row, ['TEAM_GIOCATORE', 'PLAYER_TEAM']) || '').trim().toUpperCase();
+      const playerEmail = String(firstValue(row, ['GIOCATORE_EMAIL', 'PLAYER_EMAIL', 'PROFILO_EMAIL', 'EMAIL']) || '').trim();
+      const playerUid = String(firstValue(row, ['UID_CODM', 'CODM_UID', 'PLAYER_UID']) || '').trim();
+      const matchedPlayer = findRosterPlayer(player, playerEmail, playerUid);
 
       if (index === 0) {
         setOurTeam(ourTeamFromExcel);
@@ -722,13 +800,18 @@ function ImportMatchEditor() {
       if (playerTeam && playerTeam.includes('AVVERS')) continue;
       importedRows.push({
         ...emptyRow('ALLY', importedRows.length + 1, clanName),
-        nickname: player || `Player ${importedRows.length + 1}`,
-        kills: Number(kill || 0),
-        deaths: Number(death || 0),
-        assists: Number(assist || 0),
+        nickname: matchedPlayer?.nickname || player || `Player ${importedRows.length + 1}`,
+        playerId: matchedPlayer?.id || null,
+        ocrNickname: player,
+        kills: Number(cleanNumber(kill) || 0),
+        deaths: Number(cleanNumber(death) || 0),
+        assists: Number(cleanNumber(assist) || 0),
         mvp: ['SI', 'SÌ', 'YES', 'TRUE', '1', 'MVP'].includes(String(firstValue(row, ['MVP']) || '').toUpperCase()),
-        readStatus: 'manual',
-        needsReview: false,
+        readStatus: matchedPlayer ? 'ok' : 'manual',
+        needsReview: !matchedPlayer,
+        playerClanName: matchedPlayer?.clan_name || clanName,
+        profileEmail: matchedPlayer?.profile_email || playerEmail || null,
+        uidCodm: matchedPlayer?.uid_codm || matchedPlayer?.codm_uid || playerUid || null,
       });
     }
     if (!importedRows.length) return setMessage(`Dati ${sourceLabel} non validi: serve almeno una riga con GIOCATORE, KILL, DEATH, ASSIST del nostro team.`);
@@ -779,6 +862,7 @@ function ImportMatchEditor() {
         const label = `${id} · ${first.MAPPA_CODM || first.MAPPA || '-'} · ${first.DATA || '-'} ${first.ORA || ''} · ${rows.length} player`;
         return { id, rows, label, photoFile: String(first.FOTO_FILE || ''), photoUrl: String(first.FOTO_URL || '') };
       });
+      setExcelModeActive(true);
       setExcelBatches(batches);
       setExcelImportSummary(`${batches.length} partite trovate nel file ${file.name}. Seleziona quale caricare, oppure carico automaticamente la prima.`);
       applyImportedResultRows(batches[0].rows, `Excel ${batches[0].id}`);
@@ -813,7 +897,23 @@ function ImportMatchEditor() {
       await loadRecentMatches(identity.clanId);
     }
     const { data } = await supabase.from('players').select('*').order('nickname');
-    setRoster((data || []) as Player[]);
+    const players = (data || []) as RosterPlayer[];
+    const userIds = Array.from(new Set(players.map((player) => player.user_id).filter(Boolean))) as string[];
+    let profileByUser = new Map<string, any>();
+    if (userIds.length) {
+      const { data: profiles } = await supabase.from('profiles').select('id,email,display_name,player_nickname,codm_uid').in('id', userIds);
+      profileByUser = new Map((profiles || []).map((profile: any) => [profile.id, profile]));
+    }
+    setRoster(players.map((player) => {
+      const profile = player.user_id ? profileByUser.get(player.user_id) : null;
+      return {
+        ...player,
+        profile_email: profile?.email || null,
+        display_name: profile?.display_name || null,
+        player_nickname: profile?.player_nickname || null,
+        codm_uid: player.uid_codm || profile?.codm_uid || null
+      };
+    }));
   }
 
   async function loadRecentMatches(activeClanId = clanId) {
@@ -853,6 +953,9 @@ function ImportMatchEditor() {
       setWinningTeam((match.winning_team || '') as 'blue' | 'red' | 'draw' | '');
       setOurTeam((match.our_team || 'blue') as 'blue' | 'red');
       setMatchNotes(match.match_notes || '');
+      setProofPhotoUrl(match.screenshot_url || '');
+      setProofPhotoName(match.screenshot_storage_path || '');
+      if (match.screenshot_url) setImageUrl(match.screenshot_url);
       if (match.match_date) setMatchDateLocal(toLocalDateTimeValue(new Date(match.match_date)));
       const mappedRows: UiScoreRow[] = (statRows || []).map((row: any, index: number) => ({
         rankPosition: row.rank_position || index + 1,
@@ -1202,7 +1305,7 @@ function ImportMatchEditor() {
       if (key === 'teamSide') return { ...row, teamSide: String(value) as TeamSide };
       if (key === 'playerId') {
         const selected = roster.find((player) => player.id === String(value));
-        return { ...row, playerId: String(value) || null, nickname: selected?.nickname || row.nickname, playerClanName: selected?.clan_name || row.playerClanName, needsReview: false };
+        return { ...row, playerId: String(value) || null, nickname: selected?.nickname || row.nickname, playerClanName: selected?.clan_name || row.playerClanName, profileEmail: selected?.profile_email || row.profileEmail || null, uidCodm: selected?.uid_codm || selected?.codm_uid || row.uidCodm || null, needsReview: !selected ? row.needsReview : false, readStatus: selected ? 'ok' : row.readStatus };
       }
       return { ...row, [key]: value === '' ? 0 : Number(value), needsReview: false };
     }));
@@ -1214,16 +1317,37 @@ function ImportMatchEditor() {
   }
 
   async function uploadScreenshot(activeClanId: string) {
-    if (!file) return null;
-    const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, '_');
-    const path = `${activeClanId}/matches/${Date.now()}-${safeName}`;
-    const { error } = await supabase.storage.from('codm-screenshots').upload(path, file, { upsert: false });
-    if (error) {
-      setMessage(`Errore upload screenshot: ${error.message}`);
-      return null;
+    if (file) {
+      const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, '_');
+      const path = `${activeClanId}/matches/${Date.now()}-${safeName}`;
+      const { error } = await supabase.storage.from('codm-screenshots').upload(path, file, { upsert: false });
+      if (error) {
+        setMessage(`Errore upload screenshot: ${error.message}`);
+        return null;
+      }
+      const publicUrl = supabase.storage.from('codm-screenshots').getPublicUrl(path).data.publicUrl;
+      return { url: publicUrl, path };
     }
-    const publicUrl = supabase.storage.from('codm-screenshots').getPublicUrl(path).data.publicUrl;
-    return { url: publicUrl, path };
+    if (proofPhotoUrl) return { url: proofPhotoUrl, path: proofPhotoName || null };
+    return null;
+  }
+
+  function onProofFileSelected(selected: File | null) {
+    setFile(selected);
+    if (!selected) {
+      setProofPhotoName('');
+      return;
+    }
+    setProofPhotoName(selected.name);
+    setProofPhotoUrl('');
+    const reader = new FileReader();
+    reader.onload = () => {
+      const dataUrl = String(reader.result || '');
+      setImageUrl(dataUrl);
+      detectImageContentFrameFromUrl(dataUrl).then(setImageContentFrame).catch(() => setImageContentFrame(FULL_IMAGE_FRAME));
+    };
+    reader.readAsDataURL(selected);
+    setMessage('Foto prova collegata alla bozza. Premi Salva/Aggiorna partita per caricarla su Supabase.');
   }
 
   async function ensurePlayerForRow(activeClanId: string, row: UiScoreRow) {
@@ -1306,7 +1430,7 @@ function ImportMatchEditor() {
         our_team: ourTeam,
         match_notes: matchNotes || null,
         match_date: matchDateLocal ? new Date(matchDateLocal).toISOString() : (parseBackendMatchDate(matchDateText) || new Date().toISOString()),
-        notes: `${matchNotes ? `${matchNotes}\n\n` : ''}${editingMatchId ? 'Aggiornamento' : 'Import'} risultati CLAN MANAGER. Screenshot prova=${screenshotPath || screenshotUrl || 'non caricato'}. Template=${useCalibrationTemplate ? `default/${selectedCalibrationTemplate}/${calibrationMode}/frame=${activeFrame.reason}` : 'OFF'}. OurTeam=${ourTeam}. WinningTeam=${winningTeam || '-'}. MatchDateText=${matchDateText || '-'}; MatchDateLocal=${matchDateLocal || '-'}.`
+        notes: `${matchNotes ? `${matchNotes}\n\n` : ''}${editingMatchId ? 'Aggiornamento' : 'Import'} risultati CLAN MANAGER. Screenshot prova=${screenshotPath || screenshotUrl || proofPhotoName || 'non caricato'}. Template=${useCalibrationTemplate ? `default/${selectedCalibrationTemplate}/${calibrationMode}/frame=${activeFrame.reason}` : 'OFF'}. OurTeam=${ourTeam}. WinningTeam=${winningTeam || '-'}. MatchDateText=${matchDateText || '-'}; MatchDateLocal=${matchDateLocal || '-'}.`
       };
       if (screenshotUrl) matchPayload.screenshot_url = screenshotUrl;
       if (screenshotPath) matchPayload.screenshot_storage_path = screenshotPath;
@@ -1453,7 +1577,7 @@ function ImportMatchEditor() {
           <table className="table compact import-table-clean">
             <thead>
               <tr>
-                <th>#</th><th>Medaglia</th><th>Player roster</th><th>Nome giocatore</th><th>Clan appartenenza</th><th>🗡️ Kill</th><th>💀 Death</th><th>🤝 Assist</th><th>🏆 MVP</th><th>Stato</th>
+                <th>#</th><th>Medaglia</th><th>Profilo reale / email</th><th>Nome giocatore</th><th>Clan appartenenza</th><th>🗡️ Kill</th><th>💀 Death</th><th>🤝 Assist</th><th>🏆 MVP</th><th>Stato</th>
               </tr>
             </thead>
             <tbody>
@@ -1464,8 +1588,9 @@ function ImportMatchEditor() {
                   <td>
                     <select className="select roster-select" value={row.playerId || ''} onChange={(e) => updateRow(index, 'playerId', e.target.value)}>
                       <option value="">Manuale / non registrato</option>
-                      {roster.map((player) => <option key={player.id} value={player.id}>{player.nickname}{player.clan_name ? ` · ${player.clan_name}` : ''}</option>)}
+                      {roster.map((player) => <option key={player.id} value={player.id}>{rosterOptionLabel(player)}</option>)}
                     </select>
+                    {row.profileEmail && <small className="profile-linked-note">{row.profileEmail}</small>}
                   </td>
                   <td><input className="input nick-input" value={row.nickname} onChange={(e) => updateRow(index, 'nickname', e.target.value)} placeholder="Nome giocatore" /></td>
                   <td><input className="input clan-input" value={row.playerClanName || ''} onChange={(e) => updateRow(index, 'playerClanName', e.target.value)} placeholder={side === 'ALLY' ? clanName : 'Clan avversario'} /></td>
@@ -1487,8 +1612,8 @@ function ImportMatchEditor() {
                 <strong>#{row.rankPosition || index + 1} · {row.nickname || 'Nome giocatore'}</strong>
                 <span className={row.needsReview ? 'badge warn' : 'badge ok'}>{row.needsReview ? 'Controlla' : (row.readStatus || 'ok')}</span>
               </div>
-              <label>Player roster<select className="select" value={row.playerId || ''} onChange={(e) => updateRow(index, 'playerId', e.target.value)}><option value="">Manuale / non registrato</option>{roster.map((player) => <option key={player.id} value={player.id}>{player.nickname}{player.clan_name ? ` · ${player.clan_name}` : ''}</option>)}</select></label>
-              <label>Nome giocatore<input className="input" value={row.nickname} onChange={(e) => updateRow(index, 'nickname', e.target.value)} /></label>
+              <label>Profilo reale / email<select className="select" value={row.playerId || ''} onChange={(e) => updateRow(index, 'playerId', e.target.value)}><option value="">Manuale / non registrato</option>{roster.map((player) => <option key={player.id} value={player.id}>{rosterOptionLabel(player)}</option>)}</select></label>
+              {row.profileEmail && <div className="profile-linked-note">Profilo collegato: {row.profileEmail}</div>}<label>Nome giocatore<input className="input" value={row.nickname} onChange={(e) => updateRow(index, 'nickname', e.target.value)} /></label>
               <label>Clan<input className="input" value={row.playerClanName || ''} onChange={(e) => updateRow(index, 'playerClanName', e.target.value)} /></label>
               <div className="ak-score-grid">
                 <label>Kill<input className="input" value={row.kills} onChange={(e) => updateRow(index, 'kills', e.target.value)} /></label>
@@ -1510,15 +1635,15 @@ function ImportMatchEditor() {
         <div className="import-hero-copy">
           <p className="eyebrow">⚡ Import risultati semplificato</p>
           <h1>Import partita CODM</h1>
-          <p className="muted">Carica screenshot o inserisci i risultati da tabella. Mappe, modalità e score restano modificabili prima del salvataggio.</p>
+          <p className="muted">Carica Excel già compilato e allega la foto prova, oppure usa ancora OCR da screenshot quando serve. I player possono essere collegati al profilo reale registrato.</p>
           <div className="import-hero-pills">
-            <span className="pill-chip">🖼️ Screenshot rapido</span>
-            <span className="pill-chip">⚙️ Template pronto</span>
-            <span className="pill-chip">✅ Salvataggio diretto</span>
+            <span className="pill-chip">📊 Excel senza OCR</span>
+            <span className="pill-chip">📸 Foto prova anche dopo</span>
+            <span className="pill-chip">🔗 Profili reali</span>
           </div>
         </div>
         <div className="import-actions import-actions-pro import-actions-simple import-template-toolbar-pro">
-          <input className="input" type="file" accept="image/*" onChange={(e) => onFileSelected(e.target.files?.[0] || null)} />
+          <label className="btn secondary">🖼️ Foto OCR opzionale<input type="file" accept="image/*" hidden onChange={(e) => onFileSelected(e.target.files?.[0] || null)} /></label>
           <label className="template-toggle-line"><input type="checkbox" checked={useCalibrationTemplate} onChange={(e) => setUseCalibrationTemplate(e.target.checked)} /> Usa template</label>
           <select className="select pro-select" value={selectedCalibrationTemplate} onFocus={() => refreshCalibrationTemplate('default', selectedCalibrationTemplate)} onChange={(e) => refreshCalibrationTemplate('default', e.target.value)} disabled={!useCalibrationTemplate} title="Template OCR attivo">
             {calibrationTemplateOptions.map((p) => <option key={p} value={p}>{p === 'default' ? '🧩 Default base' : `🧩 ${p}`}</option>)}
@@ -1624,7 +1749,7 @@ function ImportMatchEditor() {
             <div className="import-excel-panel">
               <p className="muted">Usa il template Excel ufficiale per caricare risultato partita e K/D/A con numeri precisi. Lo screenshot resta disponibile per prova visiva.</p>
               <div className="cal-buttons">
-                <a className="btn small secondary" href="/templates/TEMPLATE_IMPORT_RISULTATI_CODM_CLAN_MANAGER_V12_DEFINITIVO.xlsx" download>⬇️ Scarica template Excel definitivo</a>
+                <a className="btn small secondary" href="/templates/TEMPLATE_IMPORT_RISULTATI_CODM_CLAN_MANAGER_V12_1_FOTO_PROFILI.xlsx" download>⬇️ Scarica template Excel foto + profili</a>
                 <label className="btn small">📥 Carica Excel<input type="file" accept=".xlsx,.xls" hidden onChange={(e) => applyExcelResultsImport(e.target.files?.[0] || null)} /></label>
               </div>
               {excelImportSummary && <div className="notice top-gap">{excelImportSummary}</div>}
@@ -1637,6 +1762,15 @@ function ImportMatchEditor() {
                   <small className="muted">Una riga = un player. Stesso ID_PARTITA = stessa partita. Puoi allegare ora lo screenshot oppure aggiungerlo dopo.</small>
                 </div>
               )}
+              <div className="proof-photo-card top-gap">
+                <div className="proof-photo-head"><strong>📸 Foto prova risultato</strong><span className="badge ok">opzionale ora · obbligatoria se vuoi prova</span></div>
+                <p className="muted">Con Excel non serve OCR. Qui alleghi la foto prova vicino alla tabella, oppure la aggiungi dopo caricando la partita registrata e premendo Aggiorna.</p>
+                <div className="grid grid-2">
+                  <label className="btn small">📎 Allegare foto prova<input type="file" accept="image/*" hidden onChange={(e) => onProofFileSelected(e.target.files?.[0] || null)} /></label>
+                  <input className="input" value={proofPhotoUrl} onChange={(e) => { setProofPhotoUrl(e.target.value); if (e.target.value) setImageUrl(e.target.value); }} placeholder="Oppure incolla URL foto già caricata" />
+                </div>
+                {(proofPhotoName || proofPhotoUrl) && <div className="notice top-gap">Foto collegata alla bozza: <b>{proofPhotoName || proofPhotoUrl}</b>. Verrà salvata/aggiornata su Supabase quando premi Salva partita.</div>}
+              </div>
             </div>
             <p className="muted top-gap">Alternativa rapida: mappa; data; ora; risultato; giocatore; kill; death; assist.</p>
             <textarea className="textarea" rows={5} value={manualTableText} onChange={(e) => setManualTableText(e.target.value)} placeholder="Standoff; 2026-07-08; 21:00; 6-0; MIRZA; 18; 7; 4" />
@@ -1651,7 +1785,7 @@ function ImportMatchEditor() {
               <div className="field"><label>Mappa CODM</label><select className="select" value={codmMaps.includes(mapName) ? mapName : (mapName ? 'CUSTOM' : '')} onChange={(e) => { if (e.target.value === 'CUSTOM') setMapName(''); else setMapName(e.target.value); }}><option value="">Seleziona mappa</option>{codmMaps.map((m) => <option key={m} value={m}>{m}</option>)}<option value="CUSTOM">Altro / manuale</option></select>{(!mapName || !codmMaps.includes(mapName)) && <input className="input top-gap" value={mapName} onChange={(e) => setMapName(e.target.value)} placeholder="Scrivi mappa manuale" />}</div>
               <div className="field"><label>Data/ora partita</label><input className="input" type="datetime-local" value={matchDateLocal} onChange={(e) => setMatchDateLocal(e.target.value)} /><small className="muted">Testo OCR: {matchDateText || 'non letto'} </small></div>
             </div>
-            <div className="card subtle-card import-edit-existing-card"><h3>Modifica partita già registrata</h3><div className="grid grid-2"><div className="field"><label>Partite salvate</label><select className="select" value={selectedExistingMatchId} onChange={(e) => setSelectedExistingMatchId(e.target.value)}><option value="">Seleziona partita salvata</option>{recentMatches.map((m) => <option key={m.id} value={m.id}>{new Date(m.match_date || m.created_at || Date.now()).toLocaleString('it-IT')} · {m.map_name || '-'} · {m.opponent || '-'} · {m.team_score ?? '-'}:{m.enemy_score ?? '-'}</option>)}</select></div><div className="field"><label>Azione</label><button className="btn secondary" type="button" disabled={!selectedExistingMatchId || loadingExistingMatch} onClick={() => loadExistingMatchForEdit(selectedExistingMatchId)}>{loadingExistingMatch ? 'Carico...' : '✏️ Carica per modifica'}</button></div></div><small className="muted">Quando carichi una partita, Salva aggiorna quella esistente e non crea doppioni.</small></div>
+            <div className="card subtle-card import-edit-existing-card"><h3>Modifica partita già registrata</h3><div className="grid grid-2"><div className="field"><label>Partite salvate</label><select className="select" value={selectedExistingMatchId} onChange={(e) => setSelectedExistingMatchId(e.target.value)}><option value="">Seleziona partita salvata</option>{recentMatches.map((m) => <option key={m.id} value={m.id}>{m.screenshot_url ? '📸 ' : ''}{new Date(m.match_date || m.created_at || Date.now()).toLocaleString('it-IT')} · {m.map_name || '-'} · {m.opponent || '-'} · {m.team_score ?? '-'}:{m.enemy_score ?? '-'}</option>)}</select></div><div className="field"><label>Azione</label><button className="btn secondary" type="button" disabled={!selectedExistingMatchId || loadingExistingMatch} onClick={() => loadExistingMatchForEdit(selectedExistingMatchId)}>{loadingExistingMatch ? 'Carico...' : '✏️ Carica per modifica'}</button></div></div><small className="muted">Quando carichi una partita, Salva aggiorna quella esistente e non crea doppioni.</small></div>
             <div className="ak-import-mode-card"><div className="field"><label>Nostro team nello screenshot</label><select className="select" value={ourTeam} onChange={(e) => setOurTeam(e.target.value as 'blue' | 'red')}><option value="blue">Noi siamo BLU / sinistra</option><option value="red">Noi siamo ROSSI / destra</option></select></div><p className="muted">L'OCR importerà solo la squadra scelta. Puoi cambiare BLU/ROSSO anche dopo una lettura e premere di nuovo Importa risultati per ricalcolare.</p></div><div className="grid grid-2"><div className="field"><label>Clan avversario</label><input className="input" value={opponent} onChange={(e) => { setOpponent(e.target.value); setRows((current) => current.map((r) => r.teamSide === 'ENEMY' && (!r.playerClanName || r.playerClanName === 'Avversari') ? { ...r, playerClanName: e.target.value } : r)); }} placeholder="AP / clan avversario" /></div><div className="field"><label>Squadra vincente</label><select className="select" value={winningTeam} onChange={(e) => setWinningTeam(e.target.value as 'blue' | 'red' | 'draw' | '')}><option value="">Da verificare</option><option value="blue">Blu / sinistra</option><option value="red">Rosso / destra</option><option value="draw">Pareggio</option></select></div></div>
             <div className="grid grid-3 import-result-score-grid"><div className="field"><label>{ourTeam === 'blue' ? 'Risultato BLU / nostro team' : 'Risultato ROSSO / nostro team'}</label><input className="input score-input" inputMode="numeric" value={teamScore} onChange={(e) => setTeamScore(e.target.value.replace(/[^0-9]/g, ''))} placeholder="6" /></div><div className="field"><label>{ourTeam === 'blue' ? 'Risultato ROSSO / avversario' : 'Risultato BLU / avversario'}</label><input className="input score-input" inputMode="numeric" value={enemyScore} onChange={(e) => setEnemyScore(e.target.value.replace(/[^0-9]/g, ''))} placeholder="0" /></div><div className="field"><label>Esito nostro team</label><select className="select" value={result} onChange={(e) => setResult(e.target.value as MatchResult)}><option>WIN</option><option>LOSE</option><option>DRAW</option></select><small className="muted">Se inserisci 6 e 0 l'esito si aggiorna automaticamente.</small></div></div>
             <div className="field"><label>Note partita</label><textarea className="input" rows={4} value={matchNotes} onChange={(e) => setMatchNotes(e.target.value)} placeholder="Note scrim, correzioni OCR, contestazioni, strategia, ecc." /></div>
@@ -1661,7 +1795,7 @@ function ImportMatchEditor() {
 
       <section className="card top-gap">
         <h2>Statistiche nostro team — Kill / Death / Assist</h2>
-        <p className="muted">Vengono salvati solo i player del tuo clan. Importiamo nickname e K/D/A dei player del tuo clan. Il risultato partita alto resta manuale/modificabile qui sotto; l'avversario resta solo come clan, risultato ed esito.</p>
+        <p className="muted">Vengono salvati solo i player del tuo clan. Importiamo nickname e K/D/A dei player del tuo clan. Il risultato partita alto resta manuale/modificabile qui sotto; l'avversario resta solo come clan, risultato ed esito.</p><div className="profile-link-toolbar"><button className="btn small secondary" type="button" onClick={autoLinkRowsToRoster}>🔗 Abbina automaticamente ai profili registrati</button><span className="muted">Puoi anche assegnare manualmente ogni riga al profilo reale con email dal menu “Profilo reale”.</span></div>
         <div className="team-grid ak-ally-only-table ak-full-width-import-table">
           {renderRowsTable('ALLY', ourTeam === 'blue' ? '🔵 Nostro team: blu / sinistra' : '🔴 Nostro team: rosso / destra', allyRows, ourTeam === 'blue' ? 'team-blue' : 'team-red')}
           <div className="ak-opponent-summary"><strong>Avversario:</strong> {opponent || 'da compilare'}<br /><span>Esito nostro: {result}</span><br /><small>Le statistiche dei player avversari non vengono importate né salvate.</small></div>

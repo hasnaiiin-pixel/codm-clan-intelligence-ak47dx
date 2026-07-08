@@ -30,6 +30,8 @@ create table if not exists public.codm_import_result_rows (
   risultato_avversario integer,
   esito_nostro text,
   giocatore text,
+  giocatore_email text,
+  uid_codm text,
   team_giocatore text default 'NOSTRO',
   kill integer default 0,
   death integer default 0,
@@ -68,6 +70,7 @@ declare
   v_result text;
   v_winning_team text;
   v_players integer;
+  v_user_id uuid;
 begin
   select coalesce(p_clan_id, (select id from public.clans where upper(tag)='AK47DX' or upper(name)='AK47DX' order by created_at asc limit 1)) into v_clan;
   if v_clan is null then
@@ -132,10 +135,28 @@ begin
         continue;
       end if;
 
-      select id into v_player from public.players where clan_id = v_clan and lower(nickname)=lower(r.giocatore) limit 1;
+      v_player := null;
+      v_user_id := null;
+      if nullif(trim(coalesce(r.giocatore_email,'')),'') is not null then
+        select id into v_user_id from public.profiles where lower(email)=lower(r.giocatore_email) limit 1;
+        if v_user_id is not null then
+          select id into v_player from public.players where clan_id = v_clan and user_id = v_user_id limit 1;
+        end if;
+      end if;
+      if v_player is null and nullif(trim(coalesce(r.uid_codm,'')),'') is not null then
+        select id into v_player from public.players where clan_id = v_clan and uid_codm = r.uid_codm limit 1;
+      end if;
       if v_player is null then
-        insert into public.players(clan_id, nickname, clan_name, status, role)
-        values (v_clan, r.giocatore, 'AK47DX', 'active', 'player') returning id into v_player;
+        select id into v_player from public.players where clan_id = v_clan and lower(nickname)=lower(r.giocatore) limit 1;
+      end if;
+      if v_player is null then
+        insert into public.players(clan_id, user_id, nickname, uid_codm, clan_name, status, role, notes)
+        values (v_clan, v_user_id, r.giocatore, nullif(r.uid_codm,''), 'AK47DX', 'active', 'player', concat('Creato da import Excel SQL. email=',coalesce(r.giocatore_email,''))) returning id into v_player;
+      else
+        update public.players set
+          user_id = coalesce(user_id, v_user_id),
+          uid_codm = coalesce(nullif(uid_codm,''), nullif(r.uid_codm,''))
+        where id = v_player;
       end if;
 
       insert into public.match_player_stats(match_id, player_id, kills, deaths, assists, score, rating, mvp, team_side)

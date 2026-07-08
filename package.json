@@ -1,6 +1,6 @@
 {
   "name": "clan-manager-ak47dx",
-  "version": "12.0.0-definitive-excel-photo-sql-import",
+  "version": "12.1.0-excel-photo-proof-player-link-final",
   "private": true,
   "scripts": {
     "dev": "next dev",
