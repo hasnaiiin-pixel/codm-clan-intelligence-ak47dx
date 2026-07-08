@@ -1,11 +1,20 @@
 {
-  "version": "11.0A_COMPLETE_TOURNAMENT_PRO_EXCEL_SQL_NPM_PUBLIC",
-  "marker": "V11_0A_COMPLETE_TOURNAMENT_PRO_EXCEL_SQL_NPM_PUBLIC_OK",
+  "version": "12.0_DEFINITIVE_EXCEL_PHOTO_SQL_IMPORT",
+  "marker": "V12_0_DEFINITIVE_EXCEL_PHOTO_SQL_IMPORT_OK",
   "appName": "CLAN MANAGER",
   "app": "CLAN MANAGER by MIRZA",
-  "notes": "Release completa V11.0A: torneo pro separato, iscrizioni prima delle squadre, generazione bracket/gruppi dopo iscrizioni, click partita per risultato, eliminazione torneo, import Excel risultati, template profilo/import unificato e fix npm registry pubblico.",
-  "build": "CLAN_MANAGER_AK47DX_V11_0A_COMPLETE_TOURNAMENT_PRO_EXCEL_SQL_NPM_PUBLIC_BUILD",
+  "notes": "Release definitiva V12.0: import risultati Excel + foto allegate + SQL Supabase staging, batch multiplo per ID_PARTITA, selezione partita da Excel, template Excel definitivo e cartella foto_partite.",
+  "build": "CLAN_MANAGER_AK47DX_V12_0_DEFINITIVE_EXCEL_PHOTO_SQL_IMPORT_BUILD",
   "date": "2026-07-08",
-  "status": "V11_0A_COMPLETE_TOURNAMENT_PRO_EXCEL_SQL_NPM_PUBLIC_OK",
-  "routes": ["/", "/tournament", "/profile", "/calibration", "/import/match", "/import/profile", "/events", "/events-health"]
+  "status": "V12_0_DEFINITIVE_EXCEL_PHOTO_SQL_IMPORT_OK",
+  "routes": [
+    "/",
+    "/tournament",
+    "/profile",
+    "/calibration",
+    "/import/match",
+    "/import/profile",
+    "/events",
+    "/events-health"
+  ]
 }

@@ -5,10 +5,10 @@ export default function VersionPage() {
         <div className="ak-login-card">
           <div className="ak-pill">CLAN MANAGER DEPLOY CHECK</div>
           <h1 className="ak-title">CLAN MANAGER</h1>
-          <p className="ak-lead">Release completa V11.0A: Torneo Pro con iscrizioni prima delle squadre, bracket grafico, classifica gruppi, click partita per risultato, eliminazione torneo, import Excel, template profilo/import unificato e fix npm registry pubblico.</p>
-          <div className="notice top-gap"><strong>Marker:</strong> V11_0A_COMPLETE_TOURNAMENT_PRO_EXCEL_SQL_NPM_PUBLIC_OK</div>
-          <div className="notice top-gap"><strong>Torneo:</strong> generazione dopo iscrizioni, formato modificabile, armi permesse/vietate, bracket verde/rosso e statistiche separate solo nella pagina Torneo.</div>
-          <div className="notice top-gap"><strong>Import:</strong> screenshot OCR oppure Excel ufficiale con risultato, mappa, player e K/D/A.</div>
+          <p className="ak-lead">Release definitiva V12.0: Import risultati CODM con Excel + foto allegate + SQL Supabase staging. Mantiene anche import diretto da foto/OCR.</p>
+          <div className="notice top-gap"><strong>Marker:</strong> V12_0_DEFINITIVE_EXCEL_PHOTO_SQL_IMPORT_OK</div>
+          <div className="notice top-gap"><strong>Import:</strong> carichi Excel, selezioni ID_PARTITA se ci sono più partite, alleghi foto subito o dopo e salvi su Supabase.</div>
+          <div className="notice top-gap"><strong>SQL:</strong> incluso script supabase/IMPORT_RISULTATI_EXCEL_STAGING_V12.sql per caricamento staging/import batch.</div>
           <div className="ak-quick-links">
             <a href="/cache-reset">Reset cache sicuro</a>
             <a href="/events-health">Health eventi</a>

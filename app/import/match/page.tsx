@@ -61,6 +61,14 @@ type ImportedMatchRow = {
   created_at?: string;
 };
 
+type ExcelImportBatch = {
+  id: string;
+  rows: Record<string, any>[];
+  label: string;
+  photoFile?: string;
+  photoUrl?: string;
+};
+
 type BackendOcrBox = {
   name: string;
   role: string;
@@ -421,6 +429,9 @@ function ImportMatchEditor() {
   const [selectedExistingMatchId, setSelectedExistingMatchId] = useState('');
   const [loadingExistingMatch, setLoadingExistingMatch] = useState(false);
   const [manualTableText, setManualTableText] = useState('');
+  const [excelBatches, setExcelBatches] = useState<ExcelImportBatch[]>([]);
+  const [selectedExcelBatchId, setSelectedExcelBatchId] = useState('');
+  const [excelImportSummary, setExcelImportSummary] = useState('');
 
   function isImportUsefulRegion(region: { name?: string }) {
     const name = String(region.name || '').toUpperCase();
@@ -626,24 +637,50 @@ function ImportMatchEditor() {
     return String(value || '').trim();
   }
 
+  function cleanNumber(value: unknown) {
+    return String(value ?? '').replace(/[^0-9-]/g, '');
+  }
+
+  function firstValue(row: Record<string, any>, keys: string[]) {
+    for (const key of keys) {
+      const value = row[key];
+      if (value !== undefined && value !== null && String(value).trim() !== '') return value;
+    }
+    return '';
+  }
+
   function applyImportedResultRows(records: Record<string, any>[], sourceLabel = 'tabella') {
     if (!records.length) return setMessage(`Nessun dato valido trovato nel ${sourceLabel}.`);
     const importedRows: UiScoreRow[] = [];
+    const first = records[0] || {};
+    const importedPhotoFile = String(firstValue(first, ['FOTO_FILE', 'FOTO', 'SCREENSHOT_FILE', 'SCREENSHOT_FILE_URL']) || '').trim();
+    const importedPhotoUrl = String(firstValue(first, ['FOTO_URL', 'SCREENSHOT_URL', 'SCREENSHOT_FILE_URL']) || '').trim();
+    const importedMatchId = String(firstValue(first, ['ID_PARTITA', 'MATCH_ID', 'CODICE_PARTITA']) || '').trim();
+
     for (const [index, row] of records.entries()) {
-      const map = String(row.MAPPA_CODM ?? row.MAPPA ?? '').trim();
-      const date = normalizeExcelDate(row.DATA);
-      const time = String(row.ORA ?? '').trim();
-      const score = String(row.RISULTATO ?? '').trim();
-      const player = String(row.GIOCATORE ?? row.PLAYER ?? '').trim();
-      const kill = row.KILL ?? row.KILLS ?? 0;
-      const death = row.DEATH ?? row.DEATHS ?? 0;
-      const assist = row.ASSIST ?? row.ASSISTS ?? 0;
-      const modeValue = String(row.MODALITA_CODM ?? row.MODALITA ?? '').trim();
-      const typeValue = String(row.TIPO_PARTITA ?? '').trim();
-      const opponentValue = String(row.TEAM_AVVERSARIO_ROSSO ?? row.AVVERSARIO ?? '').trim();
-      const ourScoreValue = row.RISULTATO_NOSTRO ?? '';
-      const enemyScoreValue = row.RISULTATO_AVVERSARIO ?? '';
+      const map = String(firstValue(row, ['MAPPA_CODM', 'MAPPA']) || '').trim();
+      const date = normalizeExcelDate(firstValue(row, ['DATA', 'MATCH_DATE']));
+      const time = String(firstValue(row, ['ORA', 'ORARIO']) || '').trim();
+      const score = String(firstValue(row, ['RISULTATO', 'PUNTEGGIO']) || '').trim();
+      const player = String(firstValue(row, ['GIOCATORE', 'PLAYER', 'NICKNAME']) || '').trim();
+      const kill = firstValue(row, ['KILL', 'KILLS']);
+      const death = firstValue(row, ['DEATH', 'DEATHS']);
+      const assist = firstValue(row, ['ASSIST', 'ASSISTS']);
+      const modeValue = String(firstValue(row, ['MODALITA_CODM', 'MODALITA', 'MODE']) || '').trim();
+      const typeValue = String(firstValue(row, ['TIPO_PARTITA', 'MATCH_TYPE']) || '').trim();
+      const ourTeamValueRaw = String(firstValue(row, ['TEAM_NOSTRO', 'NOSTRO_TEAM', 'OUR_TEAM']) || '').trim().toUpperCase();
+      const ourTeamFromExcel = ourTeamValueRaw === 'ROSSO' || ourTeamValueRaw === 'RED' ? 'red' : ourTeamValueRaw === 'BLU' || ourTeamValueRaw === 'BLUE' ? 'blue' : ourTeam;
+      const blueScoreRaw = firstValue(row, ['RISULTATO_BLU', 'PUNTEGGIO_BLU', 'BLUE_SCORE']);
+      const redScoreRaw = firstValue(row, ['RISULTATO_ROSSO', 'PUNTEGGIO_ROSSO', 'RED_SCORE']);
+      const ourScoreValue = firstValue(row, ['RISULTATO_NOSTRO', 'PUNTEGGIO_NOSTRO', 'OUR_SCORE']);
+      const enemyScoreValue = firstValue(row, ['RISULTATO_AVVERSARIO', 'PUNTEGGIO_AVVERSARIO', 'ENEMY_SCORE']);
+      const teamBlue = String(firstValue(row, ['TEAM_BLU', 'SQUADRA_BLU']) || '').trim();
+      const teamRed = String(firstValue(row, ['TEAM_ROSSO', 'SQUADRA_ROSSO']) || '').trim();
+      const opponentValue = String(firstValue(row, ['TEAM_AVVERSARIO_ROSSO', 'AVVERSARIO', 'OPPONENT']) || '').trim();
+      const playerTeam = String(firstValue(row, ['TEAM_GIOCATORE', 'PLAYER_TEAM']) || '').trim().toUpperCase();
+
       if (index === 0) {
+        setOurTeam(ourTeamFromExcel);
         if (map) setMapName(map);
         if (modeValue) {
           const normalizedMode = modeValue.toUpperCase().replace(/\s+/g, '_') as GameMode;
@@ -654,34 +691,50 @@ function ImportMatchEditor() {
           if (types.includes(normalizedType)) setMatchType(normalizedType);
         }
         if (opponentValue) setOpponent(opponentValue);
+        else if (ourTeamFromExcel === 'blue' && teamRed) setOpponent(teamRed);
+        else if (ourTeamFromExcel === 'red' && teamBlue) setOpponent(teamBlue);
         if (date || time) {
           const normalizedDate = date.includes('-') ? date : date.split('/').reverse().join('-');
           if (normalizedDate) setMatchDateLocal(`${normalizedDate}T${(time || '21:00').slice(0, 5)}`);
         }
-        const explicitScores = `${ourScoreValue}` !== '' || `${enemyScoreValue}` !== '';
-        if (explicitScores) {
-          setTeamScore(String(ourScoreValue || '0').replace(/[^0-9]/g, ''));
-          setEnemyScore(String(enemyScoreValue || '0').replace(/[^0-9]/g, ''));
+        const hasBlueRed = `${blueScoreRaw}` !== '' || `${redScoreRaw}` !== '';
+        if (hasBlueRed) {
+          const blueScore = Number(cleanNumber(blueScoreRaw) || 0);
+          const redScore = Number(cleanNumber(redScoreRaw) || 0);
+          setTeamScore(String(ourTeamFromExcel === 'blue' ? blueScore : redScore));
+          setEnemyScore(String(ourTeamFromExcel === 'blue' ? redScore : blueScore));
+          setWinningTeam(blueScore === redScore ? 'draw' : blueScore > redScore ? 'blue' : 'red');
+        } else if (`${ourScoreValue}` !== '' || `${enemyScoreValue}` !== '') {
+          setTeamScore(cleanNumber(ourScoreValue || '0'));
+          setEnemyScore(cleanNumber(enemyScoreValue || '0'));
         } else {
           const m = String(score || '').match(/(\d+)\s*[-:]\s*(\d+)/);
           if (m) { setTeamScore(m[1]); setEnemyScore(m[2]); }
         }
+        const photoNote = [
+          importedMatchId ? `Excel ID_PARTITA=${importedMatchId}` : '',
+          importedPhotoFile ? `Foto file=${importedPhotoFile}` : '',
+          importedPhotoUrl ? `Foto URL=${importedPhotoUrl}` : ''
+        ].filter(Boolean).join(' · ');
+        if (photoNote) setMatchNotes((current) => current.includes(photoNote) ? current : `${current ? `${current}\n` : ''}${photoNote}`);
       }
       if (!player) continue;
+      if (playerTeam && playerTeam.includes('AVVERS')) continue;
       importedRows.push({
         ...emptyRow('ALLY', importedRows.length + 1, clanName),
         nickname: player || `Player ${importedRows.length + 1}`,
         kills: Number(kill || 0),
         deaths: Number(death || 0),
         assists: Number(assist || 0),
-        mvp: ['SI', 'SÌ', 'YES', 'TRUE', '1'].includes(String(row.MVP || '').toUpperCase()),
+        mvp: ['SI', 'SÌ', 'YES', 'TRUE', '1', 'MVP'].includes(String(firstValue(row, ['MVP']) || '').toUpperCase()),
         readStatus: 'manual',
         needsReview: false,
       });
     }
-    if (!importedRows.length) return setMessage(`Dati ${sourceLabel} non validi: serve almeno una riga con GIOCATORE, KILL, DEATH, ASSIST.`);
+    if (!importedRows.length) return setMessage(`Dati ${sourceLabel} non validi: serve almeno una riga con GIOCATORE, KILL, DEATH, ASSIST del nostro team.`);
     setRows(importedRows);
-    setMessage(`Import ${sourceLabel} completato: ${importedRows.length} giocatori caricati. Controlla risultato e premi Salva partita.`);
+    setSaveCompleted(false);
+    setMessage(`Import ${sourceLabel} completato: ${importedRows.length} giocatori caricati. ${importedPhotoFile ? `Foto collegata: ${importedPhotoFile}. ` : ''}Controlla risultato, allega foto se vuoi e premi Salva partita.`);
   }
 
   function applyManualTableImport() {
@@ -695,6 +748,13 @@ function ImportMatchEditor() {
     applyImportedResultRows(records, 'tabella manuale');
   }
 
+  function applyExcelBatch(batchId: string) {
+    const batch = excelBatches.find((item) => item.id === batchId);
+    if (!batch) return;
+    setSelectedExcelBatchId(batchId);
+    applyImportedResultRows(batch.rows, `Excel ${batch.id}`);
+  }
+
   async function applyExcelResultsImport(file?: File | null) {
     if (!file) return;
     try {
@@ -703,8 +763,26 @@ function ImportMatchEditor() {
       const sheetName = workbook.SheetNames.includes('IMPORT_PARTITE') ? 'IMPORT_PARTITE' : workbook.SheetNames[0];
       const worksheet = workbook.Sheets[sheetName];
       const rawRows = XLSX.utils.sheet_to_json<Record<string, any>>(worksheet, { defval: '' });
-      const normalizedRows = rawRows.map((row) => Object.fromEntries(Object.entries(row).map(([key, value]) => [normalizeExcelKey(key), value])));
-      applyImportedResultRows(normalizedRows, 'Excel risultati');
+      const normalizedRows = rawRows
+        .map((row) => Object.fromEntries(Object.entries(row).map(([key, value]) => [normalizeExcelKey(key), value])))
+        .filter((row) => Object.values(row).some((value) => String(value ?? '').trim() !== ''));
+      if (!normalizedRows.length) return setMessage('Excel vuoto. Usa il template ufficiale CLAN MANAGER.');
+      const byId = new Map<string, Record<string, any>[]>();
+      normalizedRows.forEach((row, idx) => {
+        const id = String(firstValue(row, ['ID_PARTITA', 'MATCH_ID', 'CODICE_PARTITA']) || `PARTITA_${idx + 1}`).trim() || `PARTITA_${idx + 1}`;
+        const list = byId.get(id) || [];
+        list.push(row);
+        byId.set(id, list);
+      });
+      const batches: ExcelImportBatch[] = Array.from(byId.entries()).map(([id, rows]) => {
+        const first = rows[0] || {};
+        const label = `${id} · ${first.MAPPA_CODM || first.MAPPA || '-'} · ${first.DATA || '-'} ${first.ORA || ''} · ${rows.length} player`;
+        return { id, rows, label, photoFile: String(first.FOTO_FILE || ''), photoUrl: String(first.FOTO_URL || '') };
+      });
+      setExcelBatches(batches);
+      setExcelImportSummary(`${batches.length} partite trovate nel file ${file.name}. Seleziona quale caricare, oppure carico automaticamente la prima.`);
+      applyImportedResultRows(batches[0].rows, `Excel ${batches[0].id}`);
+      setSelectedExcelBatchId(batches[0].id);
     } catch (error) {
       setMessage(error instanceof Error ? `Excel non letto: ${error.message}` : 'Excel non letto. Usa il template ufficiale CLAN MANAGER.');
     }
@@ -1546,9 +1624,19 @@ function ImportMatchEditor() {
             <div className="import-excel-panel">
               <p className="muted">Usa il template Excel ufficiale per caricare risultato partita e K/D/A con numeri precisi. Lo screenshot resta disponibile per prova visiva.</p>
               <div className="cal-buttons">
-                <a className="btn small secondary" href="/templates/TEMPLATE_IMPORT_RISULTATI_CODM_CLAN_MANAGER.xlsx" download>⬇️ Scarica template Excel</a>
+                <a className="btn small secondary" href="/templates/TEMPLATE_IMPORT_RISULTATI_CODM_CLAN_MANAGER_V12_DEFINITIVO.xlsx" download>⬇️ Scarica template Excel definitivo</a>
                 <label className="btn small">📥 Carica Excel<input type="file" accept=".xlsx,.xls" hidden onChange={(e) => applyExcelResultsImport(e.target.files?.[0] || null)} /></label>
               </div>
+              {excelImportSummary && <div className="notice top-gap">{excelImportSummary}</div>}
+              {excelBatches.length > 1 && (
+                <div className="field top-gap">
+                  <label>Partita trovata nel file Excel</label>
+                  <select className="select" value={selectedExcelBatchId} onChange={(e) => applyExcelBatch(e.target.value)}>
+                    {excelBatches.map((batch) => <option key={batch.id} value={batch.id}>{batch.label}</option>)}
+                  </select>
+                  <small className="muted">Una riga = un player. Stesso ID_PARTITA = stessa partita. Puoi allegare ora lo screenshot oppure aggiungerlo dopo.</small>
+                </div>
+              )}
             </div>
             <p className="muted top-gap">Alternativa rapida: mappa; data; ora; risultato; giocatore; kill; death; assist.</p>
             <textarea className="textarea" rows={5} value={manualTableText} onChange={(e) => setManualTableText(e.target.value)} placeholder="Standoff; 2026-07-08; 21:00; 6-0; MIRZA; 18; 7; 4" />

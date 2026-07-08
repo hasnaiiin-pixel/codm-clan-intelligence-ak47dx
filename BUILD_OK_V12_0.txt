@@ -1,0 +1,7 @@
+CLAN MANAGER V12.0 DEFINITIVE EXCEL PHOTO SQL IMPORT
+
+OK: template Excel definitivo incluso.
+OK: cartella foto_partite inclusa.
+OK: SQL Supabase staging incluso.
+OK: import match supporta più ID_PARTITA nel file Excel.
+OK: import diretto da foto/OCR resta disponibile.
