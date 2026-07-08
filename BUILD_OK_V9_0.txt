@@ -1,0 +1,11 @@
+CLAN MANAGER AK47DX V9.0 COMPLETE PRO RELEASE
+
+Verifiche eseguite:
+- npm ci --legacy-peer-deps
+- npx tsc --noEmit
+- npm run build
+- node --check public/sw.js
+
+Build Next.js completata con 37 pagine generate.
+Route nuova: /tournament
+Marker: V9_0_COMPLETE_PRO_TOURNAMENT_IMPORT_UI_OK

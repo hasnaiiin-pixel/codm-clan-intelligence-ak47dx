@@ -12,9 +12,9 @@ type NavItem = { href: string; label: string; emoji: string; group: string; audi
 
 const navItems: NavItem[] = [
   { href: '/', label: 'Home', emoji: '🏠', group: 'Pubblico', audience: 'public' },
-  { href: '/dashboard', label: 'Dashboard', emoji: '📊', group: 'Pubblico', audience: 'public' },
   { href: '/matches', label: 'Partite', emoji: '🎮', group: 'Pubblico', audience: 'public' },
-  { href: '/players', label: 'Roster', emoji: '👥', group: 'Pubblico', audience: 'public' },
+  { href: '/players', label: 'Giocatori', emoji: '👥', group: 'Pubblico', audience: 'public' },
+  { href: '/tournament', label: 'Torneo', emoji: '🏆', group: 'Pubblico', audience: 'public' },
   { href: '/analytics', label: 'Statistiche', emoji: '📈', group: 'Pubblico', audience: 'public' },
   { href: '/clan', label: 'Clan HQ', emoji: '🛡️', group: 'Pubblico', audience: 'public' },
   { href: '/rules', label: 'Regolamento', emoji: '📜', group: 'Pubblico', audience: 'public' },
@@ -27,7 +27,6 @@ const navItems: NavItem[] = [
   { href: '/invite', label: 'Inviti', emoji: '📨', group: 'Staff / Coach', audience: 'write' },
   { href: '/calibration', label: 'Calibrazione OCR', emoji: '🎯', group: 'Staff / Coach', audience: 'write' },
   { href: '/admin/users', label: 'Gestione utenti', emoji: '🔐', group: 'Owner', audience: 'owner' },
-  { href: '/deploy', label: 'Deploy', emoji: '🚀', group: 'Owner', audience: 'owner' },
   { href: '/ocr-status', label: 'Stato OCR', emoji: '🤖', group: 'Owner', audience: 'owner' },
   { href: '/version', label: 'Versione', emoji: '✅', group: 'Sistema admin', audience: 'system' },
   { href: '/events-health', label: 'Health eventi', emoji: '🩺', group: 'Sistema admin', audience: 'system' },
@@ -170,6 +169,7 @@ function BottomMobileNav({ pathname, canSeeNotifications, notificationCount, onO
   const items = [
     { href: '/', label: 'Home', emoji: '🏠' },
     { href: '/events', label: 'Eventi', emoji: '📅' },
+    { href: '/tournament', label: 'Torneo', emoji: '🏆' },
     { href: '/analytics', label: 'Statistiche', emoji: '📊' },
     { href: canSeeNotifications ? '/notifications' : '/login', label: canSeeNotifications ? 'Notifiche' : 'Login', emoji: canSeeNotifications ? '🔔' : '🔐', badge: notificationCount },
   ];

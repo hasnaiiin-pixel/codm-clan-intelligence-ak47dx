@@ -8,7 +8,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { supabase } from '@/lib/supabaseClient';
 import { findBestNicknameMatch, type ParsedScoreRow } from '@/lib/ocrParsers';
 import { calculatePlayerRating } from '@/lib/statistics';
-import { clampRegion, getBestCalibrationPhoneProfile, hasSavedCalibration, listCalibrationPhones, listCalibrationTemplatesForPhone, loadCalibrationBundle, makeCalibrationProfileKey, saveCalibration, setActivePhoneProfile, setActiveUserContext, splitCalibrationProfileKey, type CalibratedRegion } from '@/lib/calibration';
+import { clampRegion, getBestCalibrationPhoneProfile, hasSavedCalibration, listCalibrationPhones, listCalibrationPhoneProfiles, listCalibrationTemplatesForPhone, loadCalibrationBundle, makeCalibrationProfileKey, saveCalibration, setActivePhoneProfile, setActiveUserContext, splitCalibrationProfileKey, type CalibratedRegion } from '@/lib/calibration';
 import { ACCEPTED_OCR_BACKEND_VERSIONS, EXPECTED_OCR_BACKEND_VERSION, getOcrBackendCandidates } from '@/lib/ocrBackend';
 import { FULL_IMAGE_FRAME, detectImageContentFrameFromUrl, imagePointToFrameNorm, regionToImageStyle, type ImageContentFrame } from '@/lib/imageFrame';
 import { deleteEphemeralValue, getEphemeralValue, setEphemeralValue } from '@/lib/ephemeralStore';
@@ -17,12 +17,47 @@ import type { GameMode, MatchResult, MatchType, Player, TeamSide } from '@/lib/t
 const modes: GameMode[] = ['CED', 'TDM', 'PRIMA_LINEA', 'DOMINIO', 'POSTAZIONE', 'KILL_CONFIRMED', 'BR_SOLO', 'BR_DUO', 'BR_SQUAD'];
 const types: MatchType[] = ['scrim', 'ranked', 'private', 'training', 'tournament', 'br'];
 
+const codmMaps = [
+  'Standoff', 'Raid', 'Firing Range', 'Summit', 'Slums', 'Hacienda', 'Takeoff', 'Meltdown',
+  'Crash', 'Crossfire', 'Nuketown', 'Nuketown Russia', 'Hijacked', 'Shoot House', 'Shipment',
+  'Rust', 'Terminal', 'Highrise', 'Hackney Yard', 'Tunisia', 'Coastal', 'Express', 'Dome',
+  'Vacant', 'Scrapyard', 'Monastery'
+];
+
+const codmMatchTypes: Array<{ value: MatchType; label: string }> = [
+  { value: 'scrim', label: '🎮 Scrim' },
+  { value: 'tournament', label: '🏆 Torneo' },
+  { value: 'private', label: '🔒 Private' },
+  { value: 'ranked', label: '💎 Ranked' },
+  { value: 'training', label: '🎯 Allenamento' },
+  { value: 'br', label: '🪂 Battle Royale' }
+];
+
 const EXPECTED_BACKEND_VERSION = EXPECTED_OCR_BACKEND_VERSION;
 const ACCEPTED_BACKEND_VERSIONS = ACCEPTED_OCR_BACKEND_VERSIONS;
 
 type UiScoreRow = ParsedScoreRow & {
   playerClanName?: string | null;
   sourceColor?: 'blue' | 'red';
+};
+
+type ImportedMatchRow = {
+  id: string;
+  match_date: string;
+  match_type: MatchType;
+  mode: GameMode;
+  map_name: string | null;
+  opponent: string | null;
+  result: MatchResult;
+  team_score: number | null;
+  enemy_score: number | null;
+  screenshot_url?: string | null;
+  screenshot_storage_path?: string | null;
+  winning_team?: 'blue' | 'red' | 'draw' | null;
+  our_team?: 'blue' | 'red' | null;
+  match_notes?: string | null;
+  notes?: string | null;
+  created_at?: string;
 };
 
 type BackendOcrBox = {
@@ -377,6 +412,14 @@ function ImportMatchEditor() {
   const [linkedEventPlan, setLinkedEventPlan] = useState<LinkedEventPlan | null>(null);
   const [linkedRoundIndex, setLinkedRoundIndex] = useState<number | null>(null);
   const linkedRound = linkedEventPlan && linkedRoundIndex !== null ? linkedEventPlan.rounds[linkedRoundIndex] : null;
+  const [savingMatch, setSavingMatch] = useState(false);
+  const [saveCompleted, setSaveCompleted] = useState(false);
+  const [savedMatchId, setSavedMatchId] = useState('');
+  const [editingMatchId, setEditingMatchId] = useState('');
+  const [recentMatches, setRecentMatches] = useState<ImportedMatchRow[]>([]);
+  const [selectedExistingMatchId, setSelectedExistingMatchId] = useState('');
+  const [loadingExistingMatch, setLoadingExistingMatch] = useState(false);
+  const [manualTableText, setManualTableText] = useState('');
 
   function isImportUsefulRegion(region: { name?: string }) {
     const name = String(region.name || '').toUpperCase();
@@ -395,23 +438,32 @@ function ImportMatchEditor() {
   const visibleBackendBoxes = useMemo(() => (backendBoxes || []).filter(isImportUsefulRegion), [backendBoxes]);
 
   function refreshCalibrationTemplate(phoneRaw?: string, templateRaw?: string) {
-    // V8.2C: un solo nome template visibile. Il telefono resta tecnico su default
-    // per evitare doppia gestione telefono+template nell'import.
+    // V8.2G: un solo nome template. Recupera in modo robusto l'ultimo template salvato
+    // da Calibrazione, invece di tornare sempre a default.
     const phoneInput = 'default';
-    const phoneOptions = ['default'];
-    const templateOptions = listCalibrationTemplatesForPhone('scoreboard_ced', phoneInput);
-    const activeTemplate = splitCalibrationProfileKey(getBestCalibrationPhoneProfile('scoreboard_ced')).template;
-    const previousTemplate = selectedCalibrationTemplate && selectedCalibrationTemplate !== 'default' ? selectedCalibrationTemplate : activeTemplate;
-    const savedTemplates = templateOptions.filter((t) => t !== 'default');
+    const bestKey = getBestCalibrationPhoneProfile('scoreboard_ced');
+    const bestSplit = splitCalibrationProfileKey(bestKey);
+    const templateOptionsFromDefault = listCalibrationTemplatesForPhone('scoreboard_ced', phoneInput);
+    const templateOptionsFromAllProfiles = calibrationProfiles
+      .concat([bestKey])
+      .map((key) => splitCalibrationProfileKey(key).template || 'default')
+      .filter(Boolean);
+    const mergedOptions = Array.from(new Set(['default', ...templateOptionsFromDefault, ...templateOptionsFromAllProfiles])).sort((a, b) => a.localeCompare(b));
+    const previousTemplate = selectedCalibrationTemplate && selectedCalibrationTemplate !== 'default' ? selectedCalibrationTemplate : '';
+    const savedTemplates = mergedOptions.filter((t) => t !== 'default');
     const templateInput = templateRaw !== undefined
       ? (templateRaw || 'default')
-      : (previousTemplate && previousTemplate !== 'default' && templateOptions.includes(previousTemplate) ? previousTemplate : (savedTemplates[0] || 'default'));
+      : (previousTemplate && mergedOptions.includes(previousTemplate)
+          ? previousTemplate
+          : (bestSplit.template && bestSplit.template !== 'default' && mergedOptions.includes(bestSplit.template)
+              ? bestSplit.template
+              : (savedTemplates[0] || 'default')));
     const key = makeCalibrationProfileKey(phoneInput, templateInput);
     setCalibrationPhoneOptions(['default']);
-    setCalibrationTemplateOptions(Array.from(new Set(['default', ...templateOptions, templateInput])).sort());
+    setCalibrationTemplateOptions(Array.from(new Set(['default', ...mergedOptions, templateInput])).sort((a, b) => a.localeCompare(b)));
     setSelectedCalibrationPhone(phoneInput);
     setSelectedCalibrationTemplate(templateInput);
-    setCalibrationProfiles(['default']);
+    setCalibrationProfiles(listCalibrationPhoneProfiles('scoreboard_ced'));
     setActivePhoneProfile('scoreboard_ced', key);
     const bundle = loadCalibrationBundle('scoreboard_ced', key);
     const saved = hasSavedCalibration('scoreboard_ced', key);
@@ -424,11 +476,14 @@ function ImportMatchEditor() {
   }
 
   function saveImportTemplateRegions(nextRegions = localTemplateRegions) {
-    const key = makeCalibrationProfileKey('default', selectedCalibrationTemplate || 'default');
+    const templateName = selectedCalibrationTemplate || 'default';
+    const key = makeCalibrationProfileKey('default', templateName);
     const cleanRegions = filterImportRegions(nextRegions);
-    saveCalibration('scoreboard_ced', cleanRegions, key, selectedCalibrationTemplate || 'default', clanName);
-    refreshCalibrationTemplate('default', selectedCalibrationTemplate);
-    setMessage(`Template risultati salvato: ${selectedCalibrationTemplate || 'default'}.`);
+    setActivePhoneProfile('scoreboard_ced', key);
+    saveCalibration('scoreboard_ced', cleanRegions, key, templateName, clanName);
+    setCalibrationProfiles(listCalibrationPhoneProfiles('scoreboard_ced'));
+    refreshCalibrationTemplate('default', templateName);
+    setMessage(`Template risultati salvato: ${templateName}. Lo trovi ora nella lista Import.`);
   }
 
   function updateImportRegion(name: string, patch: Partial<CalibratedRegion>) {
@@ -520,7 +575,7 @@ function ImportMatchEditor() {
         if (draft.linkedEvent) setLinkedEvent(draft.linkedEvent);
         if (draft.linkedEventPlan) setLinkedEventPlan(draft.linkedEventPlan);
         if (typeof draft.linkedRoundIndex === 'number') setLinkedRoundIndex(draft.linkedRoundIndex);
-        setMessage('Bozza import risultato ripristinata: resta salvata finché non premi Salva partita. Se eri già dentro Importa partita da Eventi, non ricarico campi vuoti sopra la tua bozza.');
+
       }
     } catch {}
     importDraftReadyRef.current = true;
@@ -544,6 +599,52 @@ function ImportMatchEditor() {
     } catch {}
   }, [mode, matchType, result, mapName, matchDateText, matchDateLocal, opponent, matchNotes, teamScore, enemyScore, rows, rawText, imageUrl, ourTeam, winningTeam, linkedEvent, linkedEventPlan, linkedRoundIndex]);
 
+
+  useEffect(() => {
+    const savedY = Number(sessionStorage.getItem('clan_manager_import_match_scroll_y') || 0);
+    if (savedY > 0) window.requestAnimationFrame(() => window.scrollTo(0, savedY));
+    const remember = () => sessionStorage.setItem('clan_manager_import_match_scroll_y', String(window.scrollY || 0));
+    window.addEventListener('pagehide', remember);
+    window.addEventListener('beforeunload', remember);
+    return () => {
+      remember();
+      window.removeEventListener('pagehide', remember);
+      window.removeEventListener('beforeunload', remember);
+    };
+  }, []);
+
+  function applyManualTableImport() {
+    const lines = manualTableText.split(/\n+/).map((line) => line.trim()).filter(Boolean);
+    if (!lines.length) return setMessage('Incolla almeno una riga tabella. Formato: mappa; data; ora; risultato; giocatore; kill; death; assist');
+    const importedRows: UiScoreRow[] = [];
+    for (const [index, line] of lines.entries()) {
+      const parts = line.split(/[;	,]/).map((part) => part.trim());
+      if (parts.length < 8) continue;
+      const [map, date, time, score, player, kill, death, assist] = parts;
+      if (index === 0) {
+        if (map) setMapName(map);
+        if (date || time) {
+          const normalizedDate = date.includes('-') ? date : date.split('/').reverse().join('-');
+          setMatchDateLocal(`${normalizedDate}T${(time || '21:00').slice(0,5)}`);
+        }
+        const m = String(score || '').match(/(\d+)\s*[-:]\s*(\d+)/);
+        if (m) { setTeamScore(m[1]); setEnemyScore(m[2]); }
+      }
+      importedRows.push({
+        ...emptyRow('ALLY', importedRows.length + 1, clanName),
+        nickname: player || `Player ${importedRows.length + 1}`,
+        kills: Number(kill || 0),
+        deaths: Number(death || 0),
+        assists: Number(assist || 0),
+        readStatus: 'manual',
+        needsReview: false,
+      });
+    }
+    if (!importedRows.length) return setMessage('Tabella non valida. Usa: mappa; data; ora; risultato; giocatore; kill; death; assist');
+    setRows(importedRows);
+    setMessage(`Tabella importata: ${importedRows.length} giocatori. Controlla risultato e premi Salva partita.`);
+  }
+
   useEffect(() => {
     setResult(computeOurResult(winningTeam, ourTeam));
   }, [winningTeam, ourTeam]);
@@ -556,14 +657,88 @@ function ImportMatchEditor() {
     else setWinningTeam(our > enemy ? ourTeam : (ourTeam === 'blue' ? 'red' : 'blue'));
   }, [teamScore, enemyScore, ourTeam]);
 
+  useEffect(() => {
+    if (saveCompleted) setSaveCompleted(false);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [mode, matchType, result, mapName, matchDateLocal, opponent, matchNotes, teamScore, enemyScore, ourTeam, winningTeam, rows]);
+
   async function loadRoster() {
     const identity = await loadClanIdentity();
     if (identity.clanId) {
       setClanId(identity.clanId);
       setClanName(clanDisplayName(identity));
+      await loadRecentMatches(identity.clanId);
     }
     const { data } = await supabase.from('players').select('*').order('nickname');
     setRoster((data || []) as Player[]);
+  }
+
+  async function loadRecentMatches(activeClanId = clanId) {
+    if (!activeClanId) return;
+    const { data, error } = await supabase
+      .from('matches')
+      .select('*')
+      .eq('clan_id', activeClanId)
+      .order('match_date', { ascending: false })
+      .limit(20);
+    if (!error) setRecentMatches((data || []) as ImportedMatchRow[]);
+  }
+
+  async function loadExistingMatchForEdit(matchId: string) {
+    if (!matchId) return;
+    setLoadingExistingMatch(true);
+    setMessage('Carico partita registrata per modifica...');
+    try {
+      const { data: match, error: matchError } = await supabase.from('matches').select('*').eq('id', matchId).single();
+      if (matchError || !match) throw new Error(matchError?.message || 'Partita non trovata.');
+      const { data: statRows } = await supabase
+        .from('match_player_stats')
+        .select('*, players(id,nickname,clan_name)')
+        .eq('match_id', matchId)
+        .order('rank_position', { ascending: true });
+      setEditingMatchId(match.id);
+      setSavedMatchId(match.id);
+      setSaveCompleted(false);
+      setSelectedExistingMatchId(match.id);
+      setMode((match.mode || 'CED') as GameMode);
+      setMatchType((match.match_type || 'scrim') as MatchType);
+      setResult((match.result || 'WIN') as MatchResult);
+      setMapName(match.map_name || '');
+      setOpponent(match.opponent || '');
+      setTeamScore(match.team_score === null || match.team_score === undefined ? '' : String(match.team_score));
+      setEnemyScore(match.enemy_score === null || match.enemy_score === undefined ? '' : String(match.enemy_score));
+      setWinningTeam((match.winning_team || '') as 'blue' | 'red' | 'draw' | '');
+      setOurTeam((match.our_team || 'blue') as 'blue' | 'red');
+      setMatchNotes(match.match_notes || '');
+      if (match.match_date) setMatchDateLocal(toLocalDateTimeValue(new Date(match.match_date)));
+      const mappedRows: UiScoreRow[] = (statRows || []).map((row: any, index: number) => ({
+        rankPosition: row.rank_position || index + 1,
+        nickname: row.players?.nickname || `Nostro ${row.rank_position || index + 1}`,
+        playerId: row.player_id || null,
+        ocrNickname: row.players?.nickname || null,
+        needsReview: false,
+        readStatus: 'manual',
+        kills: row.kills || 0,
+        deaths: row.deaths || 0,
+        assists: row.assists || 0,
+        score: row.score || 0,
+        impact: null,
+        captures: row.captures || 0,
+        objectiveTimeText: row.objective_time_text || '',
+        objectiveTimeSeconds: row.objective_time_seconds || 0,
+        teamSide: 'ALLY',
+        sourceColor: (match.our_team || 'blue') as 'blue' | 'red',
+        mvp: !!row.is_mvp,
+        mvpLabel: row.is_mvp ? 'MVP_WIN' : null,
+        playerClanName: row.players?.clan_name || clanName
+      }));
+      setRows(mappedRows.length ? mappedRows : [1, 2, 3, 4, 5].map((rank) => emptyRow('ALLY', rank, clanName)));
+      setMessage(`Partita caricata in modifica: ${new Date(match.match_date || match.created_at || Date.now()).toLocaleString('it-IT')} · ${match.map_name || '-'} · ${match.team_score ?? '-'}:${match.enemy_score ?? '-'}. Quando premi Salva aggiorna la partita esistente, non crea doppioni.`);
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : 'Errore caricamento partita registrata.');
+    } finally {
+      setLoadingExistingMatch(false);
+    }
   }
 
   async function readSessionToken() {
@@ -581,6 +756,11 @@ function ImportMatchEditor() {
   async function loadLinkedEventFromQuery() {
     try {
       const params = new URLSearchParams(window.location.search);
+      const matchId = params.get('match');
+      if (matchId) {
+        await loadExistingMatchForEdit(matchId);
+        return;
+      }
       const eventId = params.get('event');
       const roundParam = Number(params.get('round') || '1');
       const matchCodeParam = params.get('matchCode') || '';
@@ -953,132 +1133,168 @@ function ImportMatchEditor() {
   }
 
   async function saveMatch() {
-    setMessage('');
-    const activeClanId = clanId;
-    if (!activeClanId) return setMessage('Prima crea un clan in Onboarding.');
-    const effectiveResult = computeOurResult(winningTeam, ourTeam);
-    const screenshotProof = await uploadScreenshot(activeClanId);
-    const screenshotUrl = screenshotProof?.url || null;
-    const screenshotPath = screenshotProof?.path || null;
-
-    const { data: match, error: matchError } = await supabase.from('matches').insert({
-      clan_id: activeClanId,
-      mode,
-      match_type: matchType,
-      result: effectiveResult,
-      map_name: mapName || null,
-      opponent: opponent || null,
-      team_score: teamScore ? Number(teamScore) : null,
-      enemy_score: enemyScore ? Number(enemyScore) : null,
-      screenshot_url: screenshotUrl,
-      screenshot_storage_path: screenshotPath,
-      winning_team: winningTeam || null,
-      our_team: ourTeam,
-      match_notes: matchNotes || null,
-      match_date: matchDateLocal ? new Date(matchDateLocal).toISOString() : (parseBackendMatchDate(matchDateText) || new Date().toISOString()),
-      notes: `${matchNotes ? `${matchNotes}\n\n` : ''}Import risultati 2.0. Screenshot prova=${screenshotPath || screenshotUrl || 'non caricato'}. Template=${useCalibrationTemplate ? `${selectedCalibrationPhone}/${calibrationMode}/frame=${activeFrame.reason}` : 'OFF'}. OurTeam=${ourTeam}. WinningTeam=${winningTeam || '-'}. MatchDateText=${matchDateText || '-'}; MatchDateLocal=${matchDateLocal || '-'}.`
-    }).select('id').single();
-
-    if (matchError || !match) return setMessage(matchError?.message || 'Partita non creata.');
-
-    const savedStats: string[] = [];
-    const archiveRows = [];
-    const rowsToSave = rows.filter((row) => (row.teamSide || 'ALLY') !== 'ENEMY');
-    for (const row of rowsToSave) {
-      try {
-        const playerId = await ensurePlayerForRow(activeClanId, row);
-        const sourceColor = row.sourceColor || ((ourTeam === 'blue') === (row.teamSide === 'ALLY') ? 'blue' : 'red');
-        const teamResult = winningTeam === 'draw' ? 'draw' : winningTeam === sourceColor ? 'winner' : 'loser';
-        const isMvp = !!row.mvp || row.rankPosition === 1;
-        const mvpType = row.mvpLabel || (row.rankPosition === 1 ? (teamResult === 'winner' ? 'MVP_WIN' : teamResult === 'loser' ? 'MVP_LOSE' : 'MVP') : null);
-
-        archiveRows.push({
-          clan_id: activeClanId,
-          match_id: match.id,
-          player_id: playerId,
-          nickname_raw: row.ocrNickname || row.nickname,
-          nickname_resolved: row.nickname,
-          team_color: sourceColor,
-          team_side: row.teamSide || 'ALLY',
-          team_result: teamResult,
-          team_rank: row.rankPosition || null,
-          kills: row.kills || 0,
-          deaths: row.deaths || 0,
-          assists: row.assists || 0,
-          score: row.score || 0,
-          impact: null,
-          mvp_type: mvpType,
-          rank_medal: row.rankPosition === 1 ? 'gold' : row.rankPosition === 2 ? 'silver' : row.rankPosition === 3 ? 'bronze' : row.rankPosition === 4 ? 'wood' : row.rankPosition === 5 ? 'olympic' : null,
-          read_status: row.readStatus || 'manual',
-          needs_review: !!row.needsReview
-        });
-
-        if (!playerId) {
-          savedStats.push(`Riga ${row.rankPosition || '?'} non salvata nelle statistiche: nickname mancante.`);
-          continue;
-        }
-
-        const statPayload = {
-          clan_id: activeClanId,
-          match_id: match.id,
-          player_id: playerId,
-          kills: row.kills || 0,
-          deaths: row.deaths || 0,
-          assists: row.assists || 0,
-          score: row.score || 0,
-          objective_score: 0,
-          captures: row.captures || 0,
-          impact: null,
-          objective_time_seconds: null,
-          objective_time_text: null,
-          accuracy_percent: null,
-          headshot_percent: null,
-          kd_ratio: row.deaths ? Number((row.kills / row.deaths).toFixed(2)) : row.kills,
-          raw_kda_text: `score=${row.score || 0}; kda=${row.kills}/${row.deaths}/${row.assists}`, 
-          team_side: row.teamSide || 'ALLY',
-          rank_position: row.rankPosition || null,
-          is_mvp: isMvp,
-          rating: calculatePlayerRating({
-            kills: row.kills,
-            deaths: row.deaths,
-            assists: row.assists,
-            objectiveScore: row.score || 0,
-            captures: 0,
-            impact: 0,
-            objectiveTimeSeconds: 0,
-            mvp: isMvp,
-            win: teamResult === 'winner'
-          })
-        };
-        const { error: statError } = await supabase.from('match_player_stats').insert(statPayload);
-        if (statError) savedStats.push(`Errore ${row.nickname}: ${statError.message}`);
-        else savedStats.push(`${row.nickname} (${row.playerClanName || '-'})`);
-      } catch (error) {
-        savedStats.push(error instanceof Error ? error.message : `Errore riga ${row.nickname}`);
+    if (savingMatch) return;
+    if (saveCompleted) {
+      setMessage('Questa partita è già stata salvata. Per modificarla premi "Modifica ancora" oppure scegli una partita registrata dalla lista.');
+      return;
+    }
+    setSavingMatch(true);
+    setMessage(editingMatchId ? 'Aggiornamento partita in corso...' : 'Salvataggio partita in corso...');
+    try {
+      const activeClanId = clanId;
+      if (!activeClanId) {
+        setMessage('Prima crea un clan in Onboarding.');
+        return;
       }
-    }
-
-    if (archiveRows.length) {
-      const { error: rowsArchiveError } = await supabase.from('match_scoreboard_rows').insert(archiveRows);
-      if (rowsArchiveError) savedStats.push(`Archivio classifica 1-5 non salvato: ${rowsArchiveError.message}`);
-    }
-
-    if (screenshotUrl || rawText) {
-      await supabase.from('screenshot_imports').insert({
+      const effectiveResult = computeOurResult(winningTeam, ourTeam);
+      const screenshotProof = await uploadScreenshot(activeClanId);
+      const screenshotUrl = screenshotProof?.url || null;
+      const screenshotPath = screenshotProof?.path || null;
+      const matchPayload: Record<string, unknown> = {
         clan_id: activeClanId,
-        import_type: 'scoreboard',
-        file_url: screenshotUrl,
-        storage_path: screenshotPath,
-        match_id: match.id,
-        ocr_raw_text: `${rawText || ''}\n\n=== SCREENSHOT_PROOF ===\nurl=${screenshotUrl || ''}\npath=${screenshotPath || ''}\n\n=== MATCH_NOTES ===\n${matchNotes || ''}\n\n=== ROWS ===\n${JSON.stringify(rowsToSave, null, 2)}`,
-        parser_status: 'confirmed'
-      });
-    }
+        mode,
+        match_type: matchType,
+        result: effectiveResult,
+        map_name: mapName || null,
+        opponent: opponent || null,
+        team_score: teamScore ? Number(teamScore) : null,
+        enemy_score: enemyScore ? Number(enemyScore) : null,
+        winning_team: winningTeam || null,
+        our_team: ourTeam,
+        match_notes: matchNotes || null,
+        match_date: matchDateLocal ? new Date(matchDateLocal).toISOString() : (parseBackendMatchDate(matchDateText) || new Date().toISOString()),
+        notes: `${matchNotes ? `${matchNotes}\n\n` : ''}${editingMatchId ? 'Aggiornamento' : 'Import'} risultati CLAN MANAGER. Screenshot prova=${screenshotPath || screenshotUrl || 'non caricato'}. Template=${useCalibrationTemplate ? `default/${selectedCalibrationTemplate}/${calibrationMode}/frame=${activeFrame.reason}` : 'OFF'}. OurTeam=${ourTeam}. WinningTeam=${winningTeam || '-'}. MatchDateText=${matchDateText || '-'}; MatchDateLocal=${matchDateLocal || '-'}.`
+      };
+      if (screenshotUrl) matchPayload.screenshot_url = screenshotUrl;
+      if (screenshotPath) matchPayload.screenshot_storage_path = screenshotPath;
 
-    await updateLinkedEventAfterSave(match.id, screenshotUrl);
-    await loadRoster();
-    try { deleteEphemeralValue(IMPORT_DRAFT_KEY); } catch {}
-    setMessage(`Partita salvata. ${linkedEvent ? `Aggiornato anche evento ${linkedEvent.title} · Partita ${(linkedRoundIndex || 0) + 1} con score e MVP automatici. ` : ''}Statistiche salvate per giocatori registrati e manuali: ${savedStats.join(', ') || 'nessuna riga'}. Screenshot allegato come prova.`);
+      let match: { id: string } | null = null;
+      if (editingMatchId) {
+        const { data: updated, error: updateError } = await supabase
+          .from('matches')
+          .update(matchPayload)
+          .eq('id', editingMatchId)
+          .eq('clan_id', activeClanId)
+          .select('id')
+          .single();
+        if (updateError || !updated) throw new Error(updateError?.message || 'Partita non aggiornata.');
+        match = updated as { id: string };
+        await supabase.from('match_player_stats').delete().eq('match_id', match.id);
+        await supabase.from('match_scoreboard_rows').delete().eq('match_id', match.id);
+      } else {
+        const { data: created, error: matchError } = await supabase.from('matches').insert(matchPayload).select('id').single();
+        if (matchError || !created) throw new Error(matchError?.message || 'Partita non creata.');
+        match = created as { id: string };
+      }
+
+      const savedStats: string[] = [];
+      const archiveRows = [];
+      const rowsToSave = rows.filter((row) => (row.teamSide || 'ALLY') !== 'ENEMY');
+      for (const row of rowsToSave) {
+        try {
+          const playerId = await ensurePlayerForRow(activeClanId, row);
+          const sourceColor = row.sourceColor || ((ourTeam === 'blue') === (row.teamSide === 'ALLY') ? 'blue' : 'red');
+          const teamResult = winningTeam === 'draw' ? 'draw' : winningTeam === sourceColor ? 'winner' : 'loser';
+          const isMvp = !!row.mvp || row.rankPosition === 1;
+          const mvpType = row.mvpLabel || (row.rankPosition === 1 ? (teamResult === 'winner' ? 'MVP_WIN' : teamResult === 'loser' ? 'MVP_LOSE' : 'MVP') : null);
+
+          archiveRows.push({
+            clan_id: activeClanId,
+            match_id: match.id,
+            player_id: playerId,
+            nickname_raw: row.ocrNickname || row.nickname,
+            nickname_resolved: row.nickname,
+            team_color: sourceColor,
+            team_side: row.teamSide || 'ALLY',
+            team_result: teamResult,
+            team_rank: row.rankPosition || null,
+            kills: row.kills || 0,
+            deaths: row.deaths || 0,
+            assists: row.assists || 0,
+            score: row.score || 0,
+            impact: null,
+            mvp_type: mvpType,
+            rank_medal: row.rankPosition === 1 ? 'gold' : row.rankPosition === 2 ? 'silver' : row.rankPosition === 3 ? 'bronze' : row.rankPosition === 4 ? 'wood' : row.rankPosition === 5 ? 'olympic' : null,
+            read_status: row.readStatus || 'manual',
+            needs_review: !!row.needsReview
+          });
+
+          if (!playerId) {
+            savedStats.push(`Riga ${row.rankPosition || '?'} non salvata nelle statistiche: nickname mancante.`);
+            continue;
+          }
+
+          const statPayload = {
+            clan_id: activeClanId,
+            match_id: match.id,
+            player_id: playerId,
+            kills: row.kills || 0,
+            deaths: row.deaths || 0,
+            assists: row.assists || 0,
+            score: row.score || 0,
+            objective_score: 0,
+            captures: row.captures || 0,
+            impact: null,
+            objective_time_seconds: null,
+            objective_time_text: null,
+            accuracy_percent: null,
+            headshot_percent: null,
+            kd_ratio: row.deaths ? Number((row.kills / row.deaths).toFixed(2)) : row.kills,
+            raw_kda_text: `score=${row.score || 0}; kda=${row.kills}/${row.deaths}/${row.assists}`,
+            team_side: row.teamSide || 'ALLY',
+            rank_position: row.rankPosition || null,
+            is_mvp: isMvp,
+            rating: calculatePlayerRating({
+              kills: row.kills,
+              deaths: row.deaths,
+              assists: row.assists,
+              objectiveScore: row.score || 0,
+              captures: 0,
+              impact: 0,
+              objectiveTimeSeconds: 0,
+              mvp: isMvp,
+              win: teamResult === 'winner'
+            })
+          };
+          const { error: statError } = await supabase.from('match_player_stats').insert(statPayload);
+          if (statError) savedStats.push(`Errore ${row.nickname}: ${statError.message}`);
+          else savedStats.push(`${row.nickname} (${row.playerClanName || '-'})`);
+        } catch (error) {
+          savedStats.push(error instanceof Error ? error.message : `Errore riga ${row.nickname}`);
+        }
+      }
+
+      if (archiveRows.length) {
+        const { error: rowsArchiveError } = await supabase.from('match_scoreboard_rows').insert(archiveRows);
+        if (rowsArchiveError) savedStats.push(`Archivio classifica 1-5 non salvato: ${rowsArchiveError.message}`);
+      }
+
+      if (screenshotUrl || rawText) {
+        await supabase.from('screenshot_imports').insert({
+          clan_id: activeClanId,
+          import_type: 'scoreboard',
+          file_url: screenshotUrl,
+          storage_path: screenshotPath,
+          match_id: match.id,
+          ocr_raw_text: `${rawText || ''}\n\n=== SCREENSHOT_PROOF ===\nurl=${screenshotUrl || ''}\npath=${screenshotPath || ''}\n\n=== MATCH_NOTES ===\n${matchNotes || ''}\n\n=== ROWS ===\n${JSON.stringify(rowsToSave, null, 2)}`,
+          parser_status: editingMatchId ? 'updated' : 'confirmed'
+        });
+      }
+
+      await updateLinkedEventAfterSave(match.id, screenshotUrl);
+      await loadRoster();
+      await loadRecentMatches(activeClanId);
+      try { deleteEphemeralValue(IMPORT_DRAFT_KEY); } catch {}
+      setEditingMatchId(match.id);
+      setSavedMatchId(match.id);
+      setSelectedExistingMatchId(match.id);
+      setSaveCompleted(true);
+      setMessage(`✅ ${editingMatchId ? 'Partita aggiornata' : 'Partita salvata'} correttamente. ${linkedEvent ? `Aggiornato anche evento ${linkedEvent.title} · Partita ${(linkedRoundIndex || 0) + 1}. ` : ''}Il pulsante resta bloccato per evitare doppi salvataggi. Statistiche: ${savedStats.join(', ') || 'nessuna riga'}.`);
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : 'Errore salvataggio partita.');
+    } finally {
+      setSavingMatch(false);
+    }
   }
 
   const allyRows = useMemo(() => rows.map((row, index) => ({ row, index })).filter((item) => item.row.teamSide !== 'ENEMY'), [rows]);
@@ -1151,7 +1367,7 @@ function ImportMatchEditor() {
         <div className="import-hero-copy">
           <p className="eyebrow">⚡ Import risultati semplificato</p>
           <h1>Import partita CODM</h1>
-          <p className="muted">Carica screenshot CED o Postazione, scegli se il tuo team è blu o rosso e importa solo i 5 player del tuo clan. Dell'avversario vengono salvati solo nome clan, score ed esito.</p>
+          <p className="muted">Carica screenshot o inserisci i risultati da tabella. Mappe, modalità e score restano modificabili prima del salvataggio.</p>
           <div className="import-hero-pills">
             <span className="pill-chip">🖼️ Screenshot rapido</span>
             <span className="pill-chip">⚙️ Template pronto</span>
@@ -1216,8 +1432,7 @@ function ImportMatchEditor() {
             </div>
           )}
           <div className={`ak-template-status ${templateSaved ? 'ok' : 'warn'}`}>
-            <strong>Template OCR attivo:</strong> 🧩 {selectedCalibrationTemplate || 'default'} · {templateSummary} <br /><strong>Coordinate:</strong> stesso overlay Calibrazione/Import con content frame {activeFrame.reason}.
-            <span> · Overlay visibile: {visibleTemplateRegions.length} riquadri utili. Sono esclusi Vittoria, riquadri grandi team, impatto e punteggio player. Resta attivo solo il risultato partita alto.</span>
+            <strong>Template:</strong> 🧩 {selectedCalibrationTemplate || 'default'} · {templateSaved ? 'salvato' : 'base'}
           </div>
           <details className="top-gap">
             <summary>🎯 Centratura manuale immagine risultati</summary>
@@ -1259,13 +1474,25 @@ function ImportMatchEditor() {
 
         <div className="card">
           <h2>Dati partita</h2>
+          <details className="top-gap import-table-entry">
+            <summary>📋 Importa risultato da tabella manuale</summary>
+            <p className="muted">Formato riga: mappa; data; ora; risultato; giocatore; kill; death; assist. Esempio: Standoff; 2026-07-08; 21:00; 6-0; MIRZA; 18; 7; 4</p>
+            <textarea className="textarea" rows={5} value={manualTableText} onChange={(e) => setManualTableText(e.target.value)} placeholder="Standoff; 2026-07-08; 21:00; 6-0; MIRZA; 18; 7; 4" />
+            <button className="btn small top-gap" type="button" onClick={applyManualTableImport}>Carica dati tabella</button>
+          </details>
           <div className="form">
-            <div className="grid grid-2"><div className="field"><label>Tipo partita</label><select className="select" value={matchType} onChange={(e) => setMatchType(e.target.value as MatchType)}>{types.map((m) => <option key={m}>{m}</option>)}</select></div><div className="field"><label>Modalità</label><select className="select" value={mode} onChange={(e) => setMode(e.target.value as GameMode)}>{modes.map((m) => <option key={m} value={m}>{modeLabel(m)}</option>)}</select></div></div>
-            <div className="grid grid-2"><div className="field"><label>Mappa</label><input className="input" value={mapName} onChange={(e) => setMapName(e.target.value)} /></div><div className="field"><label>Data/ora partita</label><input className="input" type="datetime-local" value={matchDateLocal} onChange={(e) => setMatchDateLocal(e.target.value)} /><small className="muted">Testo OCR: {matchDateText || 'non letto'} </small></div></div>
+            <div className="grid grid-2">
+              <div className="field"><label>Tipo partita CODM</label><select className="select" value={matchType} onChange={(e) => setMatchType(e.target.value as MatchType)}>{codmMatchTypes.map((m) => <option key={m.value} value={m.value}>{m.label}</option>)}</select></div>
+              <div className="field"><label>Modalità CODM</label><select className="select" value={mode} onChange={(e) => setMode(e.target.value as GameMode)}>{modes.map((m) => <option key={m} value={m}>{modeLabel(m)}</option>)}</select></div>
+            </div>
+            <div className="grid grid-2">
+              <div className="field"><label>Mappa CODM</label><select className="select" value={codmMaps.includes(mapName) ? mapName : (mapName ? 'CUSTOM' : '')} onChange={(e) => { if (e.target.value === 'CUSTOM') setMapName(''); else setMapName(e.target.value); }}><option value="">Seleziona mappa</option>{codmMaps.map((m) => <option key={m} value={m}>{m}</option>)}<option value="CUSTOM">Altro / manuale</option></select>{(!mapName || !codmMaps.includes(mapName)) && <input className="input top-gap" value={mapName} onChange={(e) => setMapName(e.target.value)} placeholder="Scrivi mappa manuale" />}</div>
+              <div className="field"><label>Data/ora partita</label><input className="input" type="datetime-local" value={matchDateLocal} onChange={(e) => setMatchDateLocal(e.target.value)} /><small className="muted">Testo OCR: {matchDateText || 'non letto'} </small></div>
+            </div>
+            <div className="card subtle-card import-edit-existing-card"><h3>Modifica partita già registrata</h3><div className="grid grid-2"><div className="field"><label>Partite salvate</label><select className="select" value={selectedExistingMatchId} onChange={(e) => setSelectedExistingMatchId(e.target.value)}><option value="">Seleziona partita salvata</option>{recentMatches.map((m) => <option key={m.id} value={m.id}>{new Date(m.match_date || m.created_at || Date.now()).toLocaleString('it-IT')} · {m.map_name || '-'} · {m.opponent || '-'} · {m.team_score ?? '-'}:{m.enemy_score ?? '-'}</option>)}</select></div><div className="field"><label>Azione</label><button className="btn secondary" type="button" disabled={!selectedExistingMatchId || loadingExistingMatch} onClick={() => loadExistingMatchForEdit(selectedExistingMatchId)}>{loadingExistingMatch ? 'Carico...' : '✏️ Carica per modifica'}</button></div></div><small className="muted">Quando carichi una partita, Salva aggiorna quella esistente e non crea doppioni.</small></div>
             <div className="ak-import-mode-card"><div className="field"><label>Nostro team nello screenshot</label><select className="select" value={ourTeam} onChange={(e) => setOurTeam(e.target.value as 'blue' | 'red')}><option value="blue">Noi siamo BLU / sinistra</option><option value="red">Noi siamo ROSSI / destra</option></select></div><p className="muted">L'OCR importerà solo la squadra scelta. Puoi cambiare BLU/ROSSO anche dopo una lettura e premere di nuovo Importa risultati per ricalcolare.</p></div><div className="grid grid-2"><div className="field"><label>Clan avversario</label><input className="input" value={opponent} onChange={(e) => { setOpponent(e.target.value); setRows((current) => current.map((r) => r.teamSide === 'ENEMY' && (!r.playerClanName || r.playerClanName === 'Avversari') ? { ...r, playerClanName: e.target.value } : r)); }} placeholder="AP / clan avversario" /></div><div className="field"><label>Squadra vincente</label><select className="select" value={winningTeam} onChange={(e) => setWinningTeam(e.target.value as 'blue' | 'red' | 'draw' | '')}><option value="">Da verificare</option><option value="blue">Blu / sinistra</option><option value="red">Rosso / destra</option><option value="draw">Pareggio</option></select></div></div>
             <div className="grid grid-3 import-result-score-grid"><div className="field"><label>{ourTeam === 'blue' ? 'Risultato BLU / nostro team' : 'Risultato ROSSO / nostro team'}</label><input className="input score-input" inputMode="numeric" value={teamScore} onChange={(e) => setTeamScore(e.target.value.replace(/[^0-9]/g, ''))} placeholder="6" /></div><div className="field"><label>{ourTeam === 'blue' ? 'Risultato ROSSO / avversario' : 'Risultato BLU / avversario'}</label><input className="input score-input" inputMode="numeric" value={enemyScore} onChange={(e) => setEnemyScore(e.target.value.replace(/[^0-9]/g, ''))} placeholder="0" /></div><div className="field"><label>Esito nostro team</label><select className="select" value={result} onChange={(e) => setResult(e.target.value as MatchResult)}><option>WIN</option><option>LOSE</option><option>DRAW</option></select><small className="muted">Se inserisci 6 e 0 l'esito si aggiorna automaticamente.</small></div></div>
             <div className="field"><label>Note partita</label><textarea className="input" rows={4} value={matchNotes} onChange={(e) => setMatchNotes(e.target.value)} placeholder="Note scrim, correzioni OCR, contestazioni, strategia, ecc." /></div>
-            <div className="notice"><strong>Manuale/ospite:</strong> se scrivi un nome che non è nel roster, l'app crea un player provvisorio e salva le sue statistiche. In futuro potrai completarlo/associarlo al profilo registrato.</div>
           </div>
         </div>
       </section>
@@ -1277,8 +1504,10 @@ function ImportMatchEditor() {
           {renderRowsTable('ALLY', ourTeam === 'blue' ? '🔵 Nostro team: blu / sinistra' : '🔴 Nostro team: rosso / destra', allyRows, ourTeam === 'blue' ? 'team-blue' : 'team-red')}
           <div className="ak-opponent-summary"><strong>Avversario:</strong> {opponent || 'da compilare'}<br /><span>Esito nostro: {result}</span><br /><small>Le statistiche dei player avversari non vengono importate né salvate.</small></div>
         </div>
-        <div className="top-gap save-row">
-          <button className="btn" onClick={saveMatch}>💾 Salva partita, ranking e statistiche</button>
+        <div className="top-gap save-row import-save-sticky-fix">
+          <button className="btn" onClick={saveMatch} disabled={savingMatch || saveCompleted}>{savingMatch ? '⏳ Salvataggio...' : saveCompleted ? '✅ Salvato' : editingMatchId ? '💾 Aggiorna partita registrata' : '💾 Salva partita, ranking e statistiche'}</button>
+          {saveCompleted && <button className="btn secondary" type="button" onClick={() => setSaveCompleted(false)}>✏️ Modifica ancora</button>}
+          {savedMatchId && <button className="btn secondary" type="button" onClick={() => loadExistingMatchForEdit(savedMatchId)}>🔄 Ricarica partita salvata</button>}
           <a className="btn secondary" href="/matches">🗂️ Vai ad archivio partite</a>
         </div>
       </section>

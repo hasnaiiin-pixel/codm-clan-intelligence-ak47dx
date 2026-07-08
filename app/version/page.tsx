@@ -5,14 +5,15 @@ export default function VersionPage() {
         <div className="ak-login-card">
           <div className="ak-pill">CLAN MANAGER DEPLOY CHECK</div>
           <h1 className="ak-title">CLAN MANAGER</h1>
-          <p className="ak-lead">Versione V8.2F: risultato partita manuale ripristinato in Import, template non resta più default e calibrazione PWA con comandi touch.</p>
-          <div className="notice top-gap"><strong>Marker:</strong> V8_2F_PWA_CALIBRATION_TOUCH_TEMPLATE_IMPORT_RESULT_FIX_OK</div>
-          <div className="notice top-gap"><strong>Import:</strong> campi risultato nostro/avversario ripristinati; nick e K/D/A restano attivi; punteggio player escluso.</div>
-          <div className="notice top-gap"><strong>Calibrazione/PWA:</strong> handle più grandi e tasti touch per muovere/allargare/ridurre i riquadri.</div>
+          <p className="ak-lead">Release completa V9.0: Home pulita, menu semplificato, Torneo, import risultati da tabella, template OCR, gestione utenti e layout professionale.</p>
+          <div className="notice top-gap"><strong>Marker:</strong> V9_0_COMPLETE_PRO_TOURNAMENT_IMPORT_UI_OK</div>
+          <div className="notice top-gap"><strong>Torneo:</strong> dashboard, gestione, squadre/player, regolamento, classifica/tabellone, partite e archivio.</div>
+          <div className="notice top-gap"><strong>Import:</strong> risultato da screenshot o tabella, mappe/modalità CODM, modifica partite salvate e niente messaggi debug per utenti.</div>
           <div className="ak-quick-links">
             <a href="/cache-reset">Reset cache sicuro</a>
             <a href="/events-health">Health eventi</a>
             <a href="/events">Eventi</a>
+            <a href="/tournament">Torneo</a>
             <a href="/calibration">Calibrazione</a>
             <a href="/import/match">Import partite</a>
           </div>

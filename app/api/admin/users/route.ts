@@ -287,6 +287,21 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ ok: true, message: `Ruolo aggiornato a ${finalRole}.` });
     }
 
+
+
+    if (action === 'deleteUser') {
+      const userId = String(body.userId || '');
+      const email = String(body.email || '').toLowerCase();
+      if (!userId) throw Object.assign(new Error('Utente mancante.'), { status: 400 });
+      if (email === MAIN_ADMIN_EMAIL) throw Object.assign(new Error('Admin principale non cancellabile.'), { status: 400 });
+      await admin.from('clan_members').delete().eq('clan_id', clan.id).eq('user_id', userId);
+      await admin.from('players').delete().eq('clan_id', clan.id).eq('user_id', userId);
+      await admin.from('profiles').delete().eq('id', userId);
+      const { error } = await admin.auth.admin.deleteUser(userId);
+      if (error) throw error;
+      return NextResponse.json({ ok: true, message: 'Utente cancellato da Auth, roster e membri clan.' });
+    }
+
     if (action === 'setRosterStatus') {
       const playerId = String(body.playerId || '');
       const status = String(body.status || 'active');

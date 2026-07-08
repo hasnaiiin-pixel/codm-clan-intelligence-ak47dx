@@ -1,46 +1,27 @@
-# CLAN MANAGER AK47DX V8.2F
+# CLAN MANAGER AK47DX
 
-## Cosa corregge
+Release completa V9.0: gestione eventi, import risultati CODM, calibrazione OCR, utenti/ruoli, statistiche, Telegram e nuova sezione Torneo.
 
-- Import risultati: ripristinati i campi risultato partita, esempio nostro team 6 e avversario 0.
-- Il risultato partita è distinto dal punteggio singolo player: il punteggio player resta escluso.
-- Template OCR: se salvi un template con un nome, in Import viene selezionato quel template e non torna sempre a `default`.
-- Calibrazione/PWA: handle più grandi e comandi touch per muovere, allargare o ridurre il riquadro selezionato.
-- Import/PWA: stessi comandi touch per regolare riquadri sopra lo screenshot.
-- Cache PWA aggiornata a V8.2F.
-
-## Installazione
-
-Copia il contenuto della cartella `codm_v81b` nella root del progetto GitHub.
-
-Comandi:
+## Avvio locale
 
 ```bash
-cd C:\Users\spea4060_tmv331ef\Documents\PROGETTI\COD\CODM_CLAN_INTELLIGENCE_2_0_DEPLOYABLE_PWA_YOLO_AK47DX
 npm ci --legacy-peer-deps
 npm run build
-git add -A
-git commit -m "CLAN MANAGER V8.2F fix PWA calibrazione template risultato import"
-git push origin main
+npm start
 ```
 
-Se Vercel non parte:
+## Deploy
 
 ```bash
-git commit --allow-empty -m "Force Vercel deploy CLAN MANAGER V8.2F"
+git add -A
+git commit -m "CLAN MANAGER V9.0 complete pro release"
 git push origin main
 ```
 
-## Dopo deploy
+## Supabase
 
-Apri `/version` e verifica:
+Eseguire solo `supabase/FINAL_SCHEMA_CLAN_MANAGER.sql` se devi aggiornare schema/tabelle. Gli utenti Auth non vengono cancellati.
 
-```text
-V8_2F_PWA_CALIBRATION_TOUCH_TEMPLATE_IMPORT_RESULT_FIX_OK
-```
+## Versione
 
-Poi da telefono fai `/cache-reset`, chiudi la PWA, rimuovi vecchia icona e reinstallala.
-
-## SQL
-
-Non serve nuovo SQL se `/events-health` è già OK.
+Aprire `/version`: deve mostrare `V9_0_COMPLETE_PRO_TOURNAMENT_IMPORT_UI_OK`.

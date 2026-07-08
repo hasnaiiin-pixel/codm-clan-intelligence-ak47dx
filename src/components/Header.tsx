@@ -1,12 +1,11 @@
 const navItems = [
-  { href: '/dashboard', icon: '🎮', label: 'Dashboard' },
   { href: '/import/match', icon: '⚡', label: 'Import' },
   { href: '/matches', icon: '🎞️', label: 'Partite' },
   { href: '/players', icon: '🪖', label: 'Giocatori' },
+  { href: '/tournament', icon: '🏆', label: 'Torneo' },
   { href: '/analytics', icon: '📊', label: 'Stats' },
   { href: '/clan', icon: '🐺', label: 'Clan HQ' },
   { href: '/invite', icon: '🔗', label: 'Inviti' },
-  { href: '/deploy', icon: '🚀', label: 'Deploy' },
   { href: '/yolo', icon: '🧬', label: 'Dataset' },
   { href: '/import/profile', icon: '🪪', label: 'Profili' },
   { href: '/calibration', icon: '🎯', label: 'OCR 2.0' },
@@ -20,7 +19,7 @@ export function Header() {
         <span className="logo-mark ak-logo-mark"><img src="/assets/ak47dx-logo.jpeg" alt="AK47DX logo" /></span>
         <span className="brand-copy">
           <span className="brand-text">CLAN MANAGER</span>
-          <small>Eventi · Roster · Risultati · Clan HQ</small>
+          <small>Eventi · Giocatori · Tornei · Risultati</small>
         </span>
       </a>
       <nav className="nav gaming-nav" aria-label="Menu principale">

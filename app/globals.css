@@ -2253,3 +2253,47 @@ html, body { overflow-x: hidden; }
     font-size: 16px;
   }
 }
+
+/* V9.0 - Release completa: layout professionale, tornei, tabelle compatte */
+.codm-app-content { padding-top: 8px; }
+.ak-menu-button { z-index: 80; }
+.table th, .table td { text-align: center; vertical-align: middle; white-space: nowrap; }
+.table td:first-child, .table th:first-child { text-align: left; }
+.pro-table tbody tr:nth-child(odd), .table.compact tbody tr:nth-child(odd) { background: rgba(255,255,255,.025); }
+.pro-table tbody tr:nth-child(even), .table.compact tbody tr:nth-child(even) { background: rgba(34,211,238,.035); }
+.table.compact th { font-weight: 900; color: #dff7ff; letter-spacing: .03em; }
+.analytics-page h2, .card h2 { font-weight: 900; }
+.rank-medal { display: inline-flex; align-items: center; justify-content: center; min-width: 44px; white-space: nowrap; }
+.home-v62 .dashboard-clean-head, .dashboard-clean-head { min-height: auto; }
+.tournament-tabs { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 14px; }
+.tournament-tabs button { border: 1px solid rgba(148,163,184,.25); background: rgba(15,23,42,.82); color: #e5f4ff; border-radius: 999px; padding: 9px 12px; font-weight: 800; cursor: pointer; }
+.tournament-tabs button.active { border-color: rgba(34,211,238,.7); background: linear-gradient(135deg, rgba(34,211,238,.26), rgba(124,58,237,.22)); box-shadow: 0 0 18px rgba(34,211,238,.15); }
+.tournament-page .compact-card { border: 1px solid rgba(148,163,184,.18); border-radius: 16px; padding: 12px; background: rgba(2,6,23,.55); display: grid; gap: 5px; }
+.tournament-team-list { display: grid; gap: 10px; }
+.bracket-preview { display: grid; grid-template-columns: repeat(4, minmax(0,1fr)); gap: 10px; }
+.bracket-preview > div { border: 1px solid rgba(34,211,238,.25); border-radius: 14px; background: rgba(8,47,73,.16); padding: 14px; font-weight: 900; text-align: center; }
+.score-inline { display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; gap: 8px; }
+.score-inline input { text-align: center; font-weight: 900; }
+.tournament-home-box { border-color: rgba(250,204,21,.25); background: linear-gradient(135deg, rgba(250,204,21,.08), rgba(34,211,238,.07)); }
+.import-table-entry textarea { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+.import-match-geometry-grid { align-items: start; }
+.import-actions-simple { max-width: 100%; overflow: visible; flex-wrap: wrap; }
+.import-actions-simple .input, .import-actions-simple .select { min-width: 180px; }
+.admin-user-card-v69 .danger, .btn.danger { border-color: rgba(248,113,113,.5); background: rgba(127,29,29,.45); color: #fee2e2; }
+.admin-only-debug summary { cursor: pointer; font-weight: 800; }
+.cal-chip-row { display: flex; flex-wrap: wrap; gap: 6px; }
+.input-clear-row { display: grid; grid-template-columns: 1fr auto; gap: 8px; }
+.ak-section-head { text-align: center; }
+.kpi strong, .kpi span, .kpi small { text-align: center; }
+@media (max-width: 820px) {
+  .codm-app-content { padding-bottom: 86px; }
+  .grid.grid-4, .grid.grid-5, .grid.grid-3 { grid-template-columns: 1fr !important; }
+  .tournament-tabs { overflow-x: auto; flex-wrap: nowrap; padding-bottom: 6px; }
+  .tournament-tabs button { flex: 0 0 auto; }
+  .bracket-preview { grid-template-columns: 1fr 1fr; }
+  .import-actions-simple { display: grid !important; grid-template-columns: 1fr !important; }
+  .import-actions-simple .btn, .import-actions-simple .input, .import-actions-simple .select { width: 100%; }
+  .table-scroll { max-width: 100%; overflow-x: auto; }
+  .table.compact { min-width: 760px; }
+  .ak-bottom-nav { grid-template-columns: repeat(5, minmax(0,1fr)); }
+}

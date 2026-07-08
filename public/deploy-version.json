@@ -1,19 +1,11 @@
 {
-  "version": "8.2F_PWA_CALIBRATION_TOUCH_TEMPLATE_IMPORT_RESULT_FIX",
-  "marker": "V8_2F_PWA_CALIBRATION_TOUCH_TEMPLATE_IMPORT_RESULT_FIX_OK",
+  "version": "9.0_COMPLETE_PRO_TOURNAMENT_IMPORT_UI",
+  "marker": "V9_0_COMPLETE_PRO_TOURNAMENT_IMPORT_UI_OK",
   "appName": "CLAN MANAGER",
   "app": "CLAN MANAGER by MIRZA",
-  "notes": "Ripristinato risultato partita manuale in Import, fix template salvato che restava default, comandi touch PWA per calibrazione/import e handle più grandi su telefono.",
-  "build": "CLAN_MANAGER_V8_2F_PWA_CALIBRATION_TOUCH_TEMPLATE_IMPORT_RESULT_FIX_BUILD",
-  "date": "2026-07-07",
-  "status": "V8_2F_PWA_CALIBRATION_TOUCH_TEMPLATE_IMPORT_RESULT_FIX_OK",
-  "routes": [
-    "/events",
-    "/calibration",
-    "/import/match",
-    "/dashboard",
-    "/api/events/list",
-    "/api/events/delete",
-    "/events-health"
-  ]
+  "notes": "Release completa: torneo, pulizia dashboard/menu, import tabella, gestione utenti, OCR più pulito, statistiche/layout professionali.",
+  "build": "CLAN_MANAGER_AK47DX_V9_0_COMPLETE_PRO_RELEASE_BUILD",
+  "date": "2026-07-08",
+  "status": "V9_0_COMPLETE_PRO_TOURNAMENT_IMPORT_UI_OK",
+  "routes": ["/", "/events", "/tournament", "/calibration", "/import/match", "/admin/users", "/events-health"]
 }

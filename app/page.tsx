@@ -11,6 +11,8 @@ type MatchRow = { id: string; result?: string | null; mode?: string | null; matc
 type EventRow = { id: string; title: string; starts_at: string; ends_at?: string | null; event_type?: string | null; location?: string | null; event_plan?: any | null; event_notes?: string | null };
 type StatRow = { kills?: number | null; deaths?: number | null; assists?: number | null };
 type ScoreRow = { nickname_resolved?: string | null; nickname_raw?: string | null; team_rank?: number | null; mvp_type?: string | null; assists?: number | null; players?: { nickname?: string | null; clan_name?: string | null } | null };
+type TournamentRow = { id: string; name: string; status?: string | null; tournament_date?: string | null; max_teams?: number | null };
+type TournamentMatchRow = { id: string; team_a?: string | null; team_b?: string | null; match_time?: string | null; status?: string | null };
 
 function eventEndTimestamp(event: EventRow) {
   const end = event.ends_at ? new Date(event.ends_at).getTime() : NaN;
@@ -33,6 +35,8 @@ export default function HomePage() {
   const [scoreRows, setScoreRows] = useState<ScoreRow[]>([]);
   const [message, setMessage] = useState('');
   const [events, setEvents] = useState<EventRow[]>([]);
+  const [tournament, setTournament] = useState<TournamentRow | null>(null);
+  const [tournamentMatch, setTournamentMatch] = useState<TournamentMatchRow | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => { void load(); }, []);
@@ -77,6 +81,19 @@ export default function HomePage() {
         }
       }
       setEvents(normalizeHomeEvents(dbEvents));
+
+      try {
+        const { data: tData } = await supabase.from('codm_tournaments').select('id,name,status,tournament_date,max_teams').not('status','in','(Finito,Archiviato)').order('created_at', { ascending: false }).limit(1);
+        const activeTournament = (tData || [])[0] as TournamentRow | undefined;
+        setTournament(activeTournament || null);
+        if (activeTournament?.id) {
+          const { data: tmData } = await supabase.from('codm_tournament_matches').select('id,team_a,team_b,match_time,status').eq('tournament_id', activeTournament.id).not('status','in','(Finita,Annullata)').order('match_time', { ascending: true }).limit(1);
+          setTournamentMatch(((tmData || [])[0] as TournamentMatchRow | undefined) || null);
+        }
+      } catch {
+        setTournament(null);
+        setTournamentMatch(null);
+      }
     } catch (error) {
       setMessage(error instanceof Error ? error.message : 'Errore caricamento home.');
     } finally {
@@ -129,6 +146,18 @@ export default function HomePage() {
         <div className="kpi kpi-glow"><span>Vinte / Perse / Pareggiate</span><strong>{summary.wins} / {summary.losses} / {summary.draws}</strong></div>
         <div className="kpi kpi-glow"><span>Kill totali</span><strong>{summary.kills}</strong><small>K/D {summary.kd}</small></div>
         <div className="kpi kpi-glow"><span>Assist totali</span><strong>{summary.assists}</strong><small>Win rate {summary.wr}%</small></div>
+      </section>
+
+      <section className="card top-gap tournament-home-box">
+        <div className="section-title">
+          <div>
+            <p className="eyebrow">🏆 Torneo attivo</p>
+            <h2>{tournament?.name || 'Nessun torneo attivo'}</h2>
+            <p className="muted">{tournament ? `${tournament.status || 'Bozza'} · ${tournament.tournament_date ? new Date(tournament.tournament_date).toLocaleDateString('it-IT') : 'data da definire'} · iscritti/team gestiti nella sezione Torneo` : 'Crea un torneo da Torneo per mostrarlo qui.'}</p>
+          </div>
+          <a className="btn small" href="/tournament">Apri torneo</a>
+        </div>
+        {tournamentMatch && <div className="notice top-gap">Prossima partita: <b>{tournamentMatch.team_a || '-'} vs {tournamentMatch.team_b || '-'}</b> · {tournamentMatch.match_time ? new Date(tournamentMatch.match_time).toLocaleString('it-IT') : 'orario da definire'}</div>}
       </section>
 
       <section className="grid grid-2 top-gap">

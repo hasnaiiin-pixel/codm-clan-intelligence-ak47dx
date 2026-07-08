@@ -137,6 +137,21 @@ export default function AdminUsersPage() {
     }
   }
 
+
+
+  async function deleteUser(row: AdminUserRow) {
+    if (row.email?.toLowerCase() === 'hasnaiiin@gmail.com') return setMessage('Admin principale non cancellabile.');
+    if (!confirm(`Cancellare ${row.email || row.player_nickname || 'utente'} da Auth/roster?`)) return;
+    setMessage('Cancello utente...');
+    try {
+      const result = await apiFetch('/api/admin/users', { method: 'POST', body: JSON.stringify({ action: 'deleteUser', userId: row.id, playerId: row.player_id, email: row.email }) });
+      setMessage(result.message || 'Utente cancellato.');
+      await load(false);
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : 'Errore cancellazione utente.');
+    }
+  }
+
   async function updateRosterStatus(row: AdminUserRow, status: string) {
     if (!row.player_id) return setMessage('Prima sincronizza il player nel roster.');
     setMessage('Aggiorno stato roster...');
@@ -210,7 +225,7 @@ export default function AdminUsersPage() {
                 <div className="field"><label>Ultimo accesso</label><input className="input" value={dateLabel(row.last_sign_in_at)} disabled /></div>
               </div>
 
-              <div className="grid grid-3 top-gap">
+              <div className="grid grid-4 top-gap">
                 <div className="field">
                   <label>Ruolo app</label>
                   <select className="select" value={row.role === 'registered' ? 'player' : row.role} disabled={row.email?.toLowerCase() === 'hasnaiiin@gmail.com'} onChange={(event) => void updateRole(row, event.target.value as CodmRole)}>
@@ -228,16 +243,22 @@ export default function AdminUsersPage() {
                   <label>TAG clan</label>
                   <input className="input" value={row.clan_name || clanLabel} disabled />
                 </div>
+                <div className="field">
+                  <label>Azioni</label>
+                  <button className="btn small danger" type="button" disabled={row.email?.toLowerCase() === 'hasnaiiin@gmail.com'} onClick={() => void deleteUser(row)}>🗑️ Cancella</button>
+                  <small className="muted">Promuovi/declassa dal menu ruolo.</small>
+                </div>
               </div>
             </article>
           ))}
         </div>
       </section>
 
-      <section className="card top-gap">
-        <h2>Diagnostica rilascio stabile</h2>
-        <p className="muted">Se la lista resta vuota, quasi sempre manca <b>SUPABASE_SERVICE_ROLE_KEY</b> su Vercel o non è stato eseguito lo SQL V6.9.</p>
-        <pre className="diagnostic-pre-v69">{JSON.stringify(diagnostics || {}, null, 2)}</pre>
+      <section className="card top-gap admin-only-debug">
+        <details>
+          <summary>Diagnostica admin</summary>
+          <pre className="diagnostic-pre-v69">{JSON.stringify(diagnostics || {}, null, 2)}</pre>
+        </details>
       </section>
     </main>
   );

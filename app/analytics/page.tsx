@@ -187,7 +187,7 @@ export default function AnalyticsPage() {
   }
 
   return (
-    <main className="container wide">
+    <main className="container wide analytics-page">
       <section className="card hero-compact gaming-panel">
         <p className="eyebrow">📊 Analytics 2.0</p>
         <h1>Statistiche clan e player</h1>
@@ -216,7 +216,7 @@ export default function AnalyticsPage() {
       <section className="grid grid-2 top-gap">
         <PieCard title="Distribuzione MVP" slices={mvpPie} />
         <div className="card">
-          <h2>Statistiche per clan · medagliere MVP</h2><p className="muted">Ordinato come medagliere: 🥇 Oro/MVP, 🥈 Argento, 🥉 Bronzo, 🪵 Legno, 🏛️ Olimpico.</p>
+          <h2>🏅 Statistiche per clan · medagliere MVP</h2>
           <div className="table-scroll">
             <table className="table compact"><thead><tr><th>Clan</th><th>Player</th><th>Righe</th><th>Kill</th><th>Death</th><th>Assist</th><th>K/D</th><th>🥇</th><th>🥈</th><th>🥉</th><th>🪵</th><th>🏛️</th><th>Pos. media</th><th>MVP</th></tr></thead><tbody>{clanSummary.map((c) => <tr key={c.clan}><td>{c.clan}</td><td>{c.playerCount}</td><td>{c.rows}</td><td>{c.kills}</td><td>{c.deaths}</td><td>{c.assists}</td><td>{c.kd}</td><td>{c.gold}</td><td>{c.silver}</td><td>{c.bronze}</td><td>{c.wood}</td><td>{c.olympic}</td><td>{c.avgRank}</td><td>{c.mvp}</td></tr>)}{!clanSummary.length && <tr><td colSpan={14} className="muted">Nessun dato clan.</td></tr>}</tbody></table>
           </div>
@@ -224,9 +224,9 @@ export default function AnalyticsPage() {
       </section>
 
       <section className="card top-gap">
-        <h2>Top player filtrati</h2>
+        <h2>🏆 Top player filtrati</h2>
         <div className="table-scroll">
-          <table className="table compact"><thead><tr><th>Player</th><th>Clan</th><th>Match/Righe</th><th>Kill</th><th>Death</th><th>Assist</th><th>K/D</th><th>🥇 Oro</th><th>🥈 Argento</th><th>🥉 Bronzo</th><th>🪵 Legno</th><th>🏛️ Olimpico</th><th>MVP</th><th>Pos. media</th></tr></thead><tbody>{topPlayers.map((p) => <tr key={`${p.name}-${p.clan}`}><td>{p.name}</td><td>{p.clan}</td><td>{p.rows}</td><td>{p.kills}</td><td>{p.deaths}</td><td>{p.assists}</td><td>{p.kd}</td><td>{p.gold}</td><td>{p.silver}</td><td>{p.bronze}</td><td>{p.wood}</td><td>{p.olympic}</td><td>{p.mvp}</td><td>{p.avgRank}</td></tr>)}{!topPlayers.length && <tr><td colSpan={14} className="muted">Nessun player trovato.</td></tr>}</tbody></table>
+          <table className="table compact"><thead><tr><th>Player</th><th>Clan</th><th>Match/Righe</th><th>Kill</th><th>Death</th><th>Assist</th><th>K/D</th><th>🥇 Oro</th><th>🥈 Argento</th><th>🥉 Bronzo</th><th>🪵 Legno</th><th>🏛️ Olimpico</th><th>MVP</th><th>Pos. media</th></tr></thead><tbody>{topPlayers.map((p) => <tr key={`${p.name}-${p.clan}`}><td><a href={`/players?search=${encodeURIComponent(p.name)}`}><b>{p.name}</b></a></td><td>{p.clan}</td><td>{p.rows}</td><td>{p.kills}</td><td>{p.deaths}</td><td>{p.assists}</td><td>{p.kd}</td><td>{p.gold}</td><td>{p.silver}</td><td>{p.bronze}</td><td>{p.wood}</td><td>{p.olympic}</td><td>{p.mvp}</td><td>{p.avgRank}</td></tr>)}{!topPlayers.length && <tr><td colSpan={14} className="muted">Nessun player trovato.</td></tr>}</tbody></table>
         </div>
       </section>
     </main>

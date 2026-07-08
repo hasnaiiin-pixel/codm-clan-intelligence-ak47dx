@@ -1,7 +1,0 @@
-CLAN MANAGER AK47DX V8.2F
-- Ripristinati campi risultato partita in Import: risultato nostro team e risultato avversario.
-- Template calibrazione/import: se salvi un nome, Import non torna più automaticamente a default.
-- PWA/calibrazione: handle più grandi su touch e comandi per muovere/allargare/ridurre il riquadro selezionato.
-- Import: aggiunti comandi touch per regolare riquadri direttamente nello screenshot.
-- Punteggio player resta escluso; risultato partita alto resta gestito manualmente/importabile.
-Verifiche: npm ci OK, npx tsc --noEmit OK, npm run build compilazione Next.js OK fino a Collecting page data prima del timeout container.
