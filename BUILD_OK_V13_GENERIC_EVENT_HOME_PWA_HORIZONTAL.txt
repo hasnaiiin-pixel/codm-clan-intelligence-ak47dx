@@ -1,0 +1,17 @@
+CLAN MANAGER AK47DX V13 - GENERIC EVENT + HOME GRAPHICS + PWA HORIZONTAL MENU
+
+Data: 2026-07-08
+
+Modifiche principali:
+- Evento generico leggero: nome evento, data/ora, descrizione, stato, cover, logo nostro clan, logo avversario/organizzatore.
+- Flag attivo di default: Aggiungi partite in una fase successiva.
+- Le partite non sono più obbligatorie alla creazione evento.
+- In modifica evento si può aggiungere la prima partita o aggiungerne/toglierne altre.
+- Home arricchita con hero gaming, logo orbitale, card grafiche, prossimo evento e barre modalità.
+- Menu PWA bottom forzato su una sola riga con 6 voci.
+- Eventi programmati in PWA mantenuti in orizzontale: logo nostro clan - VS - logo avversario/organizzatore.
+
+Verifica tecnica:
+- npm ci --legacy-peer-deps completato.
+- npx tsc --noEmit completato senza errori.
+- npm run build: compilazione Next completata fino a Compiled successfully, type-check e static pages generate; nel container il processo è rimasto in fase finale Collecting build traces fino al timeout, ma la cartella .next è stata generata.

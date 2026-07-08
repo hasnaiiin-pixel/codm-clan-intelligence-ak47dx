@@ -24,6 +24,8 @@ type MatchRound = {
 };
 
 type MatchPlan = {
+  eventStatus?: string;
+  matchesDeferred?: boolean;
   teamAName: string;
   teamBName: string;
   teamALogo: string;
@@ -41,7 +43,7 @@ type CodmEvent = {
   id: string;
   clan_id: string;
   local_id?: string | null;
-  sync_status?: 'pending' | 'synced' | 'error' | null;
+  sync_status?: "pending" | "synced" | "error" | null;
   sync_error?: string | null;
   title: string;
   description: string | null;
@@ -103,20 +105,29 @@ const LEGACY_EVENT_STORAGE_KEYS = [
   "events_cache",
 ];
 const MAX_LOCAL_IMAGE_DATA_URL_CHARS = 240_000;
-const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+const UUID_RE =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 function isUuid(value: unknown): value is string {
   return typeof value === "string" && UUID_RE.test(value);
 }
 function cleanupLegacyEventStorage() {
   if (typeof window === "undefined") return;
   for (const key of LEGACY_EVENT_STORAGE_KEYS) {
-    try { window.localStorage.removeItem(key); } catch {}
-    try { window.sessionStorage.removeItem(key); } catch {}
+    try {
+      window.localStorage.removeItem(key);
+    } catch {}
+    try {
+      window.sessionStorage.removeItem(key);
+    } catch {}
   }
-  try { window.dispatchEvent(new CustomEvent("codm-events-db-only")); } catch {}
+  try {
+    window.dispatchEvent(new CustomEvent("codm-events-db-only"));
+  } catch {}
 }
 function sortEvents(rows: CodmEvent[]) {
-  return dedupeEvents(rows).sort((a, b) => new Date(a.starts_at).getTime() - new Date(b.starts_at).getTime());
+  return dedupeEvents(rows).sort(
+    (a, b) => new Date(a.starts_at).getTime() - new Date(b.starts_at).getTime(),
+  );
 }
 function compactDataUrlForLocal(value: unknown) {
   if (typeof value !== "string") return value;
@@ -133,7 +144,10 @@ function compactPlanForLocalStorage(plan: MatchPlan | null | undefined) {
   };
 }
 function compactEventForLocalStorage(event: CodmEvent) {
-  return { ...event, event_plan: compactPlanForLocalStorage(event.event_plan || null) } as CodmEvent;
+  return {
+    ...event,
+    event_plan: compactPlanForLocalStorage(event.event_plan || null),
+  } as CodmEvent;
 }
 const matchStatuses = ["Da giocare", "Giocata", "Risultato caricato"];
 const resultLabels = ["Vinto", "Perso", "Pareggiato"];
@@ -336,14 +350,24 @@ const banOptions = [
 ];
 
 const eventTypes = [
+  { value: "evento", label: "📌 Evento" },
   { value: "scrim", label: "⚔️ Scrim" },
   { value: "torneo", label: "🏆 Torneo" },
   { value: "allenamento", label: "🎯 Allenamento" },
   { value: "ranked", label: "💎 Ranked" },
 ];
 
-const DEFAULT_TELEGRAM_TEMPLATE =
-  "PROFESSIONAL_EVENT_SUMMARY_V8_2";
+const eventStatusOptions = [
+  "Bozza",
+  "Da completare",
+  "Programmato",
+  "In corso",
+  "Giocato",
+  "Risultato caricato",
+  "Annullato",
+];
+
+const DEFAULT_TELEGRAM_TEMPLATE = "PROFESSIONAL_EVENT_SUMMARY_V8_2";
 
 function toLocalInputValue(date = new Date(Date.now() + 24 * 60 * 60 * 1000)) {
   const tzOffset = date.getTimezoneOffset() * 60000;
@@ -385,17 +409,19 @@ function emptyRound(n = 1): MatchRound {
 }
 function emptyPlan(clanName = "AK47DX"): MatchPlan {
   return {
+    eventStatus: "Bozza",
+    matchesDeferred: true,
     teamAName: clanName,
-    teamBName: "Clan avversario",
+    teamBName: "Avversario / Organizzatore",
     teamALogo: "/assets/ak47dx-logo.jpeg",
     teamBLogo: "",
     coverImage: "",
-    totalMatches: 1,
+    totalMatches: 0,
     lobbyTime: "",
     discordLink: "",
     lobbyLink: "",
     roomNumber: "",
-    rounds: [emptyRound(1)],
+    rounds: [],
   };
 }
 function sanitizeRound(raw: Partial<MatchRound>, index: number): MatchRound {
@@ -411,10 +437,15 @@ function sanitizeRound(raw: Partial<MatchRound>, index: number): MatchRound {
 function readPlan(event: CodmEvent): MatchPlan {
   if (event.event_plan && typeof event.event_plan === "object") {
     const plan = event.event_plan as MatchPlan;
+    const hasRounds = Array.isArray(plan.rounds) && plan.rounds.length > 0;
     return {
       ...emptyPlan("AK47DX"),
       ...plan,
-      rounds: (plan.rounds || [emptyRound(1)]).map(sanitizeRound),
+      matchesDeferred: plan.matchesDeferred ?? !hasRounds,
+      totalMatches: plan.matchesDeferred
+        ? 0
+        : plan.totalMatches || plan.rounds?.length || 0,
+      rounds: hasRounds ? (plan.rounds || []).map(sanitizeRound) : [],
     };
   }
   const note = event.event_notes || "";
@@ -425,10 +456,16 @@ function readPlan(event: CodmEvent): MatchPlan {
     const idx = note.indexOf(marker);
     try {
       const parsed = JSON.parse(note.slice(idx + marker.length));
+      const hasRounds =
+        Array.isArray(parsed.rounds) && parsed.rounds.length > 0;
       return {
         ...emptyPlan("AK47DX"),
         ...parsed,
-        rounds: (parsed.rounds || [emptyRound(1)]).map(sanitizeRound),
+        matchesDeferred: parsed.matchesDeferred ?? !hasRounds,
+        totalMatches: parsed.matchesDeferred
+          ? 0
+          : parsed.totalMatches || parsed.rounds?.length || 0,
+        rounds: hasRounds ? (parsed.rounds || []).map(sanitizeRound) : [],
       };
     } catch {}
   }
@@ -485,11 +522,22 @@ function getMatchStatus(round: MatchRound) {
   return "Da giocare";
 }
 function normalizePlan(plan: MatchPlan) {
+  const deferred = Boolean(plan.matchesDeferred);
+  if (deferred) {
+    return {
+      ...plan,
+      eventStatus: plan.eventStatus || "Da completare",
+      matchesDeferred: true,
+      totalMatches: 0,
+      rounds: [],
+    };
+  }
+  const sourceRounds = plan.rounds.length ? plan.rounds : [emptyRound(1)];
   const total = Math.max(
     1,
-    Number(plan.totalMatches || plan.rounds.length || 1),
+    Number(plan.totalMatches || sourceRounds.length || 1),
   );
-  const rounds = plan.rounds.slice(0, total).map((round, index) => {
+  const rounds = sourceRounds.slice(0, total).map((round, index) => {
     const normalized = sanitizeRound(round, index);
     const outcome = getMatchOutcome(normalized);
     return {
@@ -499,10 +547,16 @@ function normalizePlan(plan: MatchPlan) {
       result: outcome,
     };
   });
-  return { ...plan, totalMatches: rounds.length, rounds };
+  return {
+    ...plan,
+    matchesDeferred: false,
+    totalMatches: rounds.length,
+    rounds,
+  };
 }
 function buildMatchDetails(plan: MatchPlan) {
   const normalized = normalizePlan(plan);
+  if (!normalized.rounds.length) return "";
   return normalized.rounds
     .map((round) => {
       const mode = modeMeta(round.mode);
@@ -525,19 +579,40 @@ function buildMatchDetails(plan: MatchPlan) {
 function draftPayload(args: Record<string, unknown>) {
   return JSON.stringify({ savedAt: new Date().toISOString(), ...args });
 }
-function resolveRosterPlayersFromPlan(plan: MatchPlan, availablePlayers: PlayerRow[]) {
-  const lookup = new Map(availablePlayers.map((player) => [player.nickname.trim().toLowerCase(), player]));
+function resolveRosterPlayersFromPlan(
+  plan: MatchPlan,
+  availablePlayers: PlayerRow[],
+) {
+  const lookup = new Map(
+    availablePlayers.map((player) => [
+      player.nickname.trim().toLowerCase(),
+      player,
+    ]),
+  );
   const entries = plan.rounds.flatMap((round) => [
-    ...listFromText(round.players).map((nickname) => ({ nickname, role: "titolare" as const })),
-    ...listFromText(round.reserves).map((nickname) => ({ nickname, role: "riserva" as const })),
+    ...listFromText(round.players).map((nickname) => ({
+      nickname,
+      role: "titolare" as const,
+    })),
+    ...listFromText(round.reserves).map((nickname) => ({
+      nickname,
+      role: "riserva" as const,
+    })),
   ]);
-  const resolved = new Map<string, { id: string; nickname: string; role: "titolare" | "riserva" }>();
+  const resolved = new Map<
+    string,
+    { id: string; nickname: string; role: "titolare" | "riserva" }
+  >();
   for (const entry of entries) {
     const key = entry.nickname.trim().toLowerCase();
     const player = lookup.get(key);
     if (!player?.id) continue;
     if (!resolved.has(player.id)) {
-      resolved.set(player.id, { id: player.id, nickname: player.nickname, role: entry.role });
+      resolved.set(player.id, {
+        id: player.id,
+        nickname: player.nickname,
+        role: entry.role,
+      });
     }
   }
   return Array.from(resolved.values());
@@ -558,10 +633,10 @@ export default function EventsPage() {
   const [draftReady, setDraftReady] = useState(false);
   const [editingEventId, setEditingEventId] = useState<string | null>(null);
 
-  const [title, setTitle] = useState("Scrim AK47DX vs Clan avversario");
+  const [title, setTitle] = useState("Nuovo evento AK47DX");
   const [description, setDescription] = useState("");
-  const [location, setLocation] = useState("CODM room");
-  const [eventType, setEventType] = useState("scrim");
+  const [location, setLocation] = useState("");
+  const [eventType, setEventType] = useState("evento");
   const [startsAt, setStartsAt] = useState(
     toLocalInputValue(new Date(Date.now() + 60 * 60 * 1000)),
   );
@@ -569,9 +644,13 @@ export default function EventsPage() {
     toLocalInputValue(new Date(Date.now() + 3 * 60 * 60 * 1000)),
   );
   const [telegramEnabled, setTelegramEnabled] = useState(true);
-  const [reminderMinutes, setReminderMinutes] = useState("10080,1440,360,120,60,30,10,0");
+  const [reminderMinutes, setReminderMinutes] = useState(
+    "10080,1440,360,120,60,30,10,0",
+  );
   const [customReminderValue, setCustomReminderValue] = useState("45");
-  const [customReminderUnit, setCustomReminderUnit] = useState<"minutes" | "hours" | "days">("minutes");
+  const [customReminderUnit, setCustomReminderUnit] = useState<
+    "minutes" | "hours" | "days"
+  >("minutes");
   const [telegramTemplate, setTelegramTemplate] = useState(
     DEFAULT_TELEGRAM_TEMPLATE,
   );
@@ -587,23 +666,50 @@ export default function EventsPage() {
   function commitPlan(next: MatchPlan | ((current: MatchPlan) => MatchPlan)) {
     setPlan((current) => {
       const source = planRef.current || current;
-      const resolved = typeof next === "function" ? (next as (current: MatchPlan) => MatchPlan)(source) : next;
+      const resolved =
+        typeof next === "function"
+          ? (next as (current: MatchPlan) => MatchPlan)(source)
+          : next;
       planRef.current = resolved;
       return resolved;
     });
   }
-  function commitTitle(value: string) { titleRef.current = value; setTitle(value); }
-  function commitDescription(value: string) { descriptionRef.current = value; setDescription(value); }
-  function commitLocation(value: string) { locationRef.current = value; setLocation(value); }
+  function commitTitle(value: string) {
+    titleRef.current = value;
+    setTitle(value);
+  }
+  function commitDescription(value: string) {
+    descriptionRef.current = value;
+    setDescription(value);
+  }
+  function commitLocation(value: string) {
+    locationRef.current = value;
+    setLocation(value);
+  }
 
   const canWrite = auth.canWrite;
-  const isAdminUser = auth.canManageUsers || String(auth.user?.email || "").trim().toLowerCase() === "hasnaiiin@gmail.com";
-  const adminSuffix = (text: string) => isAdminUser ? text : "Operazione non completata. Controlla connessione/login o chiedi a un admin.";
+  const isAdminUser =
+    auth.canManageUsers ||
+    String(auth.user?.email || "")
+      .trim()
+      .toLowerCase() === "hasnaiiin@gmail.com";
+  const adminSuffix = (text: string) =>
+    isAdminUser
+      ? text
+      : "Operazione non completata. Controlla connessione/login o chiedi a un admin.";
 
-  useEffect(() => { planRef.current = plan; }, [plan]);
-  useEffect(() => { titleRef.current = title; }, [title]);
-  useEffect(() => { descriptionRef.current = description; }, [description]);
-  useEffect(() => { locationRef.current = location; }, [location]);
+  useEffect(() => {
+    planRef.current = plan;
+  }, [plan]);
+  useEffect(() => {
+    titleRef.current = title;
+  }, [title]);
+  useEffect(() => {
+    descriptionRef.current = description;
+  }, [description]);
+  useEffect(() => {
+    locationRef.current = location;
+  }, [location]);
 
   useEffect(() => {
     cleanupLegacyEventStorage();
@@ -628,10 +734,16 @@ export default function EventsPage() {
     setEvents(sortEvents(rows));
   }
 
-  async function saveEventNotification(_event: CodmEvent, _mode: "created" | "updated" | "sync-error") {
+  async function saveEventNotification(
+    _event: CodmEvent,
+    _mode: "created" | "updated" | "sync-error",
+  ) {
     // V7.6 database-only: le notifiche evento vengono create dalla API server in public.codm_notifications.
     // Nessuna notifica/evento viene salvato localmente nella PWA.
-    if (typeof window !== "undefined") window.dispatchEvent(new CustomEvent("codm-server-notifications-changed"));
+    if (typeof window !== "undefined")
+      window.dispatchEvent(
+        new CustomEvent("codm-server-notifications-changed"),
+      );
   }
   async function loadPlayers() {
     try {
@@ -663,7 +775,9 @@ export default function EventsPage() {
       if (!token) {
         setEvents([]);
         setEventPlayers([]);
-        setMessage("Eventi non caricati: serve login Supabase. La PWA non usa più dati locali.");
+        setMessage(
+          "Eventi non caricati: serve login Supabase. La PWA non usa più dati locali.",
+        );
         return;
       }
       const response = await fetch(`/api/events/list`, {
@@ -676,13 +790,20 @@ export default function EventsPage() {
         },
       });
       const json = await response.json().catch(() => null);
-      if (!response.ok || !json?.ok) throw new Error(json?.error || "API eventi non disponibile.");
+      if (!response.ok || !json?.ok)
+        throw new Error(json?.error || "API eventi non disponibile.");
       setDbEvents((json.events || []) as CodmEvent[]);
       setEventPlayers((json.eventPlayers || []) as EventPlayerRow[]);
     } catch (error) {
       setEvents([]);
       setEventPlayers([]);
-      setMessage(adminSuffix(error instanceof Error ? `Eventi non caricati dal database: ${error.message}` : "Eventi non caricati dal database."));
+      setMessage(
+        adminSuffix(
+          error instanceof Error
+            ? `Eventi non caricati dal database: ${error.message}`
+            : "Eventi non caricati dal database.",
+        ),
+      );
     } finally {
       setEventsLoading(false);
     }
@@ -693,7 +814,9 @@ export default function EventsPage() {
       .split(",")
       .map((x) => Number(x.trim()))
       .filter((n) => Number.isFinite(n) && n >= 0 && n <= 43200);
-    return Array.from(new Set(values.length ? values : [120, 30, 10, 0])).sort((a, b) => b - a);
+    return Array.from(new Set(values.length ? values : [120, 30, 10, 0])).sort(
+      (a, b) => b - a,
+    );
   }
   function hasReminder(minutes: number) {
     return parseReminderMinutes().includes(minutes);
@@ -702,7 +825,11 @@ export default function EventsPage() {
     const values = new Set(parseReminderMinutes());
     if (checked) values.add(minutes);
     else values.delete(minutes);
-    setReminderMinutes(Array.from(values).sort((a, b) => b - a).join(","));
+    setReminderMinutes(
+      Array.from(values)
+        .sort((a, b) => b - a)
+        .join(","),
+    );
   }
   function addCustomReminder() {
     const base = Math.max(0, Number(customReminderValue || 0));
@@ -710,9 +837,16 @@ export default function EventsPage() {
       setMessage("Inserisci un valore reminder valido.");
       return;
     }
-    const minutes = customReminderUnit === "days" ? base * 1440 : customReminderUnit === "hours" ? base * 60 : base;
+    const minutes =
+      customReminderUnit === "days"
+        ? base * 1440
+        : customReminderUnit === "hours"
+          ? base * 60
+          : base;
     setReminderPreset(Math.round(minutes), true);
-    setMessage(`Reminder aggiunto: ${customReminderValue} ${customReminderUnit === "days" ? "giorni" : customReminderUnit === "hours" ? "ore" : "minuti"} prima.`);
+    setMessage(
+      `Reminder aggiunto: ${customReminderValue} ${customReminderUnit === "days" ? "giorni" : customReminderUnit === "hours" ? "ore" : "minuti"} prima.`,
+    );
   }
   function reminderHuman(minutes: number) {
     if (minutes === 0) return "Evento iniziato";
@@ -730,11 +864,46 @@ export default function EventsPage() {
   }
   function addRound() {
     commitPlan((current) => {
-      const n = current.rounds.length + 1;
+      const source = current.matchesDeferred ? [] : current.rounds;
+      const n = source.length + 1;
       return {
         ...current,
+        matchesDeferred: false,
+        eventStatus:
+          current.eventStatus === "Bozza" ||
+          current.eventStatus === "Da completare"
+            ? "Programmato"
+            : current.eventStatus,
         totalMatches: n,
-        rounds: [...current.rounds, emptyRound(n)],
+        rounds: [...source, emptyRound(n)],
+      };
+    });
+  }
+  function setMatchesDeferred(checked: boolean) {
+    commitPlan((current) => {
+      if (checked) {
+        return {
+          ...current,
+          matchesDeferred: true,
+          eventStatus:
+            current.eventStatus === "Programmato"
+              ? "Da completare"
+              : current.eventStatus || "Da completare",
+          totalMatches: 0,
+          rounds: [],
+        };
+      }
+      const rounds = current.rounds.length ? current.rounds : [emptyRound(1)];
+      return {
+        ...current,
+        matchesDeferred: false,
+        eventStatus:
+          current.eventStatus === "Bozza" ||
+          current.eventStatus === "Da completare"
+            ? "Programmato"
+            : current.eventStatus,
+        totalMatches: rounds.length,
+        rounds,
       };
     });
   }
@@ -747,10 +916,20 @@ export default function EventsPage() {
           n: i + 1,
           matchCode: r.matchCode || makeMatchCode(i + 1),
         }));
+      if (!next.length) {
+        return {
+          ...current,
+          matchesDeferred: true,
+          eventStatus: "Da completare",
+          totalMatches: 0,
+          rounds: [],
+        };
+      }
       return {
         ...current,
-        totalMatches: Math.max(1, next.length),
-        rounds: next.length ? next : [emptyRound(1)],
+        matchesDeferred: false,
+        totalMatches: next.length,
+        rounds: next,
       };
     });
   }
@@ -789,10 +968,19 @@ export default function EventsPage() {
         img.onload = () => {
           try {
             const maxSide = 1024;
-            const ratio = Math.min(1, maxSide / Math.max(img.width || maxSide, img.height || maxSide));
+            const ratio = Math.min(
+              1,
+              maxSide / Math.max(img.width || maxSide, img.height || maxSide),
+            );
             const canvas = document.createElement("canvas");
-            canvas.width = Math.max(1, Math.round((img.width || maxSide) * ratio));
-            canvas.height = Math.max(1, Math.round((img.height || maxSide) * ratio));
+            canvas.width = Math.max(
+              1,
+              Math.round((img.width || maxSide) * ratio),
+            );
+            canvas.height = Math.max(
+              1,
+              Math.round((img.height || maxSide) * ratio),
+            );
             const ctx = canvas.getContext("2d");
             if (!ctx) return cb(original);
             ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
@@ -811,10 +999,10 @@ export default function EventsPage() {
   }
   function resetEditor(clearDraft = false) {
     setEditingEventId(null);
-    setTitle("Scrim AK47DX vs Clan avversario");
+    setTitle("Nuovo evento AK47DX");
     setDescription("");
-    setLocation("CODM room");
-    setEventType("scrim");
+    setLocation("");
+    setEventType("evento");
     setStartsAt(toLocalInputValue(new Date(Date.now() + 60 * 60 * 1000)));
     setEndsAt(toLocalInputValue(new Date(Date.now() + 3 * 60 * 60 * 1000)));
     setTelegramEnabled(true);
@@ -839,7 +1027,11 @@ export default function EventsPage() {
     setStartsAt(toLocalInputValue(new Date(event.starts_at)));
     setEndsAt(event.ends_at ? toLocalInputValue(new Date(event.ends_at)) : "");
     setTelegramEnabled(event.telegram_enabled ?? true);
-    setReminderMinutes((event.reminder_minutes || [10080, 1440, 360, 120, 60, 30, 10, 0]).join(","));
+    setReminderMinutes(
+      (event.reminder_minutes || [10080, 1440, 360, 120, 60, 30, 10, 0]).join(
+        ",",
+      ),
+    );
     setTelegramTemplate(
       event.telegram_message_template || DEFAULT_TELEGRAM_TEMPLATE,
     );
@@ -859,14 +1051,18 @@ export default function EventsPage() {
     );
   }
 
-
   function isDefaultOpponentName(value: string) {
     const text = value.trim().toLowerCase();
     return !text || text === "clan avversario" || text === "cl clan avversario";
   }
   function isAutoEventTitle(value: string) {
     const text = value.trim().toLowerCase();
-    return !text || text.includes("clan avversario") || text.startsWith("scrim ak47dx vs") || text.startsWith("scrim ");
+    return (
+      !text ||
+      text.includes("clan avversario") ||
+      text.startsWith("scrim ak47dx vs") ||
+      text.startsWith("scrim ")
+    );
   }
   function readPlanFromVisibleForm() {
     const current = planRef.current || plan;
@@ -874,18 +1070,26 @@ export default function EventsPage() {
     const teamBFromInput = teamBInputRef.current?.value?.trim();
     return normalizePlan({
       ...current,
-      teamAName: teamAFromInput || current.teamAName || auth.clanName || "AK47DX",
+      teamAName:
+        teamAFromInput || current.teamAName || auth.clanName || "AK47DX",
       teamBName: teamBFromInput || current.teamBName || "Clan avversario",
     });
   }
   function updateTeamName(side: "A" | "B", value: string) {
     const current = planRef.current || plan;
-    const next = side === "A" ? { ...current, teamAName: value } : { ...current, teamBName: value };
+    const next =
+      side === "A"
+        ? { ...current, teamAName: value }
+        : { ...current, teamBName: value };
     planRef.current = next;
     setPlan(next);
     const teamA = next.teamAName?.trim() || auth.clanName || "AK47DX";
     const teamB = next.teamBName?.trim() || "Clan avversario";
-    if (side === "B" && !isDefaultOpponentName(teamB) && isAutoEventTitle(titleRef.current || title)) {
+    if (
+      side === "B" &&
+      !isDefaultOpponentName(teamB) &&
+      isAutoEventTitle(titleRef.current || title)
+    ) {
       commitTitle(`Scrim ${teamA} vs ${teamB}`);
     }
   }
@@ -902,9 +1106,11 @@ export default function EventsPage() {
       const currentDescription = descriptionRef.current ?? description;
       const currentLocation = locationRef.current ?? location;
       const currentPlan = readPlanFromVisibleForm();
-      const finalTitle = isAutoEventTitle(currentTitle) && !isDefaultOpponentName(currentPlan.teamBName)
-        ? `Scrim ${(currentPlan.teamAName || auth.clanName || "AK47DX").trim()} vs ${currentPlan.teamBName.trim()}`
-        : currentTitle;
+      const finalTitle =
+        isAutoEventTitle(currentTitle) &&
+        !isDefaultOpponentName(currentPlan.teamBName)
+          ? `Scrim ${(currentPlan.teamAName || auth.clanName || "AK47DX").trim()} vs ${currentPlan.teamBName.trim()}`
+          : currentTitle;
       if (!finalTitle) {
         setMessage("Inserisci il titolo evento prima di salvare.");
         return;
@@ -923,23 +1129,43 @@ export default function EventsPage() {
       const startIso = startDate.toISOString();
       const endIso = endDate ? endDate.toISOString() : null;
       const effectivePlan = normalizePlan(currentPlan);
-      const resolvedRosters = resolveRosterPlayersFromPlan(effectivePlan, players);
-      const convocati = resolvedRosters.filter((entry) => entry.role === "titolare");
-      const reserves = resolvedRosters.filter((entry) => entry.role === "riserva");
-      const matchDetailsText = buildMatchDetails(effectivePlan).replace(/<[^>]*>/g, "");
+      const resolvedRosters = resolveRosterPlayersFromPlan(
+        effectivePlan,
+        players,
+      );
+      const convocati = resolvedRosters.filter(
+        (entry) => entry.role === "titolare",
+      );
+      const reserves = resolvedRosters.filter(
+        (entry) => entry.role === "riserva",
+      );
+      const matchDetailsText = buildMatchDetails(effectivePlan).replace(
+        /<[^>]*>/g,
+        "",
+      );
       const convocationsText = [
-        convocati.length ? `Titolari evento:\n${convocati.map((p) => `• ${p.nickname}`).join("\n")}` : "",
-        reserves.length ? `Riserve evento:\n${reserves.map((p) => `• ${p.nickname}`).join("\n")}` : "",
+        convocati.length
+          ? `Titolari evento:\n${convocati.map((p) => `• ${p.nickname}`).join("\n")}`
+          : "",
+        reserves.length
+          ? `Riserve evento:\n${reserves.map((p) => `• ${p.nickname}`).join("\n")}`
+          : "",
         matchDetailsText ? `Dettaglio partite:\n${matchDetailsText}` : "",
-      ].filter(Boolean).join("\n\n");
-      const fullDescription = [currentDescription, convocationsText].filter(Boolean).join("\n\n");
+      ]
+        .filter(Boolean)
+        .join("\n\n");
+      const fullDescription = [currentDescription, convocationsText]
+        .filter(Boolean)
+        .join("\n\n");
       // V8.2B: non genero più link Google Calendar automatico. I link evento sono solo quelli inseriti manualmente (Discord/Lobby/Note).
 
       // V8.0: il clan non viene più passato dal client. Lo risolve solo la API server.
       const effectiveClanId = null;
       const remoteEditingId = isUuid(editingEventId) ? editingEventId : null;
       if (editingEventId && !isUuid(editingEventId)) {
-        setMessage("Questo evento era locale da una vecchia PWA e non può essere aggiornato. Cancella cache PWA e ricrealo nel database.");
+        setMessage(
+          "Questo evento era locale da una vecchia PWA e non può essere aggiornato. Cancella cache PWA e ricrealo nel database.",
+        );
         return;
       }
       const createdBy = isUuid(auth.user?.id) ? auth.user?.id : null;
@@ -954,12 +1180,19 @@ export default function EventsPage() {
         ends_at: endIso,
         telegram_enabled: telegramEnabled,
         reminder_minutes: parseReminderMinutes(),
-        telegram_message_template: telegramTemplate || DEFAULT_TELEGRAM_TEMPLATE,
+        telegram_message_template:
+          telegramTemplate || DEFAULT_TELEGRAM_TEMPLATE,
         event_notes: planNote(effectivePlan, eventNotes),
         google_calendar_url: null,
         convocations: convocati
           .map((p) => ({ id: p.id, nickname: p.nickname, role: "titolare" }))
-          .concat(reserves.map((p) => ({ id: p.id, nickname: p.nickname, role: "riserva" }))),
+          .concat(
+            reserves.map((p) => ({
+              id: p.id,
+              nickname: p.nickname,
+              role: "riserva",
+            })),
+          ),
         convocations_text: convocationsText || null,
       };
       const payloadWithPlan = { ...basePayload, event_plan: effectivePlan };
@@ -989,7 +1222,9 @@ export default function EventsPage() {
       ];
 
       if (!isSupabaseConfigured) {
-        error = new Error("Supabase non configurato: evento non salvato. Da V7.6 gli eventi esistono solo nel database.");
+        error = new Error(
+          "Supabase non configurato: evento non salvato. Da V7.6 gli eventi esistono solo nel database.",
+        );
       } else {
         try {
           const { data: sessionData } = await supabase.auth.getSession();
@@ -999,7 +1234,9 @@ export default function EventsPage() {
             token = refreshed.session?.access_token;
           }
           if (!token) {
-            throw new Error("Login richiesto: accedi prima di creare eventi condivisi con il clan. Nella PWA fai logout/login una volta dopo il reset cache.");
+            throw new Error(
+              "Login richiesto: accedi prima di creare eventi condivisi con il clan. Nella PWA fai logout/login una volta dopo il reset cache.",
+            );
           }
 
           const response = await fetch("/api/events/save", {
@@ -1018,12 +1255,20 @@ export default function EventsPage() {
           });
           const json = await response.json().catch(() => null);
           if (!response.ok || !json?.ok) {
-            throw new Error(json?.error || "Supabase/API non ha confermato il salvataggio evento.");
+            throw new Error(
+              json?.error ||
+                "Supabase/API non ha confermato il salvataggio evento.",
+            );
           }
           savedRemoteRow = json.event;
           eventId = savedRemoteRow?.id || null;
-          savedClanId = json.clanId || savedRemoteRow?.clan_id || effectiveClanId || null;
-          apiWarning = json.warning || (!json.telegram?.ok && json.telegram?.error ? `Telegram non inviato: ${json.telegram.error}` : null);
+          savedClanId =
+            json.clanId || savedRemoteRow?.clan_id || effectiveClanId || null;
+          apiWarning =
+            json.warning ||
+            (!json.telegram?.ok && json.telegram?.error
+              ? `Telegram non inviato: ${json.telegram.error}`
+              : null);
         } catch (apiError) {
           error = apiError;
         }
@@ -1047,7 +1292,10 @@ export default function EventsPage() {
           sync_status: "synced",
           sync_error: null,
         });
-        await saveEventNotification(savedEvent, editingEventId ? "updated" : "created");
+        await saveEventNotification(
+          savedEvent,
+          editingEventId ? "updated" : "created",
+        );
         await loadEvents();
       }
 
@@ -1056,11 +1304,17 @@ export default function EventsPage() {
           ? `${editingEventId ? "Evento aggiornato" : "Evento creato"} e scritto su Supabase. ${apiWarning}`
           : editingEventId
             ? "Evento aggiornato e visibile a tutti."
-            : "Evento creato e visibile a tutti."
+            : "Evento creato e visibile a tutti.",
       );
       setEditingEventId(null);
     } catch (error) {
-      setMessage(adminSuffix(error instanceof Error ? `Errore creazione evento: ${error.message}` : "Errore creazione evento."));
+      setMessage(
+        adminSuffix(
+          error instanceof Error
+            ? `Errore creazione evento: ${error.message}`
+            : "Errore creazione evento.",
+        ),
+      );
     } finally {
       setSavingEvent(false);
     }
@@ -1070,16 +1324,26 @@ export default function EventsPage() {
       return setMessage("Solo staff/coach/owner possono cancellare eventi.");
     const eventToDelete = events.find((event) => event.id === id);
     if (!isUuid(id)) {
-      setMessage("Questo ID non è nel database. Ho pulito i vecchi dati locali PWA: aggiorna la pagina.");
+      setMessage(
+        "Questo ID non è nel database. Ho pulito i vecchi dati locali PWA: aggiorna la pagina.",
+      );
       cleanupLegacyEventStorage();
       await loadEvents();
       return;
     }
-    if (!confirm(`Cancellare definitivamente evento${eventToDelete?.title ? ` "${eventToDelete.title}"` : ""} dal database Supabase?`)) return;
+    if (
+      !confirm(
+        `Cancellare definitivamente evento${eventToDelete?.title ? ` "${eventToDelete.title}"` : ""} dal database Supabase?`,
+      )
+    )
+      return;
 
     try {
       const token = await readSessionToken();
-      if (!token) throw new Error("Login richiesto: fai logout/login e riprova cancellazione.");
+      if (!token)
+        throw new Error(
+          "Login richiesto: fai logout/login e riprova cancellazione.",
+        );
       const response = await fetch("/api/events/delete", {
         method: "POST",
         cache: "no-store",
@@ -1092,12 +1356,23 @@ export default function EventsPage() {
         body: JSON.stringify({ id }),
       });
       const json = await response.json().catch(() => null);
-      if (!response.ok || !json?.ok) throw new Error(json?.error || "Supabase/API non ha confermato la cancellazione.");
+      if (!response.ok || !json?.ok)
+        throw new Error(
+          json?.error || "Supabase/API non ha confermato la cancellazione.",
+        );
       setMessage("Evento cancellato definitivamente dal database Supabase.");
-      window.dispatchEvent(new CustomEvent("codm-server-notifications-changed"));
+      window.dispatchEvent(
+        new CustomEvent("codm-server-notifications-changed"),
+      );
       await loadEvents();
     } catch (error) {
-      setMessage(adminSuffix(error instanceof Error ? `Evento NON cancellato: ${error.message}` : "Evento NON cancellato."));
+      setMessage(
+        adminSuffix(
+          error instanceof Error
+            ? `Evento NON cancellato: ${error.message}`
+            : "Evento NON cancellato.",
+        ),
+      );
       await loadEvents();
     }
   }
@@ -1140,7 +1415,10 @@ export default function EventsPage() {
     [events],
   );
   const pastEvents = useMemo(
-    () => events.filter((event) => eventEndTimestamp(event) <= Date.now()).reverse(),
+    () =>
+      events
+        .filter((event) => eventEndTimestamp(event) <= Date.now())
+        .reverse(),
     [events],
   );
   const visibleEvents =
@@ -1271,16 +1549,16 @@ export default function EventsPage() {
 
       <section className="top-gap">
         {canWrite ? (
-          <div className="card event-create-v64">
+          <div className="card event-create-v64 event-generic-editor-v13">
             <div className="section-title">
               <div>
+                <p className="eyebrow">📌 Evento generico</p>
                 <h2>
-                  {editingEventId
-                    ? "Modifica evento / Editor partite"
-                    : "Nuovo evento / Editor partite"}
+                  {editingEventId ? "Modifica evento" : "Aggiungi evento"}
                 </h2>
                 <p className="muted">
-                  V7.6 database unico: eventi letti e salvati solo su Supabase. Nessun evento o bozza resta nella PWA.
+                  Prima salvi solo l’evento generale. Le partite si aggiungono
+                  dopo, quando sai quante ne dovete giocare.
                 </p>
               </div>
               <div className="editor-actions-row">
@@ -1299,39 +1577,25 @@ export default function EventsPage() {
                   type="button"
                   onClick={() => resetEditor(true)}
                 >
-                  Reset bozza
+                  Reset
                 </button>
               </div>
             </div>
-            <div className="match-count-toolbar top-gap">
-              <span>
-                Partite configurate: <b>{plan.rounds.length}</b>
-              </span>
-              <button
-                className="btn small secondary"
-                type="button"
-                onClick={() => removeRound(plan.rounds.length - 1)}
-                disabled={plan.rounds.length <= 1}
-              >
-                - Togli ultima partita
-              </button>
-              <small>
-                Default 1 partita. Ogni partita è lavorabile e separata.
-              </small>
-            </div>
 
-            <div className="form top-gap">
+            <div className="form top-gap generic-event-form-v13">
               <div className="field">
-                <label>Titolo evento</label>
+                <label>Nome evento</label>
                 <input
                   className="input"
                   value={title}
                   onChange={(e) => commitTitle(e.target.value)}
+                  placeholder="Esempio: Scrim AK47DX / Allenamento / Torneo interno"
                 />
               </div>
-              <div className="grid grid-4">
+
+              <div className="grid grid-3">
                 <div className="field">
-                  <label>Inizio</label>
+                  <label>Data e ora evento</label>
                   <input
                     type="datetime-local"
                     className="input"
@@ -1340,16 +1604,23 @@ export default function EventsPage() {
                   />
                 </div>
                 <div className="field">
-                  <label>Fine</label>
-                  <input
-                    type="datetime-local"
-                    className="input"
-                    value={endsAt}
-                    onChange={(e) => setEndsAt(e.target.value)}
-                  />
+                  <label>Stato evento</label>
+                  <select
+                    className="select"
+                    value={plan.eventStatus || "Bozza"}
+                    onChange={(e) =>
+                      commitPlan((p) => ({ ...p, eventStatus: e.target.value }))
+                    }
+                  >
+                    {eventStatusOptions.map((status) => (
+                      <option key={status} value={status}>
+                        {status}
+                      </option>
+                    ))}
+                  </select>
                 </div>
                 <div className="field">
-                  <label>Tipo evento</label>
+                  <label>Tipo</label>
                   <select
                     className="select"
                     value={eventType}
@@ -1362,74 +1633,22 @@ export default function EventsPage() {
                     ))}
                   </select>
                 </div>
-                <div className="field">
-                  <label>Luogo</label>
-                  <input
-                    className="input"
-                    value={location}
-                    onChange={(e) => commitLocation(e.target.value)}
-                  />
-                </div>
               </div>
-              <div className="grid grid-2">
-                <div className="field">
-                  <label>Team A</label>
-                  <input
-                    ref={teamAInputRef}
-                    className="input"
-                    name="teamAName"
-                    autoComplete="off"
-                    spellCheck={false}
-                    value={plan.teamAName}
-                    onInput={(e) => updateTeamName("A", e.currentTarget.value)}
-                    onChange={(e) => updateTeamName("A", e.target.value)}
-                  />
-                </div>
-                <div className="field">
-                  <label>Team B</label>
-                  <input
-                    ref={teamBInputRef}
-                    className="input"
-                    name="teamBName"
-                    autoComplete="off"
-                    spellCheck={false}
-                    value={plan.teamBName}
-                    onInput={(e) => updateTeamName("B", e.currentTarget.value)}
-                    onChange={(e) => updateTeamName("B", e.target.value)}
-                  />
-                </div>
+
+              <div className="field">
+                <label>Descrizione</label>
+                <textarea
+                  className="input"
+                  rows={3}
+                  value={description}
+                  onChange={(e) => commitDescription(e.target.value)}
+                  placeholder="Note generali evento, informazioni per il clan, regole generali o promemoria."
+                />
               </div>
-              <div className="grid grid-3">
+
+              <div className="grid grid-3 media-event-grid-v13">
                 <div className="field">
-                  <label>Logo Team A</label>
-                  <input
-                    className="input"
-                    type="file"
-                    accept="image/*"
-                    onChange={(e) =>
-                      readImage(e.target.files?.[0], (url) =>
-                        commitPlan((p) => ({ ...p, teamALogo: url })),
-                      )
-                    }
-                  />
-                  <small className="muted">Seleziona file logo dal PC.</small>
-                </div>
-                <div className="field">
-                  <label>Logo Team B</label>
-                  <input
-                    className="input"
-                    type="file"
-                    accept="image/*"
-                    onChange={(e) =>
-                      readImage(e.target.files?.[0], (url) =>
-                        commitPlan((p) => ({ ...p, teamBLogo: url })),
-                      )
-                    }
-                  />
-                  <small className="muted">Logo avversario.</small>
-                </div>
-                <div className="field">
-                  <label>Cover presentazione</label>
+                  <label>Cover evento</label>
                   <input
                     className="input"
                     type="file"
@@ -1440,145 +1659,309 @@ export default function EventsPage() {
                       )
                     }
                   />
-                  <small className="muted">Immagine grande evento.</small>
+                  {plan.coverImage ? (
+                    <img
+                      className="event-media-preview-v13"
+                      src={plan.coverImage}
+                      alt="Cover evento"
+                    />
+                  ) : (
+                    <small className="muted">Immagine grande evento.</small>
+                  )}
+                </div>
+                <div className="field">
+                  <label>Logo nostro clan</label>
+                  <input
+                    className="input"
+                    type="file"
+                    accept="image/*"
+                    onChange={(e) =>
+                      readImage(e.target.files?.[0], (url) =>
+                        commitPlan((p) => ({ ...p, teamALogo: url })),
+                      )
+                    }
+                  />
+                  {plan.teamALogo ? (
+                    <img
+                      className="event-logo-preview-v13"
+                      src={plan.teamALogo}
+                      alt="Logo nostro clan"
+                    />
+                  ) : (
+                    <small className="muted">
+                      Seleziona il logo AK47DX/MIRZA.
+                    </small>
+                  )}
+                </div>
+                <div className="field">
+                  <label>Logo avversario / organizzatore</label>
+                  <input
+                    className="input"
+                    type="file"
+                    accept="image/*"
+                    onChange={(e) =>
+                      readImage(e.target.files?.[0], (url) =>
+                        commitPlan((p) => ({ ...p, teamBLogo: url })),
+                      )
+                    }
+                  />
+                  {plan.teamBLogo ? (
+                    <img
+                      className="event-logo-preview-v13"
+                      src={plan.teamBLogo}
+                      alt="Logo avversario"
+                    />
+                  ) : (
+                    <small className="muted">
+                      Opzionale: clan avversario o torneo.
+                    </small>
+                  )}
                 </div>
               </div>
-              <details className="top-gap">
-                <summary>⚙️ Dettagli extra</summary>
-                <div className="grid grid-4 top-gap">
-                  <div className="field">
-                    <label>Numero stanza</label>
-                    <input
-                      className="input"
-                      value={plan.roomNumber}
-                      onChange={(e) =>
-                        commitPlan((p) => ({ ...p, roomNumber: e.target.value }))
-                      }
-                    />
+
+              <label className="check-line ak-check-card defer-matches-card-v13">
+                <input
+                  type="checkbox"
+                  checked={Boolean(plan.matchesDeferred)}
+                  onChange={(e) => setMatchesDeferred(e.target.checked)}
+                />{" "}
+                <span>
+                  <strong>Aggiungi partite in una fase successiva</strong>
+                  <br />
+                  <small className="muted">
+                    Attivo: salvo evento generico senza convocati, titolari,
+                    riserve, BAN o risultati.
+                  </small>
+                </span>
+              </label>
+
+              {plan.matchesDeferred ? (
+                <div className="notice generic-event-notice-v13">
+                  <strong>Evento generico pronto.</strong> Le partite non sono
+                  obbligatorie adesso. Quando saranno definite, apri l’evento e
+                  premi “Aggiungi partita”.
+                  <div className="top-gap">
+                    <button
+                      className="btn small"
+                      type="button"
+                      onClick={addRound}
+                    >
+                      + Aggiungi prima partita adesso
+                    </button>
                   </div>
-                  <div className="field">
-                    <label>Link Discord</label>
-                    <input
-                      className="input"
-                      value={plan.discordLink}
-                      onChange={(e) =>
-                        commitPlan((p) => ({ ...p, discordLink: e.target.value }))
-                      }
-                    />
+                </div>
+              ) : (
+                <>
+                  <div className="match-count-toolbar top-gap">
+                    <span>
+                      Partite configurate: <b>{plan.rounds.length}</b>
+                    </span>
+                    <button
+                      className="btn small"
+                      type="button"
+                      onClick={addRound}
+                    >
+                      + Aggiungi partita
+                    </button>
+                    <button
+                      className="btn small secondary"
+                      type="button"
+                      onClick={() => removeRound(plan.rounds.length - 1)}
+                      disabled={!plan.rounds.length}
+                    >
+                      - Togli ultima partita
+                    </button>
+                    <small>
+                      Le partite sono gestite sotto l’evento, una alla volta.
+                    </small>
                   </div>
-                  <div className="field">
-                    <label>Link lobby</label>
-                    <input
-                      className="input"
-                      value={plan.lobbyLink}
-                      onChange={(e) =>
-                        commitPlan((p) => ({ ...p, lobbyLink: e.target.value }))
-                      }
-                    />
+
+                  <details className="top-gap">
+                    <summary>⚙️ Dettagli partita / lobby opzionali</summary>
+                    <div className="grid grid-4 top-gap">
+                      <div className="field">
+                        <label>Numero stanza</label>
+                        <input
+                          className="input"
+                          value={plan.roomNumber}
+                          onChange={(e) =>
+                            commitPlan((p) => ({
+                              ...p,
+                              roomNumber: e.target.value,
+                            }))
+                          }
+                        />
+                      </div>
+                      <div className="field">
+                        <label>Link Discord</label>
+                        <input
+                          className="input"
+                          value={plan.discordLink}
+                          onChange={(e) =>
+                            commitPlan((p) => ({
+                              ...p,
+                              discordLink: e.target.value,
+                            }))
+                          }
+                        />
+                      </div>
+                      <div className="field">
+                        <label>Link lobby</label>
+                        <input
+                          className="input"
+                          value={plan.lobbyLink}
+                          onChange={(e) =>
+                            commitPlan((p) => ({
+                              ...p,
+                              lobbyLink: e.target.value,
+                            }))
+                          }
+                        />
+                      </div>
+                      <div className="field">
+                        <label>Ora lobby generale</label>
+                        <input
+                          className="input"
+                          value={plan.lobbyTime}
+                          onChange={(e) =>
+                            commitPlan((p) => ({
+                              ...p,
+                              lobbyTime: e.target.value,
+                            }))
+                          }
+                        />
+                      </div>
+                    </div>
+                  </details>
+
+                  <div className="round-plan-grid top-gap">
+                    {plan.rounds.map((round, index) => (
+                      <MatchRoundEditor
+                        key={`${round.n}-${index}`}
+                        round={round}
+                        index={index}
+                        players={players}
+                        updateRound={updateRound}
+                        removeRound={removeRound}
+                        toggleRoundRoster={toggleRoundRoster}
+                      />
+                    ))}
                   </div>
+                </>
+              )}
+
+              <details className="event-advanced-settings-v13 top-gap">
+                <summary>
+                  🔔 Opzioni avanzate: Telegram, reminder e note interne
+                </summary>
+                <div className="field top-gap">
+                  <label>Note interne</label>
+                  <textarea
+                    className="input"
+                    rows={3}
+                    value={eventNotes}
+                    onChange={(e) => setEventNotes(e.target.value)}
+                  />
+                </div>
+                <div className="event-notification-settings-block top-gap pro-reminder-panel">
+                  <h3>🔔 Telegram e reminder</h3>
+                  <p className="muted">
+                    Per evento generico il messaggio resta semplice. Quando
+                    aggiungi partite, vengono inclusi anche mappe, modalità,
+                    titolari, riserve e BAN.
+                  </p>
+                  <label className="check-line ak-check-card">
+                    <input
+                      type="checkbox"
+                      checked={telegramEnabled}
+                      onChange={(e) => setTelegramEnabled(e.target.checked)}
+                    />{" "}
+                    Telegram attivo per questo evento
+                  </label>
+                  <div className="reminder-checkbox-grid top-gap">
+                    {[
+                      [10080, "7 giorni prima"],
+                      [4320, "3 giorni prima"],
+                      [1440, "1 giorno prima"],
+                      [360, "6 ore prima"],
+                      [120, "2 ore prima"],
+                      [60, "1 ora prima"],
+                      [30, "30 minuti prima"],
+                      [10, "10 minuti prima"],
+                      [0, "Evento iniziato"],
+                    ].map(([minutes, label]) => (
+                      <label
+                        className="check-line reminder-check"
+                        key={minutes}
+                      >
+                        <input
+                          type="checkbox"
+                          checked={hasReminder(Number(minutes))}
+                          onChange={(e) =>
+                            setReminderPreset(Number(minutes), e.target.checked)
+                          }
+                        />{" "}
+                        {label}
+                      </label>
+                    ))}
+                  </div>
+                  <div className="grid grid-3 top-gap">
+                    <div className="field">
+                      <label>Tempo personalizzato</label>
+                      <input
+                        className="input"
+                        type="number"
+                        min="1"
+                        value={customReminderValue}
+                        onChange={(e) => setCustomReminderValue(e.target.value)}
+                      />
+                    </div>
+                    <div className="field">
+                      <label>Unità</label>
+                      <select
+                        className="select"
+                        value={customReminderUnit}
+                        onChange={(e) =>
+                          setCustomReminderUnit(
+                            e.target.value as "minutes" | "hours" | "days",
+                          )
+                        }
+                      >
+                        <option value="minutes">Minuti prima</option>
+                        <option value="hours">Ore prima</option>
+                        <option value="days">Giorni prima</option>
+                      </select>
+                    </div>
+                    <div className="field">
+                      <label>Aggiungi</label>
+                      <button
+                        className="btn small secondary"
+                        type="button"
+                        onClick={addCustomReminder}
+                      >
+                        + Reminder
+                      </button>
+                    </div>
+                  </div>
+                  <div className="notice compact top-gap">
+                    <strong>Reminder attivi:</strong>{" "}
+                    {parseReminderMinutes().map(reminderHuman).join(" · ") ||
+                      "Nessuno"}
+                  </div>
+                  {isAdminUser && (
+                    <details className="notice">
+                      <summary>
+                        Anteprima admin dettaglio partite Telegram
+                      </summary>
+                      <pre className="telegram-preview-box">
+                        {telegramPreview ||
+                          "Evento generico: nessuna partita compilata."}
+                      </pre>
+                    </details>
+                  )}
                 </div>
               </details>
-            </div>
 
-            <div className="round-plan-grid top-gap">
-              {plan.rounds.map((round, index) => (
-                <MatchRoundEditor
-                  key={`${round.n}-${index}`}
-                  round={round}
-                  index={index}
-                  players={players}
-                  updateRound={updateRound}
-                  removeRound={removeRound}
-                  toggleRoundRoster={toggleRoundRoster}
-                />
-              ))}
-            </div>
-
-            <div className="form top-gap">
-              <div className="field">
-                <label>Descrizione pubblica</label>
-                <textarea
-                  className="input"
-                  rows={3}
-                  value={description}
-                  onChange={(e) => commitDescription(e.target.value)}
-                />
-              </div>
-              <div className="notice top-gap">
-                <strong>Selezione roster</strong>: titolari e riserve si impostano direttamente dentro ogni partita, così l’editor resta più rapido e senza doppie richieste.
-              </div>
-              <div className="field">
-                <label>Note interne</label>
-                <textarea
-                  className="input"
-                  rows={3}
-                  value={eventNotes}
-                  onChange={(e) => setEventNotes(e.target.value)}
-                />
-              </div>
-              <div className="event-notification-settings-block top-gap pro-reminder-panel">
-                <h3>🔔 Telegram e reminder professionali</h3>
-                <p className="muted">Scegli quando avvisare il clan. Il messaggio Telegram viene generato in automatico con data, lobby, Partita 1/2/3, mappe, modalità, titolari, riserve, BAN, link e note.</p>
-                <label className="check-line ak-check-card">
-                  <input
-                    type="checkbox"
-                    checked={telegramEnabled}
-                    onChange={(e) => setTelegramEnabled(e.target.checked)}
-                  />{" "}
-                  Telegram attivo per questo evento
-                </label>
-                <div className="reminder-checkbox-grid top-gap">
-                  {[
-                    [10080, "7 giorni prima"],
-                    [4320, "3 giorni prima"],
-                    [1440, "1 giorno prima"],
-                    [360, "6 ore prima"],
-                    [120, "2 ore prima"],
-                    [60, "1 ora prima"],
-                    [30, "30 minuti prima"],
-                    [10, "10 minuti prima"],
-                    [0, "Evento iniziato"],
-                  ].map(([minutes, label]) => (
-                    <label className="check-line reminder-check" key={minutes}>
-                      <input
-                        type="checkbox"
-                        checked={hasReminder(Number(minutes))}
-                        onChange={(e) => setReminderPreset(Number(minutes), e.target.checked)}
-                      />{" "}
-                      {label}
-                    </label>
-                  ))}
-                </div>
-                <div className="grid grid-3 top-gap">
-                  <div className="field">
-                    <label>Tempo personalizzato</label>
-                    <input className="input" type="number" min="1" value={customReminderValue} onChange={(e) => setCustomReminderValue(e.target.value)} />
-                  </div>
-                  <div className="field">
-                    <label>Unità</label>
-                    <select className="select" value={customReminderUnit} onChange={(e) => setCustomReminderUnit(e.target.value as "minutes" | "hours" | "days")}>
-                      <option value="minutes">Minuti prima</option>
-                      <option value="hours">Ore prima</option>
-                      <option value="days">Giorni prima</option>
-                    </select>
-                  </div>
-                  <div className="field">
-                    <label>Aggiungi</label>
-                    <button className="btn small secondary" type="button" onClick={addCustomReminder}>+ Reminder</button>
-                  </div>
-                </div>
-                <div className="notice compact top-gap">
-                  <strong>Reminder attivi:</strong> {parseReminderMinutes().map(reminderHuman).join(" · ") || "Nessuno"}
-                </div>
-                {isAdminUser && (
-                  <details className="notice">
-                    <summary>Anteprima admin dettaglio partite Telegram</summary>
-                    <pre className="telegram-preview-box">
-                      {telegramPreview || "Nessuna partita compilata."}
-                    </pre>
-                  </details>
-                )}
-              </div>
               <button
                 className="btn event-save-button"
                 type="button"
@@ -1589,7 +1972,9 @@ export default function EventsPage() {
                   ? "Salvataggio..."
                   : editingEventId
                     ? "💾 Aggiorna evento"
-                    : "✅ Crea evento completo"}
+                    : plan.matchesDeferred
+                      ? "✅ Crea evento generico"
+                      : "✅ Crea evento con partite"}
               </button>
             </div>
           </div>
@@ -1627,19 +2012,26 @@ export default function EventsPage() {
         <div className="ak-event-list top-gap">
           {visibleEvents.map((event) => {
             const eventPlan = normalizePlan(event.event_plan || emptyPlan());
-            const manualLink = eventPlan.lobbyLink || eventPlan.discordLink || "";
+            const manualLink =
+              eventPlan.lobbyLink || eventPlan.discordLink || "";
             return (
               <article key={event.id} className="ak-event-card">
                 <div className="ak-event-copy">
-                  <div className="eyebrow">{event.event_type || "evento"}</div>
+                  <div className="eyebrow">
+                    {eventPlan.eventStatus || event.event_type || "evento"}
+                  </div>
                   <h3>{event.title}</h3>
                   <p className="muted">
                     {new Date(event.starts_at).toLocaleString("it-IT")}{" "}
                     {event.location ? `• ${event.location}` : ""}
                   </p>
                   <div className="ak-event-mini-pills">
-                    <span className="pill-chip">🗓️ {new Date(event.starts_at).toLocaleDateString('it-IT')}</span>
-                    {event.location ? <span className="pill-chip">📍 {event.location}</span> : null}
+                    <span className="pill-chip">
+                      🗓️ {new Date(event.starts_at).toLocaleDateString("it-IT")}
+                    </span>
+                    {event.location ? (
+                      <span className="pill-chip">📍 {event.location}</span>
+                    ) : null}
                   </div>
                 </div>
                 <div className="ak-event-actions">
@@ -1695,7 +2087,8 @@ function dedupeEvents(rows: CodmEvent[]) {
     if (localKey && localKeyToId.has(localKey)) {
       const previousId = localKeyToId.get(localKey)!;
       const previous = map.get(previousId);
-      const chosen = isUuid(row.id) || previous?.sync_status !== "synced" ? row : previous;
+      const chosen =
+        isUuid(row.id) || previous?.sync_status !== "synced" ? row : previous;
       map.delete(previousId);
       map.set(chosen.id, chosen);
       localKeyToId.set(localKey, chosen.id);
@@ -2070,6 +2463,9 @@ function EventPresentation({
   onDuplicate: () => void;
 }) {
   const normalizedPlan = normalizePlan(plan);
+  const statusLabel =
+    normalizedPlan.eventStatus ||
+    (normalizedPlan.matchesDeferred ? "Da completare" : "Programmato");
   const rounds = normalizedPlan.rounds.slice(
     0,
     Number(normalizedPlan.totalMatches || normalizedPlan.rounds.length || 1),
@@ -2104,7 +2500,10 @@ function EventPresentation({
       </div>
       <div className="event-meta-grid">
         <span>
-          🎮 Partite: <b>{rounds.length}</b>
+          📌 Stato: <b>{statusLabel}</b>
+        </span>
+        <span>
+          🎮 Partite: <b>{rounds.length || "da aggiungere"}</b>
         </span>
         <span>
           🏠 Stanza: <b>{normalizedPlan.roomNumber || "-"}</b>
@@ -2117,6 +2516,23 @@ function EventPresentation({
         </span>
       </div>
       <div className="event-summary-v65">
+        {!rounds.length && (
+          <div className="event-match-summary generic-event-empty-v13">
+            <div className="event-match-summary-head">
+              <b>Evento generico</b>
+              <span className="match-status-pill played">{statusLabel}</span>
+            </div>
+            <div className="summary-lines">
+              <p>
+                <strong>Partite:</strong> da aggiungere in fase successiva.
+              </p>
+              <p>
+                <strong>Descrizione:</strong>{" "}
+                {event.description || "Nessuna descrizione inserita."}
+              </p>
+            </div>
+          </div>
+        )}
         {rounds.map((round) => {
           const meta = modeMeta(round.mode);
           const outcome = getMatchOutcome(round);
@@ -2150,8 +2566,9 @@ function EventPresentation({
                   {round.target ? `(${round.target})` : ""}
                 </p>
                 <p>
-                  <strong>Orari:</strong> lobby {round.lobbyOpen || normalizedPlan.lobbyTime || "-"} ·
-                  partita {round.startTime || "-"}
+                  <strong>Orari:</strong> lobby{" "}
+                  {round.lobbyOpen || normalizedPlan.lobbyTime || "-"} · partita{" "}
+                  {round.startTime || "-"}
                 </p>
                 <p>
                   <strong>Convocati:</strong>{" "}
