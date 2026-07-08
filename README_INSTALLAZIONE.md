@@ -1,26 +1,32 @@
-# Installazione CLAN MANAGER V9.0
+# CLAN MANAGER V10.0 COMPLETE TOURNAMENT TEMPLATE PRO
 
-1. Fai backup della cartella precedente.
-2. Copia il contenuto della cartella della release nella root del progetto GitHub.
-3. Esegui:
+Release completa: Torneo separato, iscrizione dal profilo, squadre dopo iscrizioni, formato/tipo modificabile dopo creazione, armi permesse/vietate, statistiche torneo isolate dalla pagina generale, template OCR con menu vero e salvataggio robusto.
+
+## Installazione
+
+Copia il contenuto della cartella `codm_v81b` nella root del progetto GitHub.
+
+Comandi:
 
 ```bash
+cd C:\Users\spea4060_tmv331ef\Documents\PROGETTI\COD\CODM_CLAN_INTELLIGENCE_2_0_DEPLOYABLE_PWA_YOLO_AK47DX
 npm ci --legacy-peer-deps
 npm run build
 git add -A
-git commit -m "CLAN MANAGER V9.0 complete pro release"
+git commit -m "CLAN MANAGER V10.0 complete tournament template pro"
 git push origin main
 ```
 
-4. Su Vercel controlla le variabili:
+## Verifica
 
-- `NEXT_PUBLIC_SUPABASE_URL`
-- `NEXT_PUBLIC_SUPABASE_ANON_KEY`
-- `SUPABASE_SERVICE_ROLE_KEY`
-- `NEXT_PUBLIC_APP_URL`
-- `NEXT_PUBLIC_APP_NAME=CLAN MANAGER`
-- `TELEGRAM_BOT_TOKEN`
-- `TELEGRAM_CHAT_ID`
-- `CRON_SECRET`
+Apri `/version` e controlla marker:
 
-5. Dopo deploy apri `/version`, `/events-health` e poi pulisci la PWA da `/cache-reset`.
+`V10_0_COMPLETE_TOURNAMENT_TEMPLATE_PRO_OK`
+
+## SQL
+
+Esegui `supabase/FINAL_SCHEMA_CLAN_MANAGER.sql` se la parte torneo non è ancora presente o se vuoi aggiungere l'indice anti doppia iscrizione.
+
+## PWA
+
+Dopo deploy apri `/cache-reset`, pulisci cache, chiudi PWA, rimuovi vecchia icona e reinstalla dalla URL Vercel.

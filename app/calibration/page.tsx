@@ -51,6 +51,7 @@ function CalibrationEditor() {
   const [phoneProfile, setPhoneProfile] = useState('default');
   const [phoneDevice, setPhoneDevice] = useState('default');
   const [templateSlot, setTemplateSlot] = useState('default');
+  const [templateSaveName, setTemplateSaveName] = useState('default');
   const [templateName, setTemplateName] = useState('Scoreboard CED');
   const [templateSource, setTemplateSource] = useState<'default' | 'phone' | 'saved'>('default');
   const [ownerName, setOwnerName] = useState('');
@@ -91,6 +92,7 @@ function CalibrationEditor() {
       setPhoneProfile(normalizedProfile);
       setPhoneDevice('default');
       setTemplateSlot(split.template || 'default');
+      setTemplateSaveName(split.template || 'default');
       setTemplateSource((split.template || 'default') === 'default' ? 'default' : 'saved');
       const bundle = loadCalibrationBundle(kind, normalizedProfile);
       setRegions(bundle.regions);
@@ -108,6 +110,7 @@ function CalibrationEditor() {
     setPhoneProfile(normalizedProfile);
     setPhoneDevice('default');
     setTemplateSlot(split.template || 'default');
+    setTemplateSaveName(split.template || 'default');
     setTemplateSource((split.template || 'default') === 'default' ? 'default' : 'saved');
     setActivePhoneProfile(nextKind, normalizedProfile);
     const bundle = loadCalibrationBundle(nextKind, normalizedProfile);
@@ -151,6 +154,7 @@ function CalibrationEditor() {
   function changeTemplateSlot(nextTemplateRaw: string) {
     const nextTemplate = softSlug(nextTemplateRaw) || 'default';
     setTemplateSlot(nextTemplate);
+    setTemplateSaveName(nextTemplate);
     loadTemplate(kind, makeCalibrationProfileKey('default', nextTemplate));
   }
   function newPhoneProfile() {
@@ -162,6 +166,7 @@ function CalibrationEditor() {
     setPhoneProfile(next);
     setPhoneDevice(split.phone);
     setTemplateSlot(split.template);
+    setTemplateSaveName(split.template);
     setActivePhoneProfile(kind, next);
     const defaults = defaultCalibration(kind);
     setRegions(defaults);
@@ -256,11 +261,12 @@ function CalibrationEditor() {
   }
 
   function save() {
-    const cleanTemplateName = softSlug(templateSlot) || 'default';
+    const cleanTemplateName = softSlug(templateSaveName || templateSlot) || 'default';
     const nextProfile = makeCalibrationProfileKey('default', cleanTemplateName);
     setPhoneProfile(nextProfile);
     setPhoneDevice('default');
     setTemplateSlot(cleanTemplateName);
+    setTemplateSaveName(cleanTemplateName);
     setTemplateSource(cleanTemplateName === 'default' ? 'default' : 'saved');
     setActivePhoneProfile(kind, nextProfile);
     saveCalibration(kind, regions, nextProfile, cleanTemplateName, ownerName);
@@ -291,6 +297,7 @@ function CalibrationEditor() {
       setPhoneProfile(nextPhone);
       setPhoneDevice(split.phone);
       setTemplateSlot(split.template);
+      setTemplateSaveName(split.template || imported.meta?.templateName || "default");
       setRegions(imported.regions);
       setTemplateName(imported.meta?.templateName || templateName);
       setSelectedName(imported.regions[0]?.name || '');
@@ -313,16 +320,17 @@ function CalibrationEditor() {
         </p>
         <div className="grid grid-2 calibration-template-flow">
           <div className="field"><label>Tipo template</label><select className="select" value={kind} onChange={(e) => changeKind(e.target.value as CalibrationKind)}>{kinds.map((entry) => <option key={entry.value} value={entry.value}>{entry.label}</option>)}</select><small className="muted">{kinds.find((e) => e.value === kind)?.help}</small></div>
-          <div className="field"><label>Nome template</label><div className="cal-template-picker-stack single-template-picker"><input className="input" list="cal-template-options" value={templateSlot} onChange={(e) => setTemplateSlot(e.target.value)} placeholder="default oppure nome template" /><datalist id="cal-template-options"><option value="default" />{templateOptions.filter((p) => p !== 'default').map((p) => <option key={p} value={p} />)}</datalist><button className="btn small secondary" type="button" onClick={() => changeTemplateSlot(templateSlot || 'default')}>Carica template</button></div><small className="muted">Un solo nome template: puoi scrivere maiuscole, spazi e simboli. Premi Salva template per memorizzarlo; poi lo selezioni da Import.</small></div>
+          <div className="field"><label>Template salvato</label><div className="cal-template-picker-stack single-template-picker"><select className="select pro-select" value={templateSlot} onChange={(e) => changeTemplateSlot(e.target.value)}><option value="default">🧩 Default base</option>{templateOptions.filter((p) => p !== 'default').map((p) => <option key={p} value={p}>🧩 {p}</option>)}</select><button className="btn small secondary" type="button" onClick={() => changeTemplateSlot(templateSlot || 'default')}>Carica</button></div><small className="muted">Menu vero: scegli il template salvato oppure lascia Default.</small></div>
+          <div className="field"><label>Nome per salvataggio</label><input className="input" value={templateSaveName} onChange={(e) => setTemplateSaveName(e.target.value)} placeholder="Esempio: CED iPhone MIRZA" /><small className="muted">Scrivi il nome che vuoi e premi Salva template. Non viene più riscritto a default.</small></div>
         </div>
         <div className="grid grid-2 top-gap">
           <div className="field"><label>Login/profilo collegato</label><input className="input" value={ownerName} onChange={(e) => setOwnerName(e.target.value)} placeholder="Nome login" /><small className="muted">Chiave tecnica: {phoneProfile}</small></div>
-          <div className="notice"><b>Flusso template semplificato:</b> usi default oppure un solo nome template selezionabile. Non c'è più doppio nome telefono/template.</div>
+          <div className="notice"><b>Template professionale:</b> un solo nome, salvataggio robusto, menu a tendina vero e lettura automatica anche da Import partita.</div>
         </div>
         <div className="grid grid-3 top-gap">
           <div className="field"><label>Screenshot campione</label><input className="input" type="file" accept="image/*" onChange={(event) => onFile(event.target.files?.[0] || null)} /></div>
           <div className="field"><label>Comandi</label><div className="cal-buttons"><button className="btn small" type="button" onClick={save}>Salva template</button><button className="btn small secondary" type="button" onClick={reset}>Reset</button><button className="btn small secondary" type="button" onClick={exportJson}>Esporta</button></div></div>
-          <div className="notice">V8.2F: risultato partita alto ripristinato in Import; comandi touch PWA e template non resta più bloccato su default.</div>
+          <div className="notice">V10.0: template salvato in registro globale, niente doppio nome telefono/template, niente default forzato.</div>
         </div>
         {message && <div className="notice top-gap">{message}</div>}
       </section>

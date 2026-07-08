@@ -34,6 +34,7 @@ export const ACTIVE_USER_NAME_KEY = "codm_active_user_name";
 export const CALIBRATION_LAST_PREFIX = "codm_ocr_last_active_template_";
 export const CALIBRATION_CANONICAL_PREFIX = "codm_ocr_canonical_template_";
 export const CALIBRATION_LATEST_PREFIX = "codm_ocr_latest_saved_template_";
+export const CALIBRATION_NAMED_PREFIX = "codm_ocr_named_template_";
 
 const importantScoreboardNames = [
   // V8.2E: import risultati pulito. Manteniamo SOLO risultato partita
@@ -184,6 +185,9 @@ function canonicalKey(kind: CalibrationKind) {
 function latestSavedKey(kind: CalibrationKind) {
   return `${CALIBRATION_LATEST_PREFIX}${kind}`;
 }
+function namedTemplateKey(kind: CalibrationKind, templateName?: string | null) {
+  return `${CALIBRATION_NAMED_PREFIX}${kind}_${slug(templateSlugFromName(templateName || "default"))}`;
+}
 function bundleTimestamp(bundle: CalibrationTemplateBundle | null) {
   if (!bundle?.meta?.updatedAt) return 0;
   const ts = Date.parse(bundle.meta.updatedAt);
@@ -282,6 +286,7 @@ function readBundleFromStorage(
     storageKey(kind, exactPhone),
     storageKey(kind, exactPhone, "anonymous"),
     lastActiveKey(kind, exactPhone),
+    namedTemplateKey(kind, requested.template),
   ];
 
   for (const key of directKeys) {
@@ -387,6 +392,9 @@ export function saveCalibration(
     window.localStorage.setItem(lastActiveKey(kind, phone), serialized);
     window.localStorage.setItem(canonicalKey(kind), serialized);
     window.localStorage.setItem(latestSavedKey(kind), serialized);
+    window.localStorage.setItem(namedTemplateKey(kind, templateName || phone), serialized);
+    const split = splitCalibrationProfileKey(phone);
+    if (split.template && split.template !== "default") window.localStorage.setItem(namedTemplateKey(kind, split.template), serialized);
   }
 }
 export function resetCalibration(kind: CalibrationKind, phoneProfile?: string) {
@@ -419,9 +427,18 @@ export function listCalibrationTemplatesForPhone(kind: CalibrationKind, phone: s
   const safePhone = slug(phone || "default");
   const templates = listCalibrationPhoneProfiles(kind)
     .map((key) => splitCalibrationProfileKey(key))
-    .filter((entry) => entry.phone === safePhone)
+    .filter((entry) => entry.phone === safePhone || entry.phone === "default")
     .map((entry) => entry.template || "default");
-  return Array.from(new Set(["default", ...templates])).sort((a, b) => a.localeCompare(b));
+  if (typeof window !== "undefined") {
+    const prefix = `${CALIBRATION_NAMED_PREFIX}${kind}_`;
+    for (let i = 0; i < window.localStorage.length; i += 1) {
+      const key = window.localStorage.key(i) || "";
+      if (!key.startsWith(prefix)) continue;
+      const name = key.slice(prefix.length);
+      if (name) templates.push(name);
+    }
+  }
+  return Array.from(new Set(["default", ...templates])).filter(Boolean).sort((a, b) => a.localeCompare(b));
 }
 
 export function listCalibrationPhoneTemplateOptions(kind: CalibrationKind) {
@@ -436,6 +453,7 @@ export function listCalibrationPhoneProfiles(kind: CalibrationKind): string[] {
   const base = baseKey(kind);
   const found = new Set<string>(["default"]);
   const lastPrefix = `${CALIBRATION_LAST_PREFIX}${kind}_`;
+  const namedPrefix = `${CALIBRATION_NAMED_PREFIX}${kind}_`;
 
   for (let i = 0; i < window.localStorage.length; i += 1) {
     const key = window.localStorage.key(i) || "";
@@ -460,6 +478,7 @@ export function listCalibrationPhoneProfiles(kind: CalibrationKind): string[] {
     }
     // Supporto vecchi salvataggi senza meta JSON.
     if (key.startsWith(lastPrefix)) found.add(slug(key.slice(lastPrefix.length)));
+    if (key.startsWith(namedPrefix)) found.add(makeCalibrationProfileKey("default", key.slice(namedPrefix.length)));
     if (key.startsWith(`${base}_anonymous_`)) found.add(slug(key.slice(`${base}_anonymous_`.length)));
   }
   return Array.from(found).filter(Boolean).sort((a, b) => a.localeCompare(b));
@@ -471,7 +490,8 @@ export function hasSavedCalibration(
 ): boolean {
   if (typeof window === "undefined") return false;
   const phone = slug(phoneProfile || getActivePhoneProfile(kind));
-  const directKeys = [storageKey(kind, phone), storageKey(kind, phone, "anonymous"), lastActiveKey(kind, phone)];
+  const split = splitCalibrationProfileKey(phone);
+  const directKeys = [storageKey(kind, phone), storageKey(kind, phone, "anonymous"), lastActiveKey(kind, phone), namedTemplateKey(kind, split.template)];
   if (directKeys.some((key) => !!window.localStorage.getItem(key))) return true;
   const defaults = defaultCalibration(kind);
   const meta: CalibrationTemplateMeta = {
@@ -519,6 +539,7 @@ export function calibrationStorageKeysToPreserve(): string[] {
       key.startsWith(CALIBRATION_LAST_PREFIX) ||
       key.startsWith(CALIBRATION_CANONICAL_PREFIX) ||
       key.startsWith(CALIBRATION_LATEST_PREFIX) ||
+      key.startsWith(CALIBRATION_NAMED_PREFIX) ||
       key === ACTIVE_USER_ID_KEY ||
       key === ACTIVE_USER_NAME_KEY
     ) {

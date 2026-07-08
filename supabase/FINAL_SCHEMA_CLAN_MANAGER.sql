@@ -310,6 +310,9 @@ create index if not exists idx_codm_tournaments_clan_status on public.codm_tourn
 create index if not exists idx_codm_tournament_teams_tournament on public.codm_tournament_teams(tournament_id);
 create index if not exists idx_codm_tournament_matches_tournament on public.codm_tournament_matches(tournament_id, match_time);
 create index if not exists idx_codm_tournament_registrations_tournament on public.codm_tournament_registrations(tournament_id, status);
+-- V10.0: evita iscrizioni duplicate dello stesso profilo nello stesso torneo.
+create unique index if not exists ux_codm_tournament_reg_user on public.codm_tournament_registrations(tournament_id, user_id) where user_id is not null;
+
 
 alter table public.clans enable row level security;
 alter table public.clan_members enable row level security;

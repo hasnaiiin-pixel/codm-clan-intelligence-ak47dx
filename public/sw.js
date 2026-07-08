@@ -1,4 +1,4 @@
-const CODM_CACHE = 'clan-manager-pwa-v9-0-complete-pro-tournament-import-ui';
+const CODM_CACHE = 'clan-manager-pwa-v10-0-complete-tournament-template-pro';
 const CODM_OFFLINE_URL = '/offline.html';
 const CORE_ASSETS = [CODM_OFFLINE_URL, '/manifest.webmanifest', '/icons/icon-192.png', '/icons/icon-512.png', '/icons/icon-maskable-512.png'];
 

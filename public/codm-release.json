@@ -1,11 +1,19 @@
 {
-  "version": "9.0_COMPLETE_PRO_TOURNAMENT_IMPORT_UI",
-  "marker": "V9_0_COMPLETE_PRO_TOURNAMENT_IMPORT_UI_OK",
+  "version": "10.0_COMPLETE_TOURNAMENT_TEMPLATE_PRO",
+  "marker": "V10_0_COMPLETE_TOURNAMENT_TEMPLATE_PRO_OK",
   "appName": "CLAN MANAGER",
   "app": "CLAN MANAGER by MIRZA",
-  "notes": "Release completa: torneo, pulizia dashboard/menu, import tabella, gestione utenti, OCR più pulito, statistiche/layout professionali.",
-  "build": "CLAN_MANAGER_AK47DX_V9_0_COMPLETE_PRO_RELEASE_BUILD",
+  "notes": "Release completa: torneo separato con iscrizioni profilo, squadre dopo, tipo/formato modificabile, armi permesse, statistiche torneo separate, template OCR professionale con menu vero e registro globale.",
+  "build": "CLAN_MANAGER_AK47DX_V10_0_COMPLETE_TOURNAMENT_TEMPLATE_PRO_RELEASE_BUILD",
   "date": "2026-07-08",
-  "status": "V9_0_COMPLETE_PRO_TOURNAMENT_IMPORT_UI_OK",
-  "routes": ["/", "/events", "/tournament", "/calibration", "/import/match", "/admin/users", "/events-health"]
+  "status": "V10_0_COMPLETE_TOURNAMENT_TEMPLATE_PRO_OK",
+  "routes": [
+    "/",
+    "/tournament",
+    "/profile",
+    "/calibration",
+    "/import/match",
+    "/events",
+    "/events-health"
+  ]
 }

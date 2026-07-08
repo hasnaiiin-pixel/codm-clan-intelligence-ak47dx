@@ -1,6 +1,6 @@
 {
   "name": "clan-manager-ak47dx",
-  "version": "9.0.0-complete-professional-tournament-ui",
+  "version": "10.0.0-complete-tournament-template-professional",
   "private": true,
   "scripts": {
     "dev": "next dev",

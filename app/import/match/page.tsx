@@ -438,7 +438,7 @@ function ImportMatchEditor() {
   const visibleBackendBoxes = useMemo(() => (backendBoxes || []).filter(isImportUsefulRegion), [backendBoxes]);
 
   function refreshCalibrationTemplate(phoneRaw?: string, templateRaw?: string) {
-    // V8.2G: un solo nome template. Recupera in modo robusto l'ultimo template salvato
+    // V10.0: registro template globale. Recupera in modo robusto l'ultimo template salvato
     // da Calibrazione, invece di tornare sempre a default.
     const phoneInput = 'default';
     const bestKey = getBestCalibrationPhoneProfile('scoreboard_ced');
@@ -966,7 +966,7 @@ function ImportMatchEditor() {
     setBackendRawJson('');
     setOcrProgressPct(3);
     setOcrProgress('Preparazione screenshot e verifica backend OCR...');
-    setMessage("Import V5.4 FASTLANE: non resta bloccato a 10% su /health e non resta a 86% con OCR pesante. Usa una lettura rapida per riga e mantiene template salvato.");
+    setMessage("Import pronto: template salvato ricaricato, screenshot e tabella manuale disponibili.");
     try {
       const candidates = backendCandidates();
       if (!candidates.length) {
@@ -1374,11 +1374,13 @@ function ImportMatchEditor() {
             <span className="pill-chip">✅ Salvataggio diretto</span>
           </div>
         </div>
-        <div className="import-actions import-actions-pro import-actions-simple">
+        <div className="import-actions import-actions-pro import-actions-simple import-template-toolbar-pro">
           <input className="input" type="file" accept="image/*" onChange={(e) => onFileSelected(e.target.files?.[0] || null)} />
-          <select className="select" value={selectedCalibrationTemplate} onChange={(e) => refreshCalibrationTemplate('default', e.target.value)} disabled={!useCalibrationTemplate} title="Template OCR attivo">
-            {calibrationTemplateOptions.map((p) => <option key={p} value={p}>{p}</option>)}
+          <label className="template-toggle-line"><input type="checkbox" checked={useCalibrationTemplate} onChange={(e) => setUseCalibrationTemplate(e.target.checked)} /> Usa template</label>
+          <select className="select pro-select" value={selectedCalibrationTemplate} onFocus={() => refreshCalibrationTemplate('default', selectedCalibrationTemplate)} onChange={(e) => refreshCalibrationTemplate('default', e.target.value)} disabled={!useCalibrationTemplate} title="Template OCR attivo">
+            {calibrationTemplateOptions.map((p) => <option key={p} value={p}>{p === 'default' ? '🧩 Default base' : `🧩 ${p}`}</option>)}
           </select>
+          <button className="btn secondary" type="button" onClick={() => refreshCalibrationTemplate()}>🔄 Ricarica template</button>
           <a className="btn secondary" href="/calibration">🎯 Calibrazione</a>
           <button className="btn import-main-btn" onClick={runBackendOcr} disabled={working || !file}>{working ? '⏳ Lettura in corso...' : '🚀 Importa risultati'}</button>
         </div>

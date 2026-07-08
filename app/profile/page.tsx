@@ -9,6 +9,8 @@ import { getEphemeralValue, setEphemeralValue } from '@/lib/ephemeralStore';
 type NameHistoryEntry = { at: string; oldName: string; newName: string; source: string };
 type PlayerLite = { id: string; nickname: string; avatar_url?: string | null; uid_codm?: string | null };
 type ClanLite = { id: string; name?: string | null; tag?: string | null };
+type TournamentLite = { id: string; name: string; status?: string | null; format?: string | null; type?: string | null; tournament_date?: string | null };
+type MyTournamentRegistration = { id: string; tournament_id: string; status?: string | null; nickname?: string | null; note?: string | null };
 
 function historyKey(userId?: string) {
   return `codm_name_history_${userId || 'anonymous'}`;
@@ -40,6 +42,8 @@ export default function ProfilePage() {
   const [history, setHistory] = useState<NameHistoryEntry[]>([]);
   const [playerStats, setPlayerStats] = useState<any[]>([]);
   const [playerMatches, setPlayerMatches] = useState<any[]>([]);
+  const [openTournaments, setOpenTournaments] = useState<TournamentLite[]>([]);
+  const [myTournamentRegs, setMyTournamentRegs] = useState<MyTournamentRegistration[]>([]);
 
   useEffect(() => {
     if (!auth.user) return;
@@ -61,6 +65,7 @@ export default function ProfilePage() {
       setHistory([]);
     }
     void loadLinkedPlayer();
+    void loadMyTournaments();
   }, [auth.user?.id]);
 
   async function loadLinkedPlayer() {
@@ -79,6 +84,27 @@ export default function ProfilePage() {
     const { data: rowRows } = await supabase.from('match_scoreboard_rows').select('*, matches(id,mode,map_name,result,match_date)').eq('player_id', linkedPlayerId).limit(500);
     setPlayerStats((statsRows || []) as any[]);
     setPlayerMatches((rowRows || []) as any[]);
+  }
+
+  async function loadMyTournaments() {
+    if (!auth.user?.id) return;
+    const { data: tournaments } = await supabase.from('codm_tournaments').select('id,name,status,format,type,tournament_date').in('status', ['Iscrizioni aperte', 'Iscrizioni chiuse', 'In corso']).order('tournament_date', { ascending: true });
+    const { data: regs } = await supabase.from('codm_tournament_registrations').select('id,tournament_id,status,nickname,note').eq('user_id', auth.user.id);
+    setOpenTournaments((tournaments || []) as TournamentLite[]);
+    setMyTournamentRegs((regs || []) as MyTournamentRegistration[]);
+  }
+
+  async function registerToTournament(tournamentId: string) {
+    if (!auth.user?.id) return setMessage('Accedi per iscriverti al torneo.');
+    const nickname = codmNickname || displayName || auth.user.email || 'Player';
+    const existing = myTournamentRegs.find((r) => r.tournament_id === tournamentId);
+    const payload = { tournament_id: tournamentId, user_id: auth.user.id, nickname, status: 'In attesa', note: 'Iscrizione confermata dal profilo player' };
+    const { error } = existing
+      ? await supabase.from('codm_tournament_registrations').update({ nickname, status: existing.status === 'Ritirata' ? 'In attesa' : existing.status, note: 'Conferma iscrizione dal profilo player' }).eq('id', existing.id)
+      : await supabase.from('codm_tournament_registrations').insert(payload);
+    if (error) return setMessage(error.message);
+    setMessage('Iscrizione torneo inviata/confermata dal tuo profilo.');
+    await loadMyTournaments();
   }
 
   function addHistory(oldName: string, newName: string, source = 'profilo') {
@@ -235,6 +261,17 @@ export default function ProfilePage() {
           <div className="name-history-list">
             {history.length ? history.map((entry, index) => <div className="name-history-row" key={`${entry.at}-${index}`}><strong>{entry.oldName || '-'}</strong><span>→</span><strong>{entry.newName || '-'}</strong><small>{new Date(entry.at).toLocaleString('it-IT')} · {entry.source}</small></div>) : <p className="muted">Nessun cambio nome registrato da questo dispositivo.</p>}
           </div>
+        </div>
+      </section>
+
+      <section className="card top-gap profile-tournament-box">
+        <div className="section-title"><div><p className="eyebrow">🏆 I miei tornei</p><h2>Iscrizioni dal profilo</h2><p className="muted">Ti iscrivi come player. Le squadre vengono create dopo dallo staff in base al numero iscrizioni.</p></div><a className="btn small secondary" href="/tournament">Apri Torneo</a></div>
+        <div className="tournament-team-list top-gap">
+          {openTournaments.map((tournament) => {
+            const reg = myTournamentRegs.find((r) => r.tournament_id === tournament.id);
+            return <article key={tournament.id} className="compact-card"><b>{tournament.name}</b><span>{tournament.status} · {tournament.format || 'formato da decidere'} · {tournament.type || 'tipo da decidere'}</span><small>Stato iscrizione: {reg?.status || 'Non iscritto'}</small><button className="btn small" type="button" onClick={() => registerToTournament(tournament.id)} disabled={tournament.status !== 'Iscrizioni aperte'}>{reg ? 'Conferma iscrizione' : 'Iscriviti'}</button></article>;
+          })}
+          {!openTournaments.length && <div className="empty-state">Nessun torneo aperto al momento.</div>}
         </div>
       </section>
 
