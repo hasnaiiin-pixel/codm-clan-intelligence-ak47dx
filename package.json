@@ -1,6 +1,6 @@
 {
   "name": "clan-manager-ak47dx",
-  "version": "10.0.0-complete-tournament-template-professional",
+  "version": "11.0.1-complete-tournament-pro-excel-sql-npm-public",
   "private": true,
   "scripts": {
     "dev": "next dev",
@@ -23,7 +23,8 @@
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
     "recharts": "^2.15.3",
-    "tesseract.js": "^7.0.0"
+    "tesseract.js": "^7.0.0",
+    "xlsx": "^0.18.5"
   },
   "devDependencies": {
     "@types/node": "^20.19.0",

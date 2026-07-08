@@ -1,7 +1,7 @@
 -- =========================================================
--- CLAN MANAGER V9.0 COMPLETE FINAL SCHEMA
+-- CLAN MANAGER V11.0 COMPLETE FINAL SCHEMA
 -- Eseguire su Supabase SQL Editor.
--- Mantiene auth.users; sistema eventi, notifiche, Telegram, template OCR e nuova sezione Torneo.
+-- Mantiene auth.users; sistema eventi, roster, import risultati, OCR e Torneo Pro.
 -- =========================================================
 
 begin;
@@ -28,6 +28,78 @@ create table if not exists public.clan_members (
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now(),
   unique (clan_id, user_id)
+);
+
+-- ROSTER / MATCH CORE usato da import risultati, statistiche e profili.
+create table if not exists public.players (
+  id uuid primary key default gen_random_uuid(),
+  clan_id uuid references public.clans(id) on delete cascade,
+  user_id uuid references auth.users(id) on delete set null,
+  nickname text not null,
+  uid_codm text,
+  clan_name text default 'AK47DX',
+  status text default 'active',
+  role text default 'player',
+  profile_stats jsonb default '{}'::jsonb,
+  created_at timestamptz default now(),
+  updated_at timestamptz default now()
+);
+
+create table if not exists public.matches (
+  id uuid primary key default gen_random_uuid(),
+  clan_id uuid references public.clans(id) on delete cascade,
+  match_date timestamptz default now(),
+  match_type text default 'scrim',
+  mode text default 'CED',
+  map_name text,
+  opponent text,
+  result text default 'WIN',
+  team_score integer,
+  enemy_score integer,
+  screenshot_url text,
+  screenshot_storage_path text,
+  winning_team text,
+  our_team text,
+  match_notes text,
+  notes text,
+  created_by uuid references auth.users(id) on delete set null,
+  created_at timestamptz default now(),
+  updated_at timestamptz default now()
+);
+
+create table if not exists public.match_player_stats (
+  id uuid primary key default gen_random_uuid(),
+  match_id uuid references public.matches(id) on delete cascade,
+  player_id uuid references public.players(id) on delete set null,
+  kills integer default 0,
+  deaths integer default 0,
+  assists integer default 0,
+  score integer default 0,
+  rating numeric,
+  mvp boolean default false,
+  team_side text default 'ALLY',
+  created_at timestamptz default now()
+);
+
+create table if not exists public.match_scoreboard_rows (
+  id uuid primary key default gen_random_uuid(),
+  match_id uuid references public.matches(id) on delete cascade,
+  player_id uuid references public.players(id) on delete set null,
+  team_side text,
+  team_rank integer,
+  nickname_raw text,
+  nickname_resolved text,
+  kills integer default 0,
+  deaths integer default 0,
+  assists integer default 0,
+  score integer default 0,
+  impact numeric,
+  captures integer default 0,
+  objective_time_seconds integer default 0,
+  objective_time_text text,
+  mvp_type text,
+  read_status text default 'manual',
+  created_at timestamptz default now()
 );
 
 create table if not exists public.codm_events (
@@ -96,10 +168,10 @@ create table if not exists public.codm_ocr_templates (
   clan_id uuid references public.clans(id) on delete cascade,
   user_id uuid references auth.users(id) on delete set null,
   kind text not null default 'scoreboard_ced',
-  phone_key text not null,
-  phone_display_name text not null,
-  template_key text not null,
-  template_display_name text not null,
+  phone_key text not null default 'default',
+  phone_display_name text not null default 'default',
+  template_key text not null default 'default',
+  template_display_name text not null default 'default',
   coordinate_space text not null default 'content_frame_v1',
   source_image_width integer,
   source_image_height integer,
@@ -111,10 +183,8 @@ create table if not exists public.codm_ocr_templates (
   unique (clan_id, kind, phone_key, template_key)
 );
 
-
-
 -- =========================================================
--- TORNEI CODM SEMPLIFICATI
+-- TORNEO PRO V11.0
 -- =========================================================
 create table if not exists public.codm_tournaments (
   id uuid primary key default gen_random_uuid(),
@@ -126,8 +196,8 @@ create table if not exists public.codm_tournaments (
   start_time time,
   lobby_time time,
   max_teams integer default 8,
-  format text default '5v5',
-  type text default 'A girone',
+  format text default 'Da decidere dopo iscrizioni',
+  type text default 'Da decidere dopo iscrizioni',
   status text default 'Bozza',
   rules jsonb default '{}'::jsonb,
   bans jsonb default '{}'::jsonb,
@@ -200,6 +270,8 @@ create table if not exists public.codm_tournament_matches (
   mvp text,
   screenshot_url text,
   notes text,
+  bracket_order integer default 0,
+  next_match_id uuid,
   created_at timestamptz default now(),
   updated_at timestamptz default now()
 );
@@ -242,10 +314,33 @@ create table if not exists public.codm_tournament_files (
   created_at timestamptz default now()
 );
 
-
-alter table public.codm_events alter column id set default gen_random_uuid();
+create table if not exists public.codm_reference_data (
+  id uuid primary key default gen_random_uuid(),
+  category text not null,
+  code text not null,
+  label text not null,
+  sort_order integer default 0,
+  active boolean default true,
+  metadata jsonb default '{}'::jsonb,
+  unique(category, code)
+);
 
 -- Colonne compatibilità se tabelle esistevano già.
+alter table public.players add column if not exists clan_id uuid references public.clans(id) on delete cascade;
+alter table public.players add column if not exists user_id uuid references auth.users(id) on delete set null;
+alter table public.players add column if not exists uid_codm text;
+alter table public.players add column if not exists clan_name text default 'AK47DX';
+alter table public.players add column if not exists status text default 'active';
+alter table public.players add column if not exists role text default 'player';
+alter table public.players add column if not exists profile_stats jsonb default '{}'::jsonb;
+alter table public.players add column if not exists updated_at timestamptz default now();
+alter table public.matches add column if not exists team_score integer;
+alter table public.matches add column if not exists enemy_score integer;
+alter table public.matches add column if not exists winning_team text;
+alter table public.matches add column if not exists our_team text;
+alter table public.matches add column if not exists match_notes text;
+alter table public.matches add column if not exists notes text;
+alter table public.codm_events alter column id set default gen_random_uuid();
 alter table public.codm_events add column if not exists reminder_minutes integer[] default array[10080,1440,360,120,60,30,10,0];
 alter table public.codm_events add column if not exists sent_reminders jsonb default '{}'::jsonb;
 alter table public.codm_events add column if not exists event_plan jsonb default '{}'::jsonb;
@@ -259,6 +354,9 @@ alter table public.codm_events add column if not exists local_id text;
 alter table public.codm_notifications add column if not exists body text;
 alter table public.codm_notifications add column if not exists metadata jsonb default '{}'::jsonb;
 alter table public.codm_notifications add column if not exists dedupe_key text;
+alter table public.codm_tournament_matches add column if not exists screenshot_url text;
+alter table public.codm_tournament_matches add column if not exists bracket_order integer default 0;
+alter table public.codm_tournament_matches add column if not exists next_match_id uuid;
 
 -- Clan ufficiale pulito.
 do $$
@@ -279,9 +377,10 @@ begin
   end if;
   update public.codm_events set clan_id=v_clan, local_id=null, sync_status='synced', sync_error=null, updated_at=now() where clan_id is null or clan_id<>v_clan or local_id is not null or sync_status is distinct from 'synced';
   update public.codm_tournaments set clan_id=v_clan, updated_at=now() where clan_id is null or clan_id<>v_clan;
+  update public.players set clan_id=coalesce(clan_id,v_clan), clan_name=coalesce(clan_name,'AK47DX'), updated_at=now() where clan_id is null;
 end $$;
 
--- Funzione hard delete coerente con API V8.2.
+-- Funzione hard delete coerente con API eventi.
 create or replace function public.codm_delete_event_hard(p_event_id uuid)
 returns integer
 language plpgsql
@@ -299,23 +398,32 @@ begin
 end;
 $$;
 
+-- Reference data CODM per menu mappe/modalità/tipo partita.
+insert into public.codm_reference_data(category, code, label, sort_order) values
+('mode','CED','Cerca e Distruggi',1),('mode','POSTAZIONE','Postazione',2),('mode','DOMINIO','Dominio',3),('mode','CONTROL','Control',4),('mode','TDM','Team Deathmatch',5),('mode','KILL_CONFIRMED','Kill Confirmed',6),
+('match_type','scrim','Scrim',1),('match_type','tournament','Torneo',2),('match_type','private','Private',3),('match_type','ranked','Ranked',4),('match_type','training','Allenamento',5),
+('map','Standoff','Standoff',1),('map','Raid','Raid',2),('map','Firing Range','Firing Range',3),('map','Summit','Summit',4),('map','Slums','Slums',5),('map','Hacienda','Hacienda',6),('map','Takeoff','Takeoff',7),('map','Meltdown','Meltdown',8),('map','Crash','Crash',9),('map','Crossfire','Crossfire',10),('map','Nuketown','Nuketown',11),('map','Hijacked','Hijacked',12),('map','Shoot House','Shoot House',13),('map','Shipment','Shipment',14),('map','Rust','Rust',15),('map','Terminal','Terminal',16),('map','Highrise','Highrise',17),('map','Tunisia','Tunisia',18),('map','Coastal','Coastal',19),('map','Express','Express',20),('map','Dome','Dome',21)
+on conflict(category, code) do update set label=excluded.label, sort_order=excluded.sort_order, active=true;
+
+create index if not exists idx_players_clan_nickname on public.players(clan_id, nickname);
+create index if not exists idx_matches_clan_date on public.matches(clan_id, match_date desc);
+create index if not exists idx_match_player_stats_match on public.match_player_stats(match_id);
+create index if not exists idx_match_scoreboard_rows_match on public.match_scoreboard_rows(match_id);
 create index if not exists idx_codm_events_clan_starts on public.codm_events(clan_id, starts_at);
-create index if not exists idx_codm_events_updated_at on public.codm_events(updated_at desc);
-create index if not exists idx_codm_event_players_event_id on public.codm_event_players(event_id);
-create index if not exists idx_codm_notifications_event_id on public.codm_notifications(event_id);
 create index if not exists idx_codm_notifications_user_dedupe on public.codm_notifications(user_id, dedupe_key);
-create index if not exists idx_codm_notifications_clan_created on public.codm_notifications(clan_id, created_at desc);
 create index if not exists idx_codm_ocr_templates_lookup on public.codm_ocr_templates(clan_id, kind, phone_key, template_key);
 create index if not exists idx_codm_tournaments_clan_status on public.codm_tournaments(clan_id, status);
 create index if not exists idx_codm_tournament_teams_tournament on public.codm_tournament_teams(tournament_id);
 create index if not exists idx_codm_tournament_matches_tournament on public.codm_tournament_matches(tournament_id, match_time);
 create index if not exists idx_codm_tournament_registrations_tournament on public.codm_tournament_registrations(tournament_id, status);
--- V10.0: evita iscrizioni duplicate dello stesso profilo nello stesso torneo.
 create unique index if not exists ux_codm_tournament_reg_user on public.codm_tournament_registrations(tournament_id, user_id) where user_id is not null;
-
 
 alter table public.clans enable row level security;
 alter table public.clan_members enable row level security;
+alter table public.players enable row level security;
+alter table public.matches enable row level security;
+alter table public.match_player_stats enable row level security;
+alter table public.match_scoreboard_rows enable row level security;
 alter table public.codm_events enable row level security;
 alter table public.codm_event_players enable row level security;
 alter table public.codm_notifications enable row level security;
@@ -329,43 +437,18 @@ alter table public.codm_tournament_matches enable row level security;
 alter table public.codm_tournament_results enable row level security;
 alter table public.codm_tournament_standings enable row level security;
 alter table public.codm_tournament_files enable row level security;
+alter table public.codm_reference_data enable row level security;
 
-drop policy if exists clans_read_auth on public.clans;
-create policy clans_read_auth on public.clans for select to authenticated using (true);
-drop policy if exists clan_members_read_auth on public.clan_members;
-create policy clan_members_read_auth on public.clan_members for select to authenticated using (true);
-drop policy if exists codm_events_public_read on public.codm_events;
-create policy codm_events_public_read on public.codm_events for select to authenticated using (true);
-drop policy if exists codm_event_players_public_read on public.codm_event_players;
-create policy codm_event_players_public_read on public.codm_event_players for select to authenticated using (true);
-drop policy if exists codm_notifications_user_read on public.codm_notifications;
-create policy codm_notifications_user_read on public.codm_notifications for select to authenticated using (auth.uid() = user_id or user_id is null);
-drop policy if exists codm_ocr_templates_read_auth on public.codm_ocr_templates;
-create policy codm_ocr_templates_read_auth on public.codm_ocr_templates for select to authenticated using (true);
-
-drop policy if exists codm_tournaments_read_auth on public.codm_tournaments;
-create policy codm_tournaments_read_auth on public.codm_tournaments for select to authenticated using (true);
-drop policy if exists codm_tournament_teams_read_auth on public.codm_tournament_teams;
-create policy codm_tournament_teams_read_auth on public.codm_tournament_teams for select to authenticated using (true);
-drop policy if exists codm_tournament_matches_read_auth on public.codm_tournament_matches;
-create policy codm_tournament_matches_read_auth on public.codm_tournament_matches for select to authenticated using (true);
-drop policy if exists codm_tournament_registrations_read_auth on public.codm_tournament_registrations;
-create policy codm_tournament_registrations_read_auth on public.codm_tournament_registrations for select to authenticated using (true);
-drop policy if exists codm_tournament_results_read_auth on public.codm_tournament_results;
-create policy codm_tournament_results_read_auth on public.codm_tournament_results for select to authenticated using (true);
-drop policy if exists codm_tournament_standings_read_auth on public.codm_tournament_standings;
-create policy codm_tournament_standings_read_auth on public.codm_tournament_standings for select to authenticated using (true);
-drop policy if exists codm_tournament_files_read_auth on public.codm_tournament_files;
-create policy codm_tournament_files_read_auth on public.codm_tournament_files for select to authenticated using (true);
-
--- Prima release torneo: scritture semplici agli autenticati; in app i pulsanti restano riservati a Staff/Coach/Owner.
-drop policy if exists codm_tournaments_write_auth on public.codm_tournaments;
-create policy codm_tournaments_write_auth on public.codm_tournaments for all to authenticated using (true) with check (true);
-drop policy if exists codm_tournament_teams_write_auth on public.codm_tournament_teams;
-create policy codm_tournament_teams_write_auth on public.codm_tournament_teams for all to authenticated using (true) with check (true);
-drop policy if exists codm_tournament_matches_write_auth on public.codm_tournament_matches;
-create policy codm_tournament_matches_write_auth on public.codm_tournament_matches for all to authenticated using (true) with check (true);
-drop policy if exists codm_tournament_registrations_write_auth on public.codm_tournament_registrations;
-create policy codm_tournament_registrations_write_auth on public.codm_tournament_registrations for all to authenticated using (true) with check (true);
+-- Policy semplici: lettura autenticati, scrittura gestita dall'app/ruoli UI.
+do $$
+declare r record;
+begin
+  for r in select unnest(array['clans','clan_members','players','matches','match_player_stats','match_scoreboard_rows','codm_events','codm_event_players','codm_notifications','codm_ocr_templates','codm_tournaments','codm_tournament_teams','codm_tournament_players','codm_tournament_registrations','codm_tournament_rules','codm_tournament_matches','codm_tournament_results','codm_tournament_standings','codm_tournament_files','codm_reference_data']) as table_name loop
+    execute format('drop policy if exists %I on public.%I', r.table_name || '_read_auth', r.table_name);
+    execute format('create policy %I on public.%I for select to authenticated using (true)', r.table_name || '_read_auth', r.table_name);
+    execute format('drop policy if exists %I on public.%I', r.table_name || '_write_auth', r.table_name);
+    execute format('create policy %I on public.%I for all to authenticated using (true) with check (true)', r.table_name || '_write_auth', r.table_name);
+  end loop;
+end $$;
 
 commit;

@@ -1,0 +1,9 @@
+CLAN MANAGER V11.0 COMPLETE TOURNAMENT PRO + EXCEL + SQL
+- Torneo Pro separato con iscrizioni prima delle squadre
+- Generazione tabellone dopo iscrizioni
+- Bracket grafico con vincitore verde/eliminato rosso
+- Click partita per inserire/modificare risultato
+- Eliminazione torneo
+- Import Excel risultati + template xlsx
+- Import profilo con stesso selettore template di Import partita
+- SQL schema + script caricamento dati

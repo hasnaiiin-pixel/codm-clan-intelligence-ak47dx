@@ -13,6 +13,7 @@ import { ACCEPTED_OCR_BACKEND_VERSIONS, EXPECTED_OCR_BACKEND_VERSION, getOcrBack
 import { FULL_IMAGE_FRAME, detectImageContentFrameFromUrl, imagePointToFrameNorm, regionToImageStyle, type ImageContentFrame } from '@/lib/imageFrame';
 import { deleteEphemeralValue, getEphemeralValue, setEphemeralValue } from '@/lib/ephemeralStore';
 import type { GameMode, MatchResult, MatchType, Player, TeamSide } from '@/lib/types';
+import * as XLSX from 'xlsx';
 
 const modes: GameMode[] = ['CED', 'TDM', 'PRIMA_LINEA', 'DOMINIO', 'POSTAZIONE', 'KILL_CONFIRMED', 'BR_SOLO', 'BR_DUO', 'BR_SQUAD'];
 const types: MatchType[] = ['scrim', 'ranked', 'private', 'training', 'tournament', 'br'];
@@ -613,36 +614,100 @@ function ImportMatchEditor() {
     };
   }, []);
 
-  function applyManualTableImport() {
-    const lines = manualTableText.split(/\n+/).map((line) => line.trim()).filter(Boolean);
-    if (!lines.length) return setMessage('Incolla almeno una riga tabella. Formato: mappa; data; ora; risultato; giocatore; kill; death; assist');
+  function normalizeExcelKey(value: string) {
+    return String(value || '').trim().toUpperCase().replace(/\s+/g, '_');
+  }
+
+  function normalizeExcelDate(value: unknown) {
+    if (typeof value === 'number') {
+      const parsed = XLSX.SSF.parse_date_code(value);
+      if (parsed) return `${parsed.y}-${String(parsed.m).padStart(2, '0')}-${String(parsed.d).padStart(2, '0')}`;
+    }
+    return String(value || '').trim();
+  }
+
+  function applyImportedResultRows(records: Record<string, any>[], sourceLabel = 'tabella') {
+    if (!records.length) return setMessage(`Nessun dato valido trovato nel ${sourceLabel}.`);
     const importedRows: UiScoreRow[] = [];
-    for (const [index, line] of lines.entries()) {
-      const parts = line.split(/[;	,]/).map((part) => part.trim());
-      if (parts.length < 8) continue;
-      const [map, date, time, score, player, kill, death, assist] = parts;
+    for (const [index, row] of records.entries()) {
+      const map = String(row.MAPPA_CODM ?? row.MAPPA ?? '').trim();
+      const date = normalizeExcelDate(row.DATA);
+      const time = String(row.ORA ?? '').trim();
+      const score = String(row.RISULTATO ?? '').trim();
+      const player = String(row.GIOCATORE ?? row.PLAYER ?? '').trim();
+      const kill = row.KILL ?? row.KILLS ?? 0;
+      const death = row.DEATH ?? row.DEATHS ?? 0;
+      const assist = row.ASSIST ?? row.ASSISTS ?? 0;
+      const modeValue = String(row.MODALITA_CODM ?? row.MODALITA ?? '').trim();
+      const typeValue = String(row.TIPO_PARTITA ?? '').trim();
+      const opponentValue = String(row.TEAM_AVVERSARIO_ROSSO ?? row.AVVERSARIO ?? '').trim();
+      const ourScoreValue = row.RISULTATO_NOSTRO ?? '';
+      const enemyScoreValue = row.RISULTATO_AVVERSARIO ?? '';
       if (index === 0) {
         if (map) setMapName(map);
+        if (modeValue) {
+          const normalizedMode = modeValue.toUpperCase().replace(/\s+/g, '_') as GameMode;
+          if (modes.includes(normalizedMode)) setMode(normalizedMode);
+        }
+        if (typeValue) {
+          const normalizedType = typeValue.toLowerCase() as MatchType;
+          if (types.includes(normalizedType)) setMatchType(normalizedType);
+        }
+        if (opponentValue) setOpponent(opponentValue);
         if (date || time) {
           const normalizedDate = date.includes('-') ? date : date.split('/').reverse().join('-');
-          setMatchDateLocal(`${normalizedDate}T${(time || '21:00').slice(0,5)}`);
+          if (normalizedDate) setMatchDateLocal(`${normalizedDate}T${(time || '21:00').slice(0, 5)}`);
         }
-        const m = String(score || '').match(/(\d+)\s*[-:]\s*(\d+)/);
-        if (m) { setTeamScore(m[1]); setEnemyScore(m[2]); }
+        const explicitScores = `${ourScoreValue}` !== '' || `${enemyScoreValue}` !== '';
+        if (explicitScores) {
+          setTeamScore(String(ourScoreValue || '0').replace(/[^0-9]/g, ''));
+          setEnemyScore(String(enemyScoreValue || '0').replace(/[^0-9]/g, ''));
+        } else {
+          const m = String(score || '').match(/(\d+)\s*[-:]\s*(\d+)/);
+          if (m) { setTeamScore(m[1]); setEnemyScore(m[2]); }
+        }
       }
+      if (!player) continue;
       importedRows.push({
         ...emptyRow('ALLY', importedRows.length + 1, clanName),
         nickname: player || `Player ${importedRows.length + 1}`,
         kills: Number(kill || 0),
         deaths: Number(death || 0),
         assists: Number(assist || 0),
+        mvp: ['SI', 'SÌ', 'YES', 'TRUE', '1'].includes(String(row.MVP || '').toUpperCase()),
         readStatus: 'manual',
         needsReview: false,
       });
     }
-    if (!importedRows.length) return setMessage('Tabella non valida. Usa: mappa; data; ora; risultato; giocatore; kill; death; assist');
+    if (!importedRows.length) return setMessage(`Dati ${sourceLabel} non validi: serve almeno una riga con GIOCATORE, KILL, DEATH, ASSIST.`);
     setRows(importedRows);
-    setMessage(`Tabella importata: ${importedRows.length} giocatori. Controlla risultato e premi Salva partita.`);
+    setMessage(`Import ${sourceLabel} completato: ${importedRows.length} giocatori caricati. Controlla risultato e premi Salva partita.`);
+  }
+
+  function applyManualTableImport() {
+    const lines = manualTableText.split(/\n+/).map((line) => line.trim()).filter(Boolean);
+    if (!lines.length) return setMessage('Incolla almeno una riga tabella. Formato: mappa; data; ora; risultato; giocatore; kill; death; assist');
+    const records = lines.map((line) => {
+      const parts = line.split(/[;\t,]/).map((part) => part.trim());
+      const [map, date, time, score, player, kill, death, assist] = parts;
+      return { MAPPA_CODM: map, DATA: date, ORA: time, RISULTATO: score, GIOCATORE: player, KILL: kill, DEATH: death, ASSIST: assist };
+    });
+    applyImportedResultRows(records, 'tabella manuale');
+  }
+
+  async function applyExcelResultsImport(file?: File | null) {
+    if (!file) return;
+    try {
+      const buffer = await file.arrayBuffer();
+      const workbook = XLSX.read(buffer, { type: 'array' });
+      const sheetName = workbook.SheetNames.includes('IMPORT_PARTITE') ? 'IMPORT_PARTITE' : workbook.SheetNames[0];
+      const worksheet = workbook.Sheets[sheetName];
+      const rawRows = XLSX.utils.sheet_to_json<Record<string, any>>(worksheet, { defval: '' });
+      const normalizedRows = rawRows.map((row) => Object.fromEntries(Object.entries(row).map(([key, value]) => [normalizeExcelKey(key), value])));
+      applyImportedResultRows(normalizedRows, 'Excel risultati');
+    } catch (error) {
+      setMessage(error instanceof Error ? `Excel non letto: ${error.message}` : 'Excel non letto. Usa il template ufficiale CLAN MANAGER.');
+    }
   }
 
   useEffect(() => {
@@ -1476,9 +1541,16 @@ function ImportMatchEditor() {
 
         <div className="card">
           <h2>Dati partita</h2>
-          <details className="top-gap import-table-entry">
-            <summary>📋 Importa risultato da tabella manuale</summary>
-            <p className="muted">Formato riga: mappa; data; ora; risultato; giocatore; kill; death; assist. Esempio: Standoff; 2026-07-08; 21:00; 6-0; MIRZA; 18; 7; 4</p>
+          <details className="top-gap import-table-entry" open>
+            <summary>📋 Importa risultato da Excel o tabella</summary>
+            <div className="import-excel-panel">
+              <p className="muted">Usa il template Excel ufficiale per caricare risultato partita e K/D/A con numeri precisi. Lo screenshot resta disponibile per prova visiva.</p>
+              <div className="cal-buttons">
+                <a className="btn small secondary" href="/templates/TEMPLATE_IMPORT_RISULTATI_CODM_CLAN_MANAGER.xlsx" download>⬇️ Scarica template Excel</a>
+                <label className="btn small">📥 Carica Excel<input type="file" accept=".xlsx,.xls" hidden onChange={(e) => applyExcelResultsImport(e.target.files?.[0] || null)} /></label>
+              </div>
+            </div>
+            <p className="muted top-gap">Alternativa rapida: mappa; data; ora; risultato; giocatore; kill; death; assist.</p>
             <textarea className="textarea" rows={5} value={manualTableText} onChange={(e) => setManualTableText(e.target.value)} placeholder="Standoff; 2026-07-08; 21:00; 6-0; MIRZA; 18; 7; 4" />
             <button className="btn small top-gap" type="button" onClick={applyManualTableImport}>Carica dati tabella</button>
           </details>

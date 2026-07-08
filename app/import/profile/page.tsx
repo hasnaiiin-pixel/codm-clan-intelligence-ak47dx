@@ -7,7 +7,11 @@ import { recognizeCodmImage } from '@/lib/codmOcrEngine';
 import {
   clampRegion,
   getActivePhoneProfile,
+  getBestCalibrationPhoneProfile,
   listCalibrationPhoneProfiles,
+  listCalibrationTemplatesForPhone,
+  makeCalibrationProfileKey,
+  splitCalibrationProfileKey,
   loadCalibrationBundle,
   saveCalibration,
   setActivePhoneProfile,
@@ -158,24 +162,29 @@ export default function ImportProfilePage() {
 
   function refreshTemplateLists(nextPhone?: string, nextTemplate?: string) {
     const profiles = listCalibrationPhoneProfiles('profile_base');
-    const parsed = profiles.map(splitPhoneTemplate);
-    const phones = uniqueSorted(['default', ...parsed.map((x) => x.phone)]);
-    const chosenPhone = slug(nextPhone || phone || splitPhoneTemplate(getActivePhoneProfile('profile_base')).phone || 'default');
-    const templates = uniqueSorted(['default', ...parsed.filter((x) => x.phone === chosenPhone).map((x) => x.template)]);
-    const previousTemplate = template || splitPhoneTemplate(getActivePhoneProfile('profile_base')).template || 'default';
+    const bestKey = getBestCalibrationPhoneProfile('profile_base');
+    const bestSplit = splitCalibrationProfileKey(bestKey);
+    const fromDefault = listCalibrationTemplatesForPhone('profile_base', 'default');
+    const fromProfiles = profiles.map((key) => splitCalibrationProfileKey(key).template || 'default');
+    const options = uniqueSorted(['default', ...fromDefault, ...fromProfiles]);
+    const previous = template && template !== 'default' ? template : '';
     const chosenTemplate = nextTemplate !== undefined
-      ? slug(nextTemplate)
-      : (previousTemplate && previousTemplate !== 'default' && templates.includes(previousTemplate) ? previousTemplate : (templates.find((t) => t !== 'default') || 'default'));
-    setCalibrationPhones(phones);
-    setCalibrationTemplates(templates.includes(chosenTemplate) ? templates : uniqueSorted([...templates, chosenTemplate]));
-    setPhone(chosenPhone);
+      ? (nextTemplate || 'default')
+      : (previous && options.includes(previous)
+          ? previous
+          : (bestSplit.template && bestSplit.template !== 'default' && options.includes(bestSplit.template)
+              ? bestSplit.template
+              : (options.find((t) => t !== 'default') || 'default')));
+    const key = makeCalibrationProfileKey('default', chosenTemplate);
+    setCalibrationPhones(['default']);
+    setCalibrationTemplates(uniqueSorted(['default', ...options, chosenTemplate]));
+    setPhone('default');
     setTemplate(chosenTemplate);
-    const key = joinPhoneTemplate(chosenPhone, chosenTemplate);
     setActivePhoneProfile('profile_base', key);
     const bundle = loadCalibrationBundle('profile_base', key);
     setTemplateRegions(bundle.regions || []);
     if (!selectedProfileRegionName && bundle.regions?.[0]?.name) setSelectedProfileRegionName(bundle.regions[0].name);
-    setTemplateSummary(`${chosenPhone} / ${chosenTemplate} · ${bundle.meta?.templateName || 'Profilo'} · ${bundle.regions?.length || 0} riquadri`);
+    setTemplateSummary(`${chosenTemplate || 'default'} · ${bundle.regions?.length || 0} riquadri · ${chosenTemplate === 'default' ? 'base' : 'salvato'}`);
     return { key, bundle };
   }
 
@@ -241,10 +250,11 @@ export default function ImportProfilePage() {
   }
 
   function saveProfileTemplateFromImport() {
-    const key = joinPhoneTemplate(phone, template);
-    saveCalibration('profile_base', templateRegions, key, `Profilo ${template}`, 'import-profile');
-    refreshTemplateLists(phone, template);
-    setMessage(`Template profilo salvato da Import: telefono ${phone}, template ${template}.`);
+    const cleanTemplate = String(template || 'Profilo salvato').trim() || 'Profilo salvato';
+    const key = makeCalibrationProfileKey('default', cleanTemplate);
+    saveCalibration('profile_base', templateRegions, key, cleanTemplate, 'import-profile');
+    refreshTemplateLists('default', cleanTemplate);
+    setMessage(`Template profilo salvato: ${cleanTemplate}. Lo trovi subito nel menu Import profilo e Calibrazione.`);
   }
 
   async function runBrowserProfileFallback() {
@@ -272,10 +282,10 @@ export default function ImportProfilePage() {
 
   useEffect(() => {
     loadPlayers();
-    const active = splitPhoneTemplate(getActivePhoneProfile('profile_base'));
-    setPhone(active.phone);
-    setTemplate(active.template);
-    setTimeout(() => refreshTemplateLists(active.phone, active.template), 0);
+    const active = splitCalibrationProfileKey(getActivePhoneProfile('profile_base'));
+    setPhone('default');
+    setTemplate(active.template || 'default');
+    setTimeout(() => refreshTemplateLists('default', active.template || undefined), 0);
   }, []);
 
   async function loadPlayers() {
@@ -520,7 +530,7 @@ export default function ImportProfilePage() {
         <div>
           <p className="eyebrow">🪪 Import profilo V6.3</p>
           <h1>Import profilo / statistiche giocatore</h1>
-          <p className="muted">Un solo tasto di import. Seleziona telefono e template, centra il frame se serve, poi controlla i campi e salva.</p>
+          <p className="muted">Un solo tasto di import. Seleziona il template salvato, centra il frame se serve, poi controlla i campi e salva.</p>
         </div>
         <div className="import-actions">
           <input className="input" type="file" accept="image/*" onChange={(e) => onFileSelected(e.target.files?.[0] || null)} />
@@ -554,12 +564,11 @@ export default function ImportProfilePage() {
 
           {(working || ocrProgress) && <div className="ak-progress-panel"><div className="ak-progress-row"><span>Import profilo</span><span>{ocrProgressPct}%</span></div><div className="ak-progress-track"><div className="ak-progress-fill" style={{ width: `${ocrProgressPct}%` }} /></div><div className="ak-progress-note">{ocrProgress}</div></div>}
 
-          <div className="ak-template-status ok"><strong>Template:</strong> {templateSummary}</div>
+          <div className={`ak-template-status ${template === 'default' ? 'warn' : 'ok'}`}><strong>Template profilo:</strong> 🧩 {templateSummary}</div>
           <div className="grid grid-2 top-gap">
-            <div className="field"><label>Tipo screenshot</label><select className="select" value={importType} onChange={(e) => setImportType(e.target.value as ProfileImportType)}>{importTypes.map((x) => <option key={x.value} value={x.value}>{x.label}</option>)}</select><small className="muted">{importTypes.find((x) => x.value === importType)?.hint}</small></div>
-            <div className="field"><label>Usa calibrazione</label><select className="select" value={useCalibrationTemplate ? 'yes' : 'no'} onChange={(e) => setUseCalibrationTemplate(e.target.value === 'yes')}><option value="yes">Sì, usa template</option><option value="no">No, solo automatico</option></select></div>
-            <div className="field"><label>Tipologia telefono</label><select className="select" value={phone} onChange={(e) => refreshTemplateLists(e.target.value)}>{calibrationPhones.map((p) => <option key={p} value={p}>{p}</option>)}</select></div>
-            <div className="field"><label>Tipologia template</label><select className="select" value={template} onChange={(e) => refreshTemplateLists(phone, e.target.value)}>{calibrationTemplates.map((t) => <option key={t} value={t}>{t}</option>)}</select></div>
+            <div className="field"><label>Tipo screenshot</label><select className="select pro-select" value={importType} onChange={(e) => setImportType(e.target.value as ProfileImportType)}>{importTypes.map((x) => <option key={x.value} value={x.value}>{x.label}</option>)}</select><small className="muted">{importTypes.find((x) => x.value === importType)?.hint}</small></div>
+            <div className="field"><label>Usa template profilo</label><label className="template-toggle-line"><input type="checkbox" checked={useCalibrationTemplate} onChange={(e) => setUseCalibrationTemplate(e.target.checked)} /> Usa template salvato</label></div>
+            <div className="field grid-span-2"><label>Template salvato</label><div className="import-actions import-actions-pro import-template-toolbar-pro"><select className="select pro-select" value={template} onFocus={() => refreshTemplateLists('default', template)} onChange={(e) => refreshTemplateLists('default', e.target.value)} disabled={!useCalibrationTemplate} title="Template profilo salvato">{calibrationTemplates.map((t) => <option key={t} value={t}>{t === 'default' ? '🧩 Default base' : `🧩 ${t}`}</option>)}</select><button className="btn secondary" type="button" onClick={() => refreshTemplateLists('default', template)}>🔄 Ricarica template</button><a className="btn small secondary" href="/calibration">🎯 Modifica template</a></div><small className="muted">Stesso formato di Import partita: menu dark/gaming, un solo nome template.</small></div>
           </div>
 
           <details className="top-gap" open>
@@ -578,10 +587,10 @@ export default function ImportProfilePage() {
           </details>
           <details className="top-gap" open>
             <summary>🧩 Regola riquadri profilo direttamente sull'immagine</summary>
-            <div className="notice top-gap">Clicca un riquadro nello screenshot profilo, trascinalo con mouse/dito e ridimensionalo dagli angoli. Poi salva il template telefono + nome template.</div>
+            <div className="notice top-gap">Clicca un riquadro nello screenshot profilo, trascinalo con mouse/dito e ridimensionalo dagli angoli. Poi salva il template con un solo nome.</div>
             <div className="grid grid-2 top-gap">
               <div className="field"><label>Riquadro selezionato</label><select className="select" value={selectedProfileRegionName} onChange={(e) => setSelectedProfileRegionName(e.target.value)}>{templateRegions.map((r) => <option key={r.name} value={r.name}>{r.label || r.name}</option>)}</select></div>
-              <div className="field"><label>Salvataggio template</label><button className="btn small" type="button" onClick={saveProfileTemplateFromImport}>💾 Salva riquadri profilo</button><small className="muted">Salva per telefono + tipologia template scelti sopra.</small></div>
+              <div className="field"><label>Salvataggio template</label><button className="btn small" type="button" onClick={saveProfileTemplateFromImport}>💾 Salva riquadri profilo</button><small className="muted">Salva con il nome template selezionato sopra, senza doppio nome.</small></div>
             </div>
           </details>
           {message && <div className="notice top-gap">{message}</div>}

@@ -1,4 +1,0 @@
-CLAN MANAGER V10.0 COMPLETE TOURNAMENT TEMPLATE PRO
-- TypeScript: npx tsc --noEmit OK
-- Next build: compiled successfully; container timed out during long Collecting page data/tracing, same known environment behavior
-- SW syntax OK
