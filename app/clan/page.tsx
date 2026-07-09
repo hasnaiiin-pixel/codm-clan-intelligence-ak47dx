@@ -1,12 +1,16 @@
-'use client';
+"use client";
 
-import { useEffect, useMemo, useState } from 'react';
-import { supabase } from '@/lib/supabaseClient';
-import { kdRatio, winRate } from '@/lib/statistics';
-import { useCodmAuth } from '@/lib/authRoles';
-import { cacheClanIdentity, loadClanIdentity, clanDisplayName } from '@/lib/clanIdentity';
-import { getEphemeralValue, setEphemeralValue } from '@/lib/ephemeralStore';
-import type { Match, Player } from '@/lib/types';
+import { useEffect, useMemo, useState } from "react";
+import { supabase } from "@/lib/supabaseClient";
+import { kdRatio, winRate } from "@/lib/statistics";
+import { useCodmAuth } from "@/lib/authRoles";
+import {
+  cacheClanIdentity,
+  loadClanIdentity,
+  clanDisplayName,
+} from "@/lib/clanIdentity";
+import { getEphemeralValue, setEphemeralValue } from "@/lib/ephemeralStore";
+import type { Match, Player } from "@/lib/types";
 
 type ScoreboardRow = {
   id: string;
@@ -40,20 +44,22 @@ type ClanProfile = {
 };
 
 const defaultProfile: ClanProfile = {
-  clan_name: 'AK47DX',
-  tag: 'AK47DX',
-  motto: 'Lupi della luna rossa · competizione, presenza e rispetto.',
-  story: 'Scrivi qui la storia del clan, quando è nato, obiettivi, regole e identità del gruppo.',
-  leaders: 'Capo clan: MIRZA',
-  vice_admins: 'Vice / admin: da compilare',
-  social_discord: '',
-  social_whatsapp: '',
-  social_tiktok: '',
-  social_youtube: '',
-  social_instagram: '',
-  notice_title: 'Avviso clan',
-  notice_body: 'Scrivi qui comunicazioni importanti, roster, allenamenti, scrim o regole aggiornate.',
-  logo_url: '/assets/ak47dx-logo.jpeg'
+  clan_name: "AK47DX",
+  tag: "AK47DX",
+  motto: "Lupi della luna rossa · competizione, presenza e rispetto.",
+  story:
+    "Scrivi qui la storia del clan, quando è nato, obiettivi, regole e identità del gruppo.",
+  leaders: "Capo clan: MIRZA",
+  vice_admins: "Vice / admin: da compilare",
+  social_discord: "",
+  social_whatsapp: "",
+  social_tiktok: "",
+  social_youtube: "",
+  social_instagram: "",
+  notice_title: "Avviso clan",
+  notice_body:
+    "Scrivi qui comunicazioni importanti, roster, allenamenti, scrim o regole aggiornate.",
+  logo_url: "/assets/ak47dx-logo.jpeg",
 };
 
 export default function ClanPage() {
@@ -62,16 +68,29 @@ export default function ClanPage() {
   const [players, setPlayers] = useState<Player[]>([]);
   const [matches, setMatches] = useState<Match[]>([]);
   const [rows, setRows] = useState<ScoreboardRow[]>([]);
-  const [selectedClan, setSelectedClan] = useState('ALL');
+  const [selectedClan, setSelectedClan] = useState("ALL");
   const [profile, setProfile] = useState<ClanProfile>(defaultProfile);
-  const [message, setMessage] = useState('');
+  const [message, setMessage] = useState("");
 
-  useEffect(() => { load(); }, []);
+  useEffect(() => {
+    load();
+  }, []);
 
   async function load() {
-    const saved = getEphemeralValue<Partial<ClanProfile> | string>('codm_clan_hq_profile_v2_0');
+    const saved = getEphemeralValue<Partial<ClanProfile> | string>(
+      "codm_clan_hq_profile_v2_0",
+    );
     if (saved) {
-      try { setProfile({ ...defaultProfile, ...(typeof saved === 'string' ? JSON.parse(saved) : saved) as Partial<ClanProfile> }); } catch { /* ignore local backup */ }
+      try {
+        setProfile({
+          ...defaultProfile,
+          ...((typeof saved === "string"
+            ? JSON.parse(saved)
+            : saved) as Partial<ClanProfile>),
+        });
+      } catch {
+        /* ignore local backup */
+      }
     }
     try {
       const identity = await loadClanIdentity();
@@ -79,20 +98,41 @@ export default function ClanPage() {
         ...prev,
         clan_name: identity.clanName || prev.clan_name,
         tag: clanDisplayName(identity),
-        logo_url: identity.logoUrl || prev.logo_url
+        logo_url: identity.logoUrl || prev.logo_url,
       }));
-    } catch { /* profile remoto non disponibile */ }
+    } catch {
+      /* profile remoto non disponibile */
+    }
     try {
-      const { data: remoteProfile } = await supabase.from('clan_public_profiles').select('*').eq('profile_key', 'main').maybeSingle();
+      const { data: remoteProfile } = await supabase
+        .from("clan_public_profiles")
+        .select("*")
+        .eq("profile_key", "main")
+        .maybeSingle();
       if (remoteProfile) {
         const rp = remoteProfile as Partial<ClanProfile>;
-        setProfile((prev) => ({ ...prev, ...rp, logo_url: rp.logo_url || prev.logo_url }));
+        setProfile((prev) => ({
+          ...prev,
+          ...rp,
+          logo_url: rp.logo_url || prev.logo_url,
+        }));
       }
-    } catch { /* tabella profilo non presente */ }
+    } catch {
+      /* tabella profilo non presente */
+    }
 
-    const { data: playerData } = await supabase.from('players').select('*').order('nickname');
-    const { data: matchData } = await supabase.from('matches').select('*').order('match_date', { ascending: false });
-    const { data: rowData } = await supabase.from('match_scoreboard_rows').select('*, players(nickname,clan_name)').order('team_rank', { ascending: true });
+    const { data: playerData } = await supabase
+      .from("players")
+      .select("*")
+      .order("nickname");
+    const { data: matchData } = await supabase
+      .from("matches")
+      .select("*")
+      .order("match_date", { ascending: false });
+    const { data: rowData } = await supabase
+      .from("match_scoreboard_rows")
+      .select("*, players(nickname,clan_name)")
+      .order("team_rank", { ascending: true });
     setPlayers((playerData || []) as Player[]);
     setMatches((matchData || []) as Match[]);
     setRows((rowData || []) as ScoreboardRow[]);
@@ -105,101 +145,184 @@ export default function ClanPage() {
   function onLogoFile(file?: File | null) {
     if (!file) return;
     const reader = new FileReader();
-    reader.onload = () => setProfile((prev) => ({ ...prev, logo_url: String(reader.result || prev.logo_url) }));
+    reader.onload = () =>
+      setProfile((prev) => ({
+        ...prev,
+        logo_url: String(reader.result || prev.logo_url),
+      }));
     reader.readAsDataURL(file);
   }
 
   async function saveProfile() {
-    setMessage('');
+    setMessage("");
     const cleanProfile = {
       ...profile,
-      clan_name: profile.clan_name.trim() || 'AK47DX',
-      tag: profile.tag.trim() || profile.clan_name.trim() || 'AK47DX'
+      clan_name: profile.clan_name.trim() || "AK47DX",
+      tag: profile.tag.trim() || profile.clan_name.trim() || "AK47DX",
     };
-    setEphemeralValue('codm_clan_hq_profile_v2_0', JSON.stringify(cleanProfile));
-    cacheClanIdentity({ clanId: auth.clanId, clanName: cleanProfile.clan_name, clanTag: cleanProfile.tag, logoUrl: cleanProfile.logo_url });
+    setEphemeralValue(
+      "codm_clan_hq_profile_v2_0",
+      JSON.stringify(cleanProfile),
+    );
+    cacheClanIdentity({
+      clanId: auth.clanId,
+      clanName: cleanProfile.clan_name,
+      clanTag: cleanProfile.tag,
+      logoUrl: cleanProfile.logo_url,
+    });
 
-    let clanSyncMessage = '';
+    let clanSyncMessage = "";
     if (auth.clanId) {
-      const clanUpdate = await supabase.from('clans').update({ name: cleanProfile.clan_name, tag: cleanProfile.tag, logo_url: cleanProfile.logo_url || null }).eq('id', auth.clanId);
-      if (clanUpdate.error) clanSyncMessage = ` Clan base non aggiornato: ${clanUpdate.error.message}`;
+      const clanUpdate = await supabase
+        .from("clans")
+        .update({
+          name: cleanProfile.clan_name,
+          tag: cleanProfile.tag,
+          logo_url: cleanProfile.logo_url || null,
+        })
+        .eq("id", auth.clanId);
+      if (clanUpdate.error)
+        clanSyncMessage = ` Clan base non aggiornato: ${clanUpdate.error.message}`;
 
       // Correzione mirata vecchie assegnazioni: non tocca clan avversari, aggiorna solo tag storici/placeholder del nostro roster.
-      const legacyTags = ['AK', 'AKঐ', 'ѦҞ', 'ѦҞঐ', 'ѦҞঐ ', 'Senza clan', ''];
-      await supabase.from('players').update({ clan_name: cleanProfile.tag }).eq('clan_id', auth.clanId).in('clan_name', legacyTags);
+      const legacyTags = ["AK", "AKঐ", "ѦҞ", "ѦҞঐ", "ѦҞঐ ", "Senza clan", ""];
+      await supabase
+        .from("players")
+        .update({ clan_name: cleanProfile.tag })
+        .eq("clan_id", auth.clanId)
+        .in("clan_name", legacyTags);
     }
 
-    const { error } = await supabase.from('clan_public_profiles').upsert({
-      profile_key: 'main',
-      clan_name: cleanProfile.clan_name,
-      tag: cleanProfile.tag,
-      motto: cleanProfile.motto,
-      story: cleanProfile.story,
-      leaders: cleanProfile.leaders,
-      vice_admins: cleanProfile.vice_admins,
-      social_discord: cleanProfile.social_discord,
-      social_whatsapp: cleanProfile.social_whatsapp,
-      social_tiktok: cleanProfile.social_tiktok,
-      social_youtube: cleanProfile.social_youtube,
-      social_instagram: cleanProfile.social_instagram,
-      notice_title: cleanProfile.notice_title,
-      notice_body: cleanProfile.notice_body,
-      logo_url: cleanProfile.logo_url,
-      updated_at: new Date().toISOString()
-    }, { onConflict: 'profile_key' });
+    const { error } = await supabase.from("clan_public_profiles").upsert(
+      {
+        profile_key: "main",
+        clan_name: cleanProfile.clan_name,
+        tag: cleanProfile.tag,
+        motto: cleanProfile.motto,
+        story: cleanProfile.story,
+        leaders: cleanProfile.leaders,
+        vice_admins: cleanProfile.vice_admins,
+        social_discord: cleanProfile.social_discord,
+        social_whatsapp: cleanProfile.social_whatsapp,
+        social_tiktok: cleanProfile.social_tiktok,
+        social_youtube: cleanProfile.social_youtube,
+        social_instagram: cleanProfile.social_instagram,
+        notice_title: cleanProfile.notice_title,
+        notice_body: cleanProfile.notice_body,
+        logo_url: cleanProfile.logo_url,
+        updated_at: new Date().toISOString(),
+      },
+      { onConflict: "profile_key" },
+    );
     setProfile(cleanProfile);
     if (error) {
-      setMessage(`Profilo salvato localmente. Supabase profilo pubblico: ${error.message}.${clanSyncMessage}`);
+      setMessage(
+        `Profilo salvato localmente. Supabase profilo pubblico: ${error.message}.${clanSyncMessage}`,
+      );
     } else {
-      setMessage(`Clan HQ salvato. Da ora nuovi player/registrazioni prendono il tag ${cleanProfile.tag}.${clanSyncMessage}`);
+      setMessage(
+        `Clan HQ salvato. Da ora nuovi player/registrazioni prendono il tag ${cleanProfile.tag}.${clanSyncMessage}`,
+      );
     }
     await load();
   }
 
   const clanOptions = useMemo(() => {
     const set = new Set<string>();
-    players.forEach((p) => set.add(p.clan_name || 'Senza clan'));
-    rows.forEach((r) => set.add(r.players?.clan_name || 'Senza clan'));
-    return ['ALL', ...Array.from(set).sort()];
+    players.forEach((p) => set.add(p.clan_name || "Senza clan"));
+    rows.forEach((r) => set.add(r.players?.clan_name || "Senza clan"));
+    return ["ALL", ...Array.from(set).sort()];
   }, [players, rows]);
 
   const clanStats = useMemo(() => {
-    const grouped = new Map<string, { clan: string; players: Set<string>; kills: number; deaths: number; assists: number; mvpWin: number; mvpLose: number; rows: number }>();
+    const grouped = new Map<
+      string,
+      {
+        clan: string;
+        players: Set<string>;
+        matches: Set<string>;
+        kills: number;
+        deaths: number;
+        assists: number;
+        mvpWin: number;
+        mvpLose: number;
+      }
+    >();
     for (const player of players) {
-      const clan = player.clan_name || 'Senza clan';
-      const item = grouped.get(clan) || { clan, players: new Set<string>(), kills: 0, deaths: 0, assists: 0, mvpWin: 0, mvpLose: 0, rows: 0 };
+      const clan = player.clan_name || "Senza clan";
+      const item = grouped.get(clan) || {
+        clan,
+        players: new Set<string>(),
+        matches: new Set<string>(),
+        kills: 0,
+        deaths: 0,
+        assists: 0,
+        mvpWin: 0,
+        mvpLose: 0,
+      };
       item.players.add(player.id);
       grouped.set(clan, item);
     }
     for (const row of rows) {
-      const clan = row.players?.clan_name || 'Senza clan';
-      const item = grouped.get(clan) || { clan, players: new Set<string>(), kills: 0, deaths: 0, assists: 0, mvpWin: 0, mvpLose: 0, rows: 0 };
-      item.players.add(row.player_id || row.nickname_resolved || row.nickname_raw || row.id);
+      const clan = row.players?.clan_name || "Senza clan";
+      const item = grouped.get(clan) || {
+        clan,
+        players: new Set<string>(),
+        matches: new Set<string>(),
+        kills: 0,
+        deaths: 0,
+        assists: 0,
+        mvpWin: 0,
+        mvpLose: 0,
+      };
+      item.players.add(
+        row.player_id || row.nickname_resolved || row.nickname_raw || row.id,
+      );
       item.kills += row.kills || 0;
       item.deaths += row.deaths || 0;
       item.assists += row.assists || 0;
-      item.rows += 1;
-      if (row.mvp_type === 'MVP_WIN') item.mvpWin += 1;
-      if (row.mvp_type === 'MVP_LOSE') item.mvpLose += 1;
+      item.matches.add(row.match_id || row.id);
+      if (row.mvp_type === "MVP_WIN") item.mvpWin += 1;
+      if (row.mvp_type === "MVP_LOSE") item.mvpLose += 1;
       grouped.set(clan, item);
     }
     return Array.from(grouped.values())
-      .map((x) => ({ ...x, playerCount: x.players.size, kd: kdRatio(x.kills, x.deaths) }))
-      .filter((x) => selectedClan === 'ALL' || x.clan === selectedClan)
-      .sort((a, b) => b.mvpWin - a.mvpWin || b.assists - a.assists || b.kills - a.kills);
+      .map((x) => ({
+        ...x,
+        playerCount: x.players.size,
+        matchCount: x.matches.size,
+        kd: kdRatio(x.kills, x.deaths),
+      }))
+      .filter((x) => selectedClan === "ALL" || x.clan === selectedClan)
+      .sort(
+        (a, b) =>
+          b.mvpWin - a.mvpWin || b.assists - a.assists || b.kills - a.kills,
+      );
   }, [players, rows, selectedClan]);
 
   const selectedPlayers = useMemo(() => {
-    return players.filter((p) => selectedClan === 'ALL' || (p.clan_name || 'Senza clan') === selectedClan);
+    return players.filter(
+      (p) =>
+        selectedClan === "ALL" ||
+        (p.clan_name || "Senza clan") === selectedClan,
+    );
   }, [players, selectedClan]);
 
   const globalSummary = useMemo(() => {
-    const wins = matches.filter((m) => m.result === 'WIN').length;
-    const losses = matches.filter((m) => m.result === 'LOSE').length;
+    const wins = matches.filter((m) => m.result === "WIN").length;
+    const losses = matches.filter((m) => m.result === "LOSE").length;
     const kills = clanStats.reduce((sum, c) => sum + c.kills, 0);
     const deaths = clanStats.reduce((sum, c) => sum + c.deaths, 0);
     const assists = clanStats.reduce((sum, c) => sum + c.assists, 0);
-    return { wins, losses, wr: winRate(wins, matches.length), kills, deaths, assists, kd: kdRatio(kills, deaths) };
+    return {
+      wins,
+      losses,
+      wr: winRate(wins, matches.length),
+      kills,
+      deaths,
+      assists,
+      kd: kdRatio(kills, deaths),
+    };
   }, [matches, clanStats]);
 
   return (
@@ -210,21 +333,81 @@ export default function ClanPage() {
           <h1>{profile.clan_name}</h1>
           <p className="clan-motto">{profile.motto}</p>
           <div className="quick-actions">
-            {profile.social_discord && <a className="btn secondary" href={profile.social_discord} target="_blank">💬 Discord</a>}
-            {profile.social_whatsapp && <a className="btn secondary" href={profile.social_whatsapp} target="_blank">📱 WhatsApp</a>}
-            {profile.social_tiktok && <a className="btn secondary" href={profile.social_tiktok} target="_blank">🎬 TikTok</a>}
-            {profile.social_youtube && <a className="btn secondary" href={profile.social_youtube} target="_blank">▶️ YouTube</a>}
-            {profile.social_instagram && <a className="btn secondary" href={profile.social_instagram} target="_blank">📸 Instagram</a>}
+            {profile.social_discord && (
+              <a
+                className="btn secondary"
+                href={profile.social_discord}
+                target="_blank"
+              >
+                💬 Discord
+              </a>
+            )}
+            {profile.social_whatsapp && (
+              <a
+                className="btn secondary"
+                href={profile.social_whatsapp}
+                target="_blank"
+              >
+                📱 WhatsApp
+              </a>
+            )}
+            {profile.social_tiktok && (
+              <a
+                className="btn secondary"
+                href={profile.social_tiktok}
+                target="_blank"
+              >
+                🎬 TikTok
+              </a>
+            )}
+            {profile.social_youtube && (
+              <a
+                className="btn secondary"
+                href={profile.social_youtube}
+                target="_blank"
+              >
+                ▶️ YouTube
+              </a>
+            )}
+            {profile.social_instagram && (
+              <a
+                className="btn secondary"
+                href={profile.social_instagram}
+                target="_blank"
+              >
+                📸 Instagram
+              </a>
+            )}
           </div>
         </div>
-        <div className="clan-emblem logo-clan-emblem"><img src={profile.logo_url || '/assets/ak47dx-logo.jpeg'} alt="AK47DX logo" /><span>{profile.tag || 'AK47DX'}</span></div>
+        <div className="clan-emblem logo-clan-emblem">
+          <img
+            src={profile.logo_url || "/assets/ak47dx-logo.jpeg"}
+            alt="AK47DX logo"
+          />
+          <span>{profile.tag || "AK47DX"}</span>
+        </div>
       </section>
 
       <section className="grid grid-4 top-gap">
-        <div className="kpi kpi-glow"><span>Win rate</span><strong>{globalSummary.wr}%</strong></div>
-        <div className="kpi kpi-glow"><span>K/D clan</span><strong>{globalSummary.kd}</strong></div>
-        <div className="kpi kpi-glow"><span>Kill / Death / Assist</span><strong>{globalSummary.kills}/{globalSummary.deaths}/{globalSummary.assists}</strong></div>
-        <div className="kpi kpi-glow"><span>Player visibili</span><strong>{selectedPlayers.length}</strong></div>
+        <div className="kpi kpi-glow">
+          <span>Win rate</span>
+          <strong>{globalSummary.wr}%</strong>
+        </div>
+        <div className="kpi kpi-glow">
+          <span>K/D clan</span>
+          <strong>{globalSummary.kd}</strong>
+        </div>
+        <div className="kpi kpi-glow">
+          <span>Kill / Death / Assist</span>
+          <strong>
+            {globalSummary.kills}/{globalSummary.deaths}/{globalSummary.assists}
+          </strong>
+        </div>
+        <div className="kpi kpi-glow">
+          <span>Player visibili</span>
+          <strong>{selectedPlayers.length}</strong>
+        </div>
       </section>
 
       <section className="grid grid-2 top-gap">
@@ -232,8 +415,14 @@ export default function ClanPage() {
           <h2>Storia e identità clan</h2>
           <p className="muted multiline">{profile.story}</p>
           <div className="grid grid-2 top-gap">
-            <div className="kpi"><span>Capi clan</span><p>{profile.leaders}</p></div>
-            <div className="kpi"><span>Vice / amministratori</span><p>{profile.vice_admins}</p></div>
+            <div className="kpi">
+              <span>Capi clan</span>
+              <p>{profile.leaders}</p>
+            </div>
+            <div className="kpi">
+              <span>Vice / amministratori</span>
+              <p>{profile.vice_admins}</p>
+            </div>
           </div>
         </div>
         <div className="card notice-card">
@@ -246,48 +435,262 @@ export default function ClanPage() {
       <section className="grid grid-2 top-gap">
         <div className="card">
           <h2>Statistiche per clan</h2>
-          <div className="field"><label>Filtro clan</label><select className="select" value={selectedClan} onChange={(e) => setSelectedClan(e.target.value)}>{clanOptions.map((c) => <option key={c} value={c}>{c === 'ALL' ? 'Tutti i clan' : c}</option>)}</select></div>
+          <div className="field">
+            <label>Filtro clan</label>
+            <select
+              className="select"
+              value={selectedClan}
+              onChange={(e) => setSelectedClan(e.target.value)}
+            >
+              {clanOptions.map((c) => (
+                <option key={c} value={c}>
+                  {c === "ALL" ? "Tutti i clan" : c}
+                </option>
+              ))}
+            </select>
+          </div>
           <div className="table-scroll top-gap">
-            <table className="table compact"><thead><tr><th>Clan</th><th>Player</th><th>Righe</th><th>K/D/A</th><th>K/D</th><th>🥇 MVP</th><th>🥈 Assist</th></tr></thead><tbody>{clanStats.map((c) => <tr key={c.clan}><td>{c.clan}</td><td>{c.playerCount}</td><td>{c.rows}</td><td>{c.kills}/{c.deaths}/{c.assists}</td><td>{c.kd}</td><td>{c.mvpWin}</td><td>{c.mvpLose}</td></tr>)}{!clanStats.length && <tr><td colSpan={7} className="muted">Nessuna statistica clan.</td></tr>}</tbody></table>
+            <table className="table compact stats-tight-table stats-lines-table-v132">
+              <thead>
+                <tr>
+                  <th>Clan</th>
+                  <th>
+                    <span>Player</span>
+                  </th>
+                  <th>
+                    <span>Partite</span>
+                  </th>
+                  <th>
+                    <span>
+                      Kill
+                      <br />
+                      Death
+                      <br />
+                      Assist
+                    </span>
+                  </th>
+                  <th>
+                    <span>K/D</span>
+                  </th>
+                  <th>
+                    <span>
+                      🥇
+                      <br />
+                      MVP
+                    </span>
+                  </th>
+                  <th>
+                    <span>
+                      🥈
+                      <br />
+                      Assist
+                    </span>
+                  </th>
+                </tr>
+              </thead>
+              <tbody>
+                {clanStats.map((c) => (
+                  <tr key={c.clan}>
+                    <td>{c.clan}</td>
+                    <td>{c.playerCount}</td>
+                    <td>{c.matchCount}</td>
+                    <td>
+                      {c.kills}/{c.deaths}/{c.assists}
+                    </td>
+                    <td>{c.kd}</td>
+                    <td>{c.mvpWin}</td>
+                    <td>{c.mvpLose}</td>
+                  </tr>
+                ))}
+                {!clanStats.length && (
+                  <tr>
+                    <td colSpan={7} className="muted">
+                      Nessuna statistica clan.
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
           </div>
         </div>
         <div className="card">
           <h2>Giocatori del clan</h2>
           <div className="player-mini-list">
-            {selectedPlayers.map((player) => <div className="player-mini" key={player.id}><span className="avatar-placeholder small-avatar">{player.nickname.slice(0, 2).toUpperCase()}</span><div><b>{player.nickname}</b><p className="muted">{player.clan_name || 'Senza clan'} · {player.main_role || 'Ruolo da definire'} · {player.uid_codm ? `UID ${player.uid_codm}` : 'profilo non collegato'}</p></div></div>)}
-            {!selectedPlayers.length && <p className="muted">Nessun player per questo clan.</p>}
+            {selectedPlayers.map((player) => (
+              <div className="player-mini" key={player.id}>
+                <span className="avatar-placeholder small-avatar">
+                  {player.nickname.slice(0, 2).toUpperCase()}
+                </span>
+                <div>
+                  <a
+                    className="player-click-link-v132"
+                    href={`/players/${player.id}`}
+                  >
+                    <b>{player.nickname}</b>
+                  </a>
+                  <p className="muted">
+                    {player.clan_name || "Senza clan"} ·{" "}
+                    {player.main_role || "Ruolo da definire"} ·{" "}
+                    {player.uid_codm
+                      ? `UID ${player.uid_codm}`
+                      : "profilo non collegato"}
+                  </p>
+                </div>
+              </div>
+            ))}
+            {!selectedPlayers.length && (
+              <p className="muted">Nessun player per questo clan.</p>
+            )}
           </div>
         </div>
       </section>
 
-      {canWrite ? <section className="card top-gap">
-        <h2>Modifica Clan HQ</h2>
-        <p className="muted">Questa sezione è la sorgente ufficiale del clan: nome clan e TAG vengono assegnati automaticamente ai nuovi player registrati e usati nel roster/eventi. Salva su Supabase e backup locale.</p>
-        {message && <div className="notice">{message}</div>}
-        <div className="grid grid-3 top-gap">
-          <div className="field"><label>Nome clan</label><input className="input" value={profile.clan_name} onChange={(e) => update('clan_name', e.target.value)} /></div>
-          <div className="field"><label>TAG clan assegnato ai player</label><input className="input" value={profile.tag} onChange={(e) => update('tag', e.target.value)} /></div>
-          <div className="field"><label>Logo clan</label><input className="input" type="file" accept="image/*" onChange={(e) => onLogoFile(e.target.files?.[0] || null)} /><small className="muted">Seleziona file logo, non scrivere percorso.</small></div>
-        </div>
-        <div className="field top-gap"><label>Motto</label><input className="input" value={profile.motto} onChange={(e) => update('motto', e.target.value)} /></div>
-        <div className="field top-gap"><label>Storia clan</label><textarea className="textarea" value={profile.story} onChange={(e) => update('story', e.target.value)} /></div>
-        <div className="grid grid-2 top-gap">
-          <div className="field"><label>Capi clan</label><textarea className="textarea" value={profile.leaders} onChange={(e) => update('leaders', e.target.value)} /></div>
-          <div className="field"><label>Vice / amministratori</label><textarea className="textarea" value={profile.vice_admins} onChange={(e) => update('vice_admins', e.target.value)} /></div>
-        </div>
-        <div className="grid grid-5 top-gap">
-          <div className="field"><label>Discord</label><input className="input" value={profile.social_discord} onChange={(e) => update('social_discord', e.target.value)} /></div>
-          <div className="field"><label>WhatsApp</label><input className="input" value={profile.social_whatsapp} onChange={(e) => update('social_whatsapp', e.target.value)} /></div>
-          <div className="field"><label>TikTok</label><input className="input" value={profile.social_tiktok} onChange={(e) => update('social_tiktok', e.target.value)} /></div>
-          <div className="field"><label>YouTube</label><input className="input" value={profile.social_youtube} onChange={(e) => update('social_youtube', e.target.value)} /></div>
-          <div className="field"><label>Instagram</label><input className="input" value={profile.social_instagram} onChange={(e) => update('social_instagram', e.target.value)} /></div>
-        </div>
-        <div className="grid grid-2 top-gap">
-          <div className="field"><label>Titolo avviso</label><input className="input" value={profile.notice_title} onChange={(e) => update('notice_title', e.target.value)} /></div>
-          <div className="field"><label>Testo avviso</label><textarea className="textarea" value={profile.notice_body} onChange={(e) => update('notice_body', e.target.value)} /></div>
-        </div>
-        <button className="btn top-gap" onClick={saveProfile}>💾 Salva Clan HQ</button>
-      </section> : <section className="card top-gap"><h2>Clan HQ in sola lettura</h2><p className="muted">🔒 Login con ruolo Staff, Coach o Owner richiesto per modificare descrizione, avvisi e social del clan.</p></section>}
+      {canWrite ? (
+        <section className="card top-gap">
+          <h2>Modifica Clan HQ</h2>
+          <p className="muted">
+            Questa sezione è la sorgente ufficiale del clan: nome clan e TAG
+            vengono assegnati automaticamente ai nuovi player registrati e usati
+            nel roster/eventi. Salva su Supabase e backup locale.
+          </p>
+          {message && <div className="notice">{message}</div>}
+          <div className="grid grid-3 top-gap">
+            <div className="field">
+              <label>Nome clan</label>
+              <input
+                className="input"
+                value={profile.clan_name}
+                onChange={(e) => update("clan_name", e.target.value)}
+              />
+            </div>
+            <div className="field">
+              <label>TAG clan assegnato ai player</label>
+              <input
+                className="input"
+                value={profile.tag}
+                onChange={(e) => update("tag", e.target.value)}
+              />
+            </div>
+            <div className="field">
+              <label>Logo clan</label>
+              <input
+                className="input"
+                type="file"
+                accept="image/*"
+                onChange={(e) => onLogoFile(e.target.files?.[0] || null)}
+              />
+              <small className="muted">
+                Seleziona file logo, non scrivere percorso.
+              </small>
+            </div>
+          </div>
+          <div className="field top-gap">
+            <label>Motto</label>
+            <input
+              className="input"
+              value={profile.motto}
+              onChange={(e) => update("motto", e.target.value)}
+            />
+          </div>
+          <div className="field top-gap">
+            <label>Storia clan</label>
+            <textarea
+              className="textarea"
+              value={profile.story}
+              onChange={(e) => update("story", e.target.value)}
+            />
+          </div>
+          <div className="grid grid-2 top-gap">
+            <div className="field">
+              <label>Capi clan</label>
+              <textarea
+                className="textarea"
+                value={profile.leaders}
+                onChange={(e) => update("leaders", e.target.value)}
+              />
+            </div>
+            <div className="field">
+              <label>Vice / amministratori</label>
+              <textarea
+                className="textarea"
+                value={profile.vice_admins}
+                onChange={(e) => update("vice_admins", e.target.value)}
+              />
+            </div>
+          </div>
+          <div className="grid grid-5 top-gap">
+            <div className="field">
+              <label>Discord</label>
+              <input
+                className="input"
+                value={profile.social_discord}
+                onChange={(e) => update("social_discord", e.target.value)}
+              />
+            </div>
+            <div className="field">
+              <label>WhatsApp</label>
+              <input
+                className="input"
+                value={profile.social_whatsapp}
+                onChange={(e) => update("social_whatsapp", e.target.value)}
+              />
+            </div>
+            <div className="field">
+              <label>TikTok</label>
+              <input
+                className="input"
+                value={profile.social_tiktok}
+                onChange={(e) => update("social_tiktok", e.target.value)}
+              />
+            </div>
+            <div className="field">
+              <label>YouTube</label>
+              <input
+                className="input"
+                value={profile.social_youtube}
+                onChange={(e) => update("social_youtube", e.target.value)}
+              />
+            </div>
+            <div className="field">
+              <label>Instagram</label>
+              <input
+                className="input"
+                value={profile.social_instagram}
+                onChange={(e) => update("social_instagram", e.target.value)}
+              />
+            </div>
+          </div>
+          <div className="grid grid-2 top-gap">
+            <div className="field">
+              <label>Titolo avviso</label>
+              <input
+                className="input"
+                value={profile.notice_title}
+                onChange={(e) => update("notice_title", e.target.value)}
+              />
+            </div>
+            <div className="field">
+              <label>Testo avviso</label>
+              <textarea
+                className="textarea"
+                value={profile.notice_body}
+                onChange={(e) => update("notice_body", e.target.value)}
+              />
+            </div>
+          </div>
+          <button className="btn top-gap" onClick={saveProfile}>
+            💾 Salva Clan HQ
+          </button>
+        </section>
+      ) : (
+        <section className="card top-gap">
+          <h2>Clan HQ in sola lettura</h2>
+          <p className="muted">
+            🔒 Login con ruolo Staff, Coach o Owner richiesto per modificare
+            descrizione, avvisi e social del clan.
+          </p>
+        </section>
+      )}
     </main>
   );
 }

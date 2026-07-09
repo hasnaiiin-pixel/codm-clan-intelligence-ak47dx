@@ -64,9 +64,31 @@ function eventEndTimestamp(event: EventRow) {
   return Number.isFinite(start) ? start : 0;
 }
 
+function isHomeEventStillToDo(event: EventRow) {
+  const plan = event.event_plan || {};
+  const status = String(
+    plan?.eventStatus || event.event_type || "",
+  ).toLowerCase();
+  if (/annull|cancel|risultato caricato|chiuso|finito|complet/.test(status))
+    return false;
+  if (eventEndTimestamp(event) > Date.now()) return true;
+  const rounds = Array.isArray(plan?.rounds) ? plan.rounds : [];
+  if (!rounds.length)
+    return /bozza|programm|da completare|da giocare|scrim|evento|allen/i.test(
+      status,
+    );
+  return rounds.some((round: any) => {
+    const roundStatus = String(round?.status || "").toLowerCase();
+    const hasScore = Boolean(
+      round?.ourScore || round?.opponentScore || round?.result || round?.mvp,
+    );
+    return !hasScore && !/risultato|giocata|complet|annull/.test(roundStatus);
+  });
+}
+
 function normalizeHomeEvents(remoteRows: EventRow[]) {
   return remoteRows
-    .filter((event) => eventEndTimestamp(event) > Date.now())
+    .filter(isHomeEventStillToDo)
     .sort(
       (a, b) =>
         new Date(a.starts_at).getTime() - new Date(b.starts_at).getTime(),
@@ -314,6 +336,48 @@ export default function HomePage() {
               {summary.wr}% WR · K/D {summary.kd}
             </small>
           </div>
+        </div>
+      </section>
+
+      <section className="card top-gap home-events-priority-v132">
+        <div className="section-title">
+          <div>
+            <p className="eyebrow">🔥 Eventi da fare</p>
+            <h2>Partite programmate subito visibili</h2>
+            <p className="muted">
+              Qui compaiono eventi futuri, programmati o ancora senza risultato
+              caricato.
+            </p>
+          </div>
+          <a className="btn small" href="/events">
+            Apri Eventi
+          </a>
+        </div>
+        <div className="player-mini-list top-gap">
+          {events.length ? (
+            events.map((event) => (
+              <div className="player-mini" key={event.id}>
+                <div className="avatar-placeholder small-avatar">📅</div>
+                <div style={{ flex: 1 }}>
+                  <b>{event.title}</b>
+                  <br />
+                  <small className="muted">
+                    {new Date(event.starts_at).toLocaleString("it-IT")} ·{" "}
+                    {eventStatusLabel(event)}
+                    {event.location ? ` · ${event.location}` : ""}
+                  </small>
+                </div>
+                <a className="btn small secondary" href={`/events#${event.id}`}>
+                  Apri
+                </a>
+              </div>
+            ))
+          ) : (
+            <div className="empty-state">
+              Nessun evento da fare visibile. Controlla login/Supabase oppure
+              crea un evento da Eventi.
+            </div>
+          )}
         </div>
       </section>
 

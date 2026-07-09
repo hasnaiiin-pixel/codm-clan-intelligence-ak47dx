@@ -1410,6 +1410,39 @@ export default function EventsPage() {
     return Number.isFinite(start) ? start : 0;
   }
 
+  function isEventStillToDo(event: CodmEvent) {
+    const eventPlan = normalizePlan(event.event_plan || emptyPlan());
+    const status = String(
+      eventPlan.eventStatus || event.event_type || "",
+    ).toLowerCase();
+    if (/annull|cancel|risultato caricato|chiuso|finito|complet/.test(status))
+      return false;
+    if (eventEndTimestamp(event) > Date.now()) return true;
+    const rounds = Array.isArray(eventPlan.rounds) ? eventPlan.rounds : [];
+    if (!rounds.length)
+      return /bozza|programm|da completare|da giocare|scrim|evento|allen/i.test(
+        status,
+      );
+    return rounds.some((round) => {
+      const roundStatus = String(round.status || "").toLowerCase();
+      const hasScore = Boolean(
+        round.ourScore || round.opponentScore || round.result || round.mvp,
+      );
+      return !hasScore && !/risultato|giocata|complet|annull/.test(roundStatus);
+    });
+  }
+
+  const todoEvents = useMemo(
+    () =>
+      events
+        .filter(isEventStillToDo)
+        .sort(
+          (a, b) =>
+            new Date(a.starts_at).getTime() - new Date(b.starts_at).getTime(),
+        ),
+    [events],
+  );
+
   const futureEvents = useMemo(
     () => events.filter((event) => eventEndTimestamp(event) > Date.now()),
     [events],
@@ -1443,18 +1476,21 @@ export default function EventsPage() {
 
   return (
     <main className="container wide ak-page-compact events-v64 events-v65 events-v131">
-      <section className="card ak-events-first compact-events-first events-priority-top-v131">
+      <section className="card ak-events-first compact-events-first events-priority-top-v131 events-main-todo-v132">
         <div className="section-title">
           <div>
-            <p className="eyebrow">🔥 Primo blocco pagina Eventi</p>
-            <h2>Eventi da fare</h2>
+            <p className="eyebrow">🔥 Visibile subito</p>
+            <h2>Eventi da fare / partite programmate</h2>
             <p className="muted">
-              Appena apri Eventi vedi qui sopra gli eventi futuri/programmati.
-              Gli eventi passati restano sotto e possono ancora ricevere il risultato.
+              Appena apri Eventi vedi qui sopra tutti gli eventi ancora da fare:
+              futuri, programmati o senza risultato caricato. Gli eventi passati
+              restano sotto e possono ancora ricevere il risultato.
             </p>
           </div>
           <div className="ak-event-toolbar">
-            <span className="match-status-pill loaded">{futureEvents.length} da fare</span>
+            <span className="match-status-pill loaded">
+              {todoEvents.length} da fare
+            </span>
             <button
               className="btn secondary small"
               onClick={() => void loadEvents()}
@@ -1478,7 +1514,7 @@ export default function EventsPage() {
         </div>
         {message && <div className="notice top-gap">{message}</div>}
         <div className="event-presentation-list top-gap">
-          {futureEvents.map((event) => (
+          {todoEvents.map((event) => (
             <EventPresentation
               key={event.id}
               event={event}
@@ -1491,8 +1527,11 @@ export default function EventsPage() {
               onDuplicate={() => loadEventIntoEditor(event, true)}
             />
           ))}
-          {!futureEvents.length && (
-            <p className="empty-state">Nessun evento futuro in programma.</p>
+          {!todoEvents.length && (
+            <p className="empty-state">
+              Nessun evento da fare o senza risultato. Crea un evento oppure
+              controlla l’archivio sotto.
+            </p>
           )}
         </div>
       </section>
@@ -1997,8 +2036,8 @@ export default function EventsPage() {
           <div>
             <h2>Eventi passati / archivio risultati</h2>
             <p className="muted">
-              Caricati: {events.length} • futuri: {futureEvents.length} •
-              passati: {pastEvents.length}
+              Caricati: {events.length} • da fare: {todoEvents.length} • futuri:{" "}
+              {futureEvents.length} • passati: {pastEvents.length}
             </p>
           </div>
           <select
@@ -2019,7 +2058,11 @@ export default function EventsPage() {
             const manualLink =
               eventPlan.lobbyLink || eventPlan.discordLink || "";
             return (
-              <article key={event.id} className="ak-event-card">
+              <article
+                id={`archive-${event.id}`}
+                key={event.id}
+                className="ak-event-card"
+              >
                 <div className="ak-event-copy">
                   <div className="eyebrow">
                     {eventPlan.eventStatus || event.event_type || "evento"}
@@ -2037,7 +2080,9 @@ export default function EventsPage() {
                       <span className="pill-chip">📍 {event.location}</span>
                     ) : null}
                     <span className="pill-chip">
-                      {eventEndTimestamp(event) <= Date.now() ? "📜 Passato" : "🔥 Da fare"}
+                      {eventEndTimestamp(event) <= Date.now()
+                        ? "📜 Passato"
+                        : "🔥 Da fare"}
                     </span>
                   </div>
                   <div className="archive-result-links-v131">
@@ -2498,7 +2543,10 @@ function EventPresentation({
     Number(normalizedPlan.totalMatches || normalizedPlan.rounds.length || 1),
   );
   return (
-    <article className="event-presentation-card event-presentation-card-v65">
+    <article
+      id={event.id}
+      className="event-presentation-card event-presentation-card-v65"
+    >
       {normalizedPlan.coverImage && (
         <img
           className="event-cover-image"
