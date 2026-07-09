@@ -1,0 +1,16 @@
+CLAN MANAGER AK47DX - V13.1 EVENTS/STATS/USERS/TELEGRAM GROUP FIX
+Base: V13_GENERIC_EVENT_HOME_PWA_HORIZONTAL funzionante.
+Data: 2026-07-09
+
+Modifiche mirate:
+- Eventi da fare visibili subito in alto appena si apre /events.
+- Eventi passati automatici sotto archivio, con inserimento risultato anche dopo data evento.
+- Tabelle statistiche giocatori/clan più strette: colonne numeriche compatte, K/D/A rimane Kill / Death / Assist.
+- Grafico Ranking 1-5 rimosso da Analytics.
+- Admin utenti: associa account registrato a player CODM reale.
+- Admin utenti: flag permessi granulari per cosa può vedere/fare ogni utente.
+- Telegram: invio sia a chat privata admin sia al gruppo clan se TELEGRAM_GROUP_CHAT_ID è configurato.
+
+Verifica tecnica:
+- npx tsc --noEmit completato senza errori.
+- next build: compilazione, type check e generazione pagine completati; nel sandbox locale resta bloccato in Collecting build traces, comportamento di ambiente, non errore TypeScript/app.

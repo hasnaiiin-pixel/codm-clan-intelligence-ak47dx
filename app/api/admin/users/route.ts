@@ -8,6 +8,19 @@ const DEFAULT_PLAYER_ROLE = 'player';
 
 type CodmRole = 'viewer' | 'player' | 'staff' | 'coach' | 'owner';
 const allowedRoles: CodmRole[] = ['viewer', 'player', 'staff', 'coach', 'owner'];
+type PermissionKey = 'view_events' | 'create_events' | 'edit_events' | 'delete_events' | 'insert_results' | 'view_stats' | 'manage_players' | 'link_accounts' | 'manage_users' | 'manage_telegram' | 'view_admin_panel';
+const permissionKeys: PermissionKey[] = ['view_events','create_events','edit_events','delete_events','insert_results','view_stats','manage_players','link_accounts','manage_users','manage_telegram','view_admin_panel'];
+const emptyPermissions = Object.fromEntries(permissionKeys.map((key) => [key, false])) as Record<PermissionKey, boolean>;
+const fullPermissions = Object.fromEntries(permissionKeys.map((key) => [key, true])) as Record<PermissionKey, boolean>;
+const defaultPermissionsByRole: Record<CodmRole | 'registered', Record<PermissionKey, boolean>> = {
+  registered: { ...emptyPermissions, view_events: true, view_stats: true },
+  viewer: { ...emptyPermissions, view_events: true, view_stats: true },
+  player: { ...emptyPermissions, view_events: true, view_stats: true },
+  staff: { ...emptyPermissions, view_events: true, create_events: true, edit_events: true, insert_results: true, view_stats: true, manage_players: true },
+  coach: { ...emptyPermissions, view_events: true, create_events: true, edit_events: true, delete_events: true, insert_results: true, view_stats: true, manage_players: true, link_accounts: true, manage_telegram: true, view_admin_panel: true },
+  owner: fullPermissions,
+};
+
 
 type AdminClient = any;
 
@@ -20,6 +33,20 @@ function normalizeEmail(value?: string | null) {
 
 function isMainAdminEmail(value?: string | null) {
   return normalizeEmail(value) === MAIN_ADMIN_EMAIL;
+}
+
+function normalizePermissions(role: CodmRole | 'registered', raw?: Record<string, unknown> | null) {
+  const base = { ...(defaultPermissionsByRole[role] || defaultPermissionsByRole.registered) };
+  if (!raw || typeof raw !== 'object') return base;
+  for (const key of permissionKeys) {
+    if (Object.prototype.hasOwnProperty.call(raw, key)) base[key] = Boolean(raw[key]);
+  }
+  return base;
+}
+
+function cleanPermissions(raw: unknown) {
+  const input = raw && typeof raw === 'object' ? raw as Record<string, unknown> : {};
+  return Object.fromEntries(permissionKeys.map((key) => [key, Boolean(input[key])])) as Record<PermissionKey, boolean>;
 }
 
 function serviceClient() {
@@ -190,6 +217,16 @@ async function syncAuthUsersToClan(admin: AdminClient, clan: ClanRow, authUsers:
   return synced;
 }
 
+
+async function selectClanMembers(admin: AdminClient, clanId: string) {
+  let result = await admin.from('clan_members').select('id,clan_id,user_id,role,permissions,created_at').eq('clan_id', clanId).limit(1000);
+  if (result.error && /permissions|column/i.test(result.error.message || '')) {
+    result = await admin.from('clan_members').select('id,clan_id,user_id,role,created_at').eq('clan_id', clanId).limit(1000);
+  }
+  if (result.error) throw result.error;
+  return result.data || [];
+}
+
 export async function GET(request: NextRequest) {
   try {
     const requester = await requireRequester(request);
@@ -203,9 +240,9 @@ export async function GET(request: NextRequest) {
       synced = await syncAuthUsersToClan(admin, clan, authUsers);
     }
 
-    const [{ data: profiles }, { data: members }, { data: players }, { data: requests }] = await Promise.all([
+    const [{ data: profiles }, members, { data: players }, { data: requests }] = await Promise.all([
       admin.from('profiles').select('id,email,display_name,player_nickname,codm_uid,created_at,updated_at').limit(1000),
-      admin.from('clan_members').select('id,clan_id,user_id,role,created_at').eq('clan_id', clan.id).limit(1000),
+      selectClanMembers(admin, clan.id),
       admin.from('players').select('id,clan_id,user_id,nickname,uid_codm,clan_name,status,created_at').eq('clan_id', clan.id).order('nickname').limit(1000),
       admin.from('clan_invite_requests').select('id,clan_id,user_id,nickname,uid_codm,social_contact,status,linked_player_id,created_at').eq('clan_id', clan.id).order('created_at', { ascending: false }).limit(500),
     ]);
@@ -220,7 +257,8 @@ export async function GET(request: NextRequest) {
       const member: any = memberByUser.get(user.id) || null;
       const player: any = playerByUser.get(user.id) || null;
       const pending: any = pendingByUser.get(user.id) || null;
-      const role = isMainAdminEmail(user.email) ? 'owner' : (member?.role || 'registered');
+      const role = (isMainAdminEmail(user.email) ? 'owner' : (member?.role || 'registered')) as CodmRole | 'registered';
+      const permissions = isMainAdminEmail(user.email) ? fullPermissions : normalizePermissions(role, member?.permissions);
       return {
         id: user.id,
         email: user.email || profile.email || null,
@@ -236,6 +274,7 @@ export async function GET(request: NextRequest) {
         clan_name: player?.clan_name || clan.tag || clan.name || DEFAULT_CLAN_TAG,
         pending_request_id: pending?.id || null,
         pending_status: pending?.status || null,
+        permissions,
       };
     });
 
@@ -287,6 +326,42 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ ok: true, message: `Ruolo aggiornato a ${finalRole}.` });
     }
 
+
+
+    if (action === 'updatePermissions') {
+      const userId = String(body.userId || '');
+      const email = String(body.email || '').toLowerCase();
+      if (!userId) throw Object.assign(new Error('Utente mancante.'), { status: 400 });
+      if (email === MAIN_ADMIN_EMAIL) throw Object.assign(new Error('Admin principale mantiene tutti i permessi.'), { status: 400 });
+      const { data: existing } = await admin.from('clan_members').select('role').eq('clan_id', clan.id).eq('user_id', userId).maybeSingle();
+      const existingRole = String(existing?.role || '') as CodmRole;
+      const role: CodmRole = allowedRoles.includes(existingRole) ? existingRole : DEFAULT_PLAYER_ROLE;
+      const permissions = cleanPermissions(body.permissions);
+      const { error } = await admin.from('clan_members').upsert({ clan_id: clan.id, user_id: userId, role, permissions }, { onConflict: 'clan_id,user_id' });
+      if (error) {
+        if (/permissions|column/i.test(error.message || '')) throw Object.assign(new Error('Colonna permissions mancante. Esegui supabase/UPDATE_V13_1_USER_PERMISSIONS.sql in Supabase SQL Editor.'), { status: 400 });
+        throw error;
+      }
+      return NextResponse.json({ ok: true, message: 'Permessi granulari aggiornati.' });
+    }
+
+    if (action === 'linkPlayer') {
+      const userId = String(body.userId || '');
+      const playerId = String(body.playerId || '');
+      const email = String(body.email || '').toLowerCase();
+      if (!userId) throw Object.assign(new Error('Utente mancante.'), { status: 400 });
+      if (email === MAIN_ADMIN_EMAIL) throw Object.assign(new Error('Admin principale non modificabile da associazione manuale.'), { status: 400 });
+      await admin.from('players').update({ user_id: null }).eq('clan_id', clan.id).eq('user_id', userId);
+      if (!playerId) return NextResponse.json({ ok: true, message: 'Associazione player/account rimossa.' });
+      const { data: player, error: playerError } = await admin.from('players').select('id,nickname,uid_codm').eq('clan_id', clan.id).eq('id', playerId).maybeSingle();
+      if (playerError) throw playerError;
+      if (!player?.id) throw Object.assign(new Error('Player CODM non trovato nel roster.'), { status: 404 });
+      const { error } = await admin.from('players').update({ user_id: userId }).eq('clan_id', clan.id).eq('id', playerId);
+      if (error) throw error;
+      const profileUpdate = await admin.from('profiles').upsert({ id: userId, player_nickname: player.nickname || null, codm_uid: player.uid_codm || null, updated_at: new Date().toISOString() }, { onConflict: 'id' });
+      if (profileUpdate.error && !/player_nickname|codm_uid|updated_at|schema cache/i.test(profileUpdate.error.message || '')) throw profileUpdate.error;
+      return NextResponse.json({ ok: true, message: `Account collegato al player ${player.nickname || playerId}.` });
+    }
 
 
     if (action === 'deleteUser') {

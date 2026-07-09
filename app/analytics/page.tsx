@@ -191,7 +191,7 @@ export default function AnalyticsPage() {
       <section className="card hero-compact gaming-panel">
         <p className="eyebrow">📊 Analytics 2.0</p>
         <h1>Statistiche clan e player</h1>
-        <p className="muted">Grafici a torta, classifiche e filtri per clan, modalità, MVP, mappa, posizione e medaglie Oro/Argento/Bronzo/Legno/Olimpico. I player manuali restano visibili nelle statistiche anche senza profilo registrato.</p>
+        <p className="muted">Grafici a torta, classifiche e filtri per clan, modalità, MVP e mappa. K/D/A resta sempre Kill / Death / Assist. I player manuali restano visibili nelle statistiche anche senza profilo registrato.</p>
         {message && <div className="notice">{message}</div>}
         <div className="grid grid-2 top-gap">
           <div className="field"><label>Clan appartenenza</label><select className="select" value={filterClan} onChange={(e) => setFilterClan(e.target.value)}>{clanOptions.map((c) => <option key={c} value={c}>{c === 'ALL' ? 'Tutti i clan' : c}</option>)}</select></div>
@@ -206,11 +206,10 @@ export default function AnalyticsPage() {
         <div className="kpi kpi-glow"><span>Kill / Death / Assist</span><strong>{summary.kills}/{summary.deaths}/{summary.assists}</strong></div>
       </section>
 
-      <section className="grid grid-4 top-gap">
+      <section className="grid grid-3 top-gap analytics-main-pies-v131">
         <PieCard title="Vittorie / sconfitte" slices={resultPie} />
         <PieCard title="Tipologia modalità" slices={modePie} />
         <PieCard title="Mappe giocate" slices={mapPie} />
-        <PieCard title="Ranking 1–5" slices={rankPie} />
       </section>
 
       <section className="grid grid-2 top-gap">
@@ -218,7 +217,7 @@ export default function AnalyticsPage() {
         <div className="card">
           <h2>🏅 Statistiche per clan · medagliere MVP</h2>
           <div className="table-scroll">
-            <table className="table compact"><thead><tr><th>Clan</th><th>Player</th><th>Righe</th><th>Kill</th><th>Death</th><th>Assist</th><th>K/D</th><th>🥇</th><th>🥈</th><th>🥉</th><th>🪵</th><th>🏛️</th><th>Pos. media</th><th>MVP</th></tr></thead><tbody>{clanSummary.map((c) => <tr key={c.clan}><td>{c.clan}</td><td>{c.playerCount}</td><td>{c.rows}</td><td>{c.kills}</td><td>{c.deaths}</td><td>{c.assists}</td><td>{c.kd}</td><td>{c.gold}</td><td>{c.silver}</td><td>{c.bronze}</td><td>{c.wood}</td><td>{c.olympic}</td><td>{c.avgRank}</td><td>{c.mvp}</td></tr>)}{!clanSummary.length && <tr><td colSpan={14} className="muted">Nessun dato clan.</td></tr>}</tbody></table>
+            <table className="table compact stats-tight-table"><thead><tr><th>Clan</th><th>Player</th><th>Righe</th><th>Kill</th><th>Death</th><th>Assist</th><th>K/D</th><th>🥇</th><th>🥈</th><th>🥉</th><th>🪵</th><th>🏛️</th><th>Pos. media</th><th>MVP</th></tr></thead><tbody>{clanSummary.map((c) => <tr key={c.clan}><td>{c.clan}</td><td>{c.playerCount}</td><td>{c.rows}</td><td>{c.kills}</td><td>{c.deaths}</td><td>{c.assists}</td><td>{c.kd}</td><td>{c.gold}</td><td>{c.silver}</td><td>{c.bronze}</td><td>{c.wood}</td><td>{c.olympic}</td><td>{c.avgRank}</td><td>{c.mvp}</td></tr>)}{!clanSummary.length && <tr><td colSpan={14} className="muted">Nessun dato clan.</td></tr>}</tbody></table>
           </div>
         </div>
       </section>
@@ -226,7 +225,7 @@ export default function AnalyticsPage() {
       <section className="card top-gap">
         <h2>🏆 Top player filtrati</h2>
         <div className="table-scroll">
-          <table className="table compact"><thead><tr><th>Player</th><th>Clan</th><th>Match/Righe</th><th>Kill</th><th>Death</th><th>Assist</th><th>K/D</th><th>🥇 Oro</th><th>🥈 Argento</th><th>🥉 Bronzo</th><th>🪵 Legno</th><th>🏛️ Olimpico</th><th>MVP</th><th>Pos. media</th></tr></thead><tbody>{topPlayers.map((p) => <tr key={`${p.name}-${p.clan}`}><td><a href={`/players?search=${encodeURIComponent(p.name)}`}><b>{p.name}</b></a></td><td>{p.clan}</td><td>{p.rows}</td><td>{p.kills}</td><td>{p.deaths}</td><td>{p.assists}</td><td>{p.kd}</td><td>{p.gold}</td><td>{p.silver}</td><td>{p.bronze}</td><td>{p.wood}</td><td>{p.olympic}</td><td>{p.mvp}</td><td>{p.avgRank}</td></tr>)}{!topPlayers.length && <tr><td colSpan={14} className="muted">Nessun player trovato.</td></tr>}</tbody></table>
+          <table className="table compact stats-tight-table"><thead><tr><th>Player</th><th>Clan</th><th>Match/Righe</th><th>Kill</th><th>Death</th><th>Assist</th><th>K/D</th><th>🥇 Oro</th><th>🥈 Argento</th><th>🥉 Bronzo</th><th>🪵 Legno</th><th>🏛️ Olimpico</th><th>MVP</th><th>Pos. media</th></tr></thead><tbody>{topPlayers.map((p) => <tr key={`${p.name}-${p.clan}`}><td><a href={`/players?search=${encodeURIComponent(p.name)}`}><b>{p.name}</b></a></td><td>{p.clan}</td><td>{p.rows}</td><td>{p.kills}</td><td>{p.deaths}</td><td>{p.assists}</td><td>{p.kd}</td><td>{p.gold}</td><td>{p.silver}</td><td>{p.bronze}</td><td>{p.wood}</td><td>{p.olympic}</td><td>{p.mvp}</td><td>{p.avgRank}</td></tr>)}{!topPlayers.length && <tr><td colSpan={14} className="muted">Nessun player trovato.</td></tr>}</tbody></table>
         </div>
       </section>
     </main>

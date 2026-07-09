@@ -203,7 +203,7 @@ export default function PlayersPage() {
             <div className="field"><label>Cerca player</label><input className="input" value={search} onChange={(e) => setSearch(e.target.value)} placeholder="nickname, clan, UID" /></div>
           </div>
           <div className="table-scroll top-gap">
-            <table className="table compact"><thead><tr><th>Clan</th><th>Player</th><th>Match</th><th>K/D/A</th><th>K/D</th><th>🥇</th><th>🥈</th><th>🥉</th><th>Pos. media</th></tr></thead><tbody>{clanSummary.map((c) => <tr key={c.clan}><td>{c.clan}</td><td>{c.players}</td><td>{c.matches}</td><td>{c.kills}/{c.deaths}/{c.assists}</td><td>{c.kd}</td><td>{c.gold}</td><td>{c.silver}</td><td>{c.bronze}</td><td>{c.avgRank}</td></tr>)}{!clanSummary.length && <tr><td colSpan={9} className="muted">Nessun dato.</td></tr>}</tbody></table>
+            <table className="table compact stats-tight-table"><thead><tr><th>Clan</th><th>Player</th><th>Match</th><th>K/D/A</th><th>K/D</th><th>🥇</th><th>🥈</th><th>🥉</th><th>Pos. media</th></tr></thead><tbody>{clanSummary.map((c) => <tr key={c.clan}><td>{c.clan}</td><td>{c.players}</td><td>{c.matches}</td><td>{c.kills}/{c.deaths}/{c.assists}</td><td>{c.kd}</td><td>{c.gold}</td><td>{c.silver}</td><td>{c.bronze}</td><td>{c.avgRank}</td></tr>)}{!clanSummary.length && <tr><td colSpan={9} className="muted">Nessun dato.</td></tr>}</tbody></table>
           </div>
         </div>
       </section>
@@ -211,7 +211,7 @@ export default function PlayersPage() {
       <section className="card top-gap">
         <h2>Elenco player con statistiche</h2>
         <div className="table-scroll">
-          <table className="table compact player-stats-table">
+          <table className="table compact player-stats-table stats-tight-table">
             <thead><tr><th>Player</th><th>Clan</th><th>Tipo</th><th>Match</th><th>W/R</th><th>WR%</th><th>Kill</th><th>Death</th><th>Assist</th><th>K/D</th><th>🥇 Oro/MVP</th><th>🥈 Argento</th><th>🥉 Bronzo</th><th>Pos. media</th><th>Azione clan</th></tr></thead>
             <tbody>{playerCards.map((card) => (
               <tr key={card.player.id}>

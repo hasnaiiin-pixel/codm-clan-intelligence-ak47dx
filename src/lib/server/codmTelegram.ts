@@ -1,4 +1,4 @@
-export type TelegramResult = { ok: boolean; skipped?: boolean; error?: string; telegramMessageId?: number | null };
+export type TelegramResult = { ok: boolean; skipped?: boolean; error?: string; telegramMessageId?: number | null; targets?: Array<{ name: string; chatId: string; ok: boolean; error?: string; telegramMessageId?: number | null }> };
 
 type MatchRound = {
   n?: number;
@@ -55,9 +55,25 @@ function env(name: string) {
   return String(process.env[name] || '').trim();
 }
 
-export function telegramConfigured() {
-  return Boolean(env('TELEGRAM_BOT_TOKEN') && env('TELEGRAM_CHAT_ID'));
+export function telegramChatTargets() {
+  const privateChatId = env('TELEGRAM_CHAT_ID');
+  const groupChatId = env('TELEGRAM_GROUP_CHAT_ID') || env('TELEGRAM_CLAN_GROUP_CHAT_ID');
+  const targets = [
+    privateChatId ? { name: 'private', chatId: privateChatId } : null,
+    groupChatId ? { name: 'group', chatId: groupChatId } : null,
+  ].filter(Boolean) as Array<{ name: string; chatId: string }>;
+  const seen = new Set<string>();
+  return targets.filter((target) => {
+    if (seen.has(target.chatId)) return false;
+    seen.add(target.chatId);
+    return true;
+  });
 }
+
+export function telegramConfigured() {
+  return Boolean(env('TELEGRAM_BOT_TOKEN') && telegramChatTargets().length);
+}
+
 
 export function escapeHtml(value: unknown) {
   return String(value ?? '')
@@ -249,20 +265,41 @@ export function renderProfessionalEventTelegram(
 
 export async function sendTelegramHtml(text: string): Promise<TelegramResult> {
   const token = env('TELEGRAM_BOT_TOKEN');
-  const chatId = env('TELEGRAM_CHAT_ID');
-  if (!token || !chatId) return { ok: false, skipped: true, error: 'TELEGRAM_BOT_TOKEN o TELEGRAM_CHAT_ID mancanti.' };
-  try {
-    const response = await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ chat_id: chatId, text, parse_mode: 'HTML', disable_web_page_preview: true })
-    });
-    const json = await response.json().catch(() => null);
-    if (!response.ok || !json?.ok) return { ok: false, error: json?.description || `Telegram HTTP ${response.status}` };
-    return { ok: true, telegramMessageId: json.result?.message_id ?? null };
-  } catch (error) {
-    return { ok: false, error: error instanceof Error ? error.message : 'Errore invio Telegram.' };
+  const targets = telegramChatTargets();
+  if (!token || !targets.length) {
+    return { ok: false, skipped: true, error: 'TELEGRAM_BOT_TOKEN e almeno uno tra TELEGRAM_CHAT_ID / TELEGRAM_GROUP_CHAT_ID mancanti.' };
   }
+
+  const results: NonNullable<TelegramResult['targets']> = [];
+  for (const target of targets) {
+    try {
+      const response = await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ chat_id: target.chatId, text, parse_mode: 'HTML', disable_web_page_preview: true })
+      });
+      const json = await response.json().catch(() => null);
+      if (!response.ok || !json?.ok) {
+        results.push({ ...target, ok: false, error: json?.description || `Telegram HTTP ${response.status}` });
+      } else {
+        results.push({ ...target, ok: true, telegramMessageId: json.result?.message_id ?? null });
+      }
+    } catch (error) {
+      results.push({ ...target, ok: false, error: error instanceof Error ? error.message : 'Errore invio Telegram.' });
+    }
+  }
+
+  const successes = results.filter((item) => item.ok);
+  if (successes.length) {
+    const failed = results.filter((item) => !item.ok);
+    return {
+      ok: failed.length === 0,
+      error: failed.length ? `Invio parziale: ${failed.map((item) => `${item.name}: ${item.error || 'errore'}`).join(' · ')}` : undefined,
+      telegramMessageId: successes[0]?.telegramMessageId ?? null,
+      targets: results,
+    };
+  }
+  return { ok: false, error: results.map((item) => `${item.name}: ${item.error || 'errore'}`).join(' · ') || 'Nessun invio Telegram riuscito.', targets: results };
 }
 
 export async function sendTelegramEventLifecycle(mode: 'created' | 'updated' | 'deleted' | 'result', event: TelegramEvent): Promise<TelegramResult> {

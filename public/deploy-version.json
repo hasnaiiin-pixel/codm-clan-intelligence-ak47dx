@@ -1,20 +1,20 @@
 {
-  "version": "13.0_GENERIC_EVENT_HOME_PWA_HORIZONTAL",
-  "marker": "V13_GENERIC_EVENT_HOME_PWA_HORIZONTAL_OK",
+  "version": "13.1_EVENTS_STATS_USERS_TELEGRAM_GROUP_FIX",
+  "marker": "V13_1_EVENTS_STATS_USERS_TELEGRAM_GROUP_OK",
   "appName": "CLAN MANAGER",
   "app": "CLAN MANAGER by MIRZA",
-  "notes": "V13: evento generico leggero con partite aggiungibili dopo, home più grafica/gaming, menu PWA in una sola riga e card eventi programmati in orizzontale anche su mobile.",
-  "build": "CLAN_MANAGER_AK47DX_V13_GENERIC_EVENT_HOME_PWA_HORIZONTAL_BUILD",
-  "date": "2026-07-08",
-  "status": "V13_GENERIC_EVENT_HOME_PWA_HORIZONTAL_OK",
+  "notes": "V13.1 sopra base V13: Eventi da fare subito in alto, passati automatici sotto con inserimento risultato, tabelle statistiche più strette, rimosso grafico Ranking 1-5, associazione account registrato-player, permessi granulari utenti e invio Telegram anche al gruppo clan.",
+  "build": "CLAN_MANAGER_AK47DX_V13_1_EVENTS_STATS_USERS_TELEGRAM_GROUP_FIX_BUILD",
+  "date": "2026-07-09",
+  "status": "V13_1_EVENTS_STATS_USERS_TELEGRAM_GROUP_OK",
   "routes": [
     "/",
     "/events",
-    "/tournament",
-    "/profile",
+    "/admin/users",
     "/players",
     "/analytics",
     "/import/match",
-    "/events-health"
+    "/api/telegram/status",
+    "/api/telegram/test"
   ]
 }

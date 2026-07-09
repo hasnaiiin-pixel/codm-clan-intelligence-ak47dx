@@ -12,6 +12,19 @@ const nextConfig = {
   typescript: {
     ignoreBuildErrors: true,
   },
+
+  // V13.1: evita che il tracing produzione scandisca file non runtime (OCR backend Python, docs, template Excel).
+  // Non cambia il codice app; rende solo più stabile/veloce il deploy Vercel.
+  outputFileTracingExcludes: {
+    '*': [
+      './ocr-backend/**/*',
+      './datasets/**/*',
+      './docs/**/*',
+      './foto_partite/**/*',
+      './public/templates/**/*',
+      './supabase/**/*',
+    ],
+  },
 };
 
 module.exports = nextConfig;

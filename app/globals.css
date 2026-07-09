@@ -2502,3 +2502,101 @@ select.pro-select {
   .events-v65 .event-meta-grid { grid-template-columns: 1fr 1fr !important; }
   .media-event-grid-v13 { grid-template-columns: 1fr !important; }
 }
+
+/* V13.1 - patch mirata: statistiche compatte, eventi da fare in alto, archivio risultati */
+.events-v131 .events-priority-top-v131 {
+  border-color: rgba(34, 211, 238, .42) !important;
+  box-shadow: 0 18px 60px rgba(34, 211, 238, .10), inset 0 0 0 1px rgba(255,255,255,.04);
+  margin-top: 0 !important;
+}
+.events-v131 .events-hero-small-v131 {
+  padding: 12px 16px !important;
+}
+.events-v131 .events-hero-small-v131 h1 {
+  font-size: clamp(1.25rem, 2.1vw, 1.85rem) !important;
+}
+.archive-result-links-v131 {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+  margin-top: 10px;
+}
+.archive-result-links-v131 .btn {
+  min-height: 32px;
+  padding: 7px 10px;
+  font-size: .78rem;
+}
+.stats-tight-table {
+  table-layout: auto !important;
+  width: max-content !important;
+  min-width: 0 !important;
+  max-width: none !important;
+}
+.table-scroll .stats-tight-table {
+  min-width: min(100%, 620px) !important;
+}
+.stats-tight-table th,
+.stats-tight-table td {
+  padding: 6px 7px !important;
+  font-size: .82rem !important;
+  line-height: 1.15 !important;
+  white-space: nowrap !important;
+  text-align: center !important;
+  min-width: 42px !important;
+  max-width: 76px !important;
+}
+.stats-tight-table th:first-child,
+.stats-tight-table td:first-child {
+  text-align: left !important;
+  min-width: 118px !important;
+  max-width: 170px !important;
+  white-space: normal !important;
+}
+.stats-tight-table th:nth-child(2),
+.stats-tight-table td:nth-child(2) {
+  min-width: 72px !important;
+  max-width: 125px !important;
+  white-space: normal !important;
+}
+.stats-tight-table th:nth-child(3),
+.stats-tight-table td:nth-child(3) {
+  min-width: 48px !important;
+  max-width: 82px !important;
+}
+.stats-tight-table .rank-medal {
+  padding: 4px 6px !important;
+  font-size: .78rem !important;
+  white-space: nowrap !important;
+}
+.player-stats-table th:nth-child(15),
+.player-stats-table td:nth-child(15) {
+  min-width: 180px !important;
+  max-width: 260px !important;
+  white-space: normal !important;
+}
+@media (max-width: 720px) {
+  .events-v131 .section-title { gap: 10px; }
+  .events-v131 .ak-event-toolbar { justify-content: stretch; }
+  .events-v131 .ak-event-toolbar .btn,
+  .events-v131 .ak-event-toolbar .match-status-pill { flex: 1 1 130px; text-align: center; justify-content: center; }
+  .table-scroll .stats-tight-table { min-width: 560px !important; }
+  .stats-tight-table th,
+  .stats-tight-table td { padding: 5px 6px !important; font-size: .74rem !important; max-width: 64px !important; }
+  .stats-tight-table th:first-child,
+  .stats-tight-table td:first-child { min-width: 105px !important; max-width: 140px !important; }
+  .stats-tight-table th:nth-child(2),
+  .stats-tight-table td:nth-child(2) { min-width: 62px !important; max-width: 100px !important; }
+}
+.permissions-flag-grid-v131 {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+  gap: 8px;
+}
+.permission-flag-v131 {
+  border: 1px solid rgba(148,163,184,.18);
+  border-radius: 12px;
+  padding: 9px 10px;
+  background: rgba(15,23,42,.58);
+  font-size: .86rem;
+}
+.admin-permissions-v131 summary { cursor: pointer; font-weight: 800; }

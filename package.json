@@ -1,6 +1,6 @@
 {
   "name": "clan-manager-ak47dx",
-  "version": "13.0.0-generic-event-home-pwa-horizontal",
+  "version": "13.1.0-events-stats-users-telegram-group",
   "private": true,
   "scripts": {
     "dev": "next dev",

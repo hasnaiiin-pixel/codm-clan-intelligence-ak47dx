@@ -626,7 +626,7 @@ export default function EventsPage() {
   const [message, setMessage] = useState("");
   const [calendarMonth, setCalendarMonth] = useState(monthKey(new Date()));
   const [eventFilter, setEventFilter] = useState<"future" | "all" | "past">(
-    "future",
+    "past",
   );
   const [eventsLoading, setEventsLoading] = useState(false);
   const [savingEvent, setSavingEvent] = useState(false);
@@ -1442,55 +1442,43 @@ export default function EventsPage() {
   }
 
   return (
-    <main className="container wide ak-page-compact events-v64 events-v65">
-      <section className="card ak-section-head events-compact-hero">
-        <div className="events-hero-meta">
-          <p className="eyebrow">📅 Clan Manager Event Center</p>
-          <h1>Eventi, calendario e partite CODM</h1>
-          <p className="muted">
-            Lista mappe CODM, BAN selezionabili, badge stato, modifica/duplica
-            evento e import risultato collegato all’evento.
-          </p>
-          <div className="events-hero-pills">
-            <span className="pill-chip">⚡ Creazione rapida</span>
-            <span className="pill-chip">🧠 Sync Supabase</span>
-            <span className="pill-chip">📱 Mobile ready</span>
+    <main className="container wide ak-page-compact events-v64 events-v65 events-v131">
+      <section className="card ak-events-first compact-events-first events-priority-top-v131">
+        <div className="section-title">
+          <div>
+            <p className="eyebrow">🔥 Primo blocco pagina Eventi</p>
+            <h2>Eventi da fare</h2>
+            <p className="muted">
+              Appena apri Eventi vedi qui sopra gli eventi futuri/programmati.
+              Gli eventi passati restano sotto e possono ancora ricevere il risultato.
+            </p>
+          </div>
+          <div className="ak-event-toolbar">
+            <span className="match-status-pill loaded">{futureEvents.length} da fare</span>
+            <button
+              className="btn secondary small"
+              onClick={() => void loadEvents()}
+            >
+              {eventsLoading ? "Carico..." : "Aggiorna"}
+            </button>
+            {canWrite && (
+              <button
+                className="btn small"
+                type="button"
+                onClick={() =>
+                  document
+                    .querySelector(".event-create-v64")
+                    ?.scrollIntoView({ behavior: "smooth", block: "start" })
+                }
+              >
+                ➕ Crea evento
+              </button>
+            )}
           </div>
         </div>
         {message && <div className="notice top-gap">{message}</div>}
-        {canWrite && (
-          <button
-            className="btn event-mobile-create-cta"
-            type="button"
-            onClick={() =>
-              document
-                .querySelector(".event-create-v64")
-                ?.scrollIntoView({ behavior: "smooth", block: "start" })
-            }
-          >
-            ➕ Crea evento
-          </button>
-        )}
-      </section>
-
-      <section className="card top-gap ak-events-first compact-events-first">
-        <div className="section-title">
-          <div>
-            <h2>Eventi da fare</h2>
-            <p className="muted">
-              Riepilogo compatto. Apri modifica, duplica o importa risultato
-              partita.
-            </p>
-          </div>
-          <button
-            className="btn secondary small"
-            onClick={() => void loadEvents()}
-          >
-            {eventsLoading ? "Carico..." : "Aggiorna"}
-          </button>
-        </div>
         <div className="event-presentation-list top-gap">
-          {futureEvents.slice(0, 5).map((event) => (
+          {futureEvents.map((event) => (
             <EventPresentation
               key={event.id}
               event={event}
@@ -1506,6 +1494,22 @@ export default function EventsPage() {
           {!futureEvents.length && (
             <p className="empty-state">Nessun evento futuro in programma.</p>
           )}
+        </div>
+      </section>
+
+      <section className="card ak-section-head events-compact-hero events-hero-small-v131 top-gap">
+        <div className="events-hero-meta">
+          <p className="eyebrow">📅 Clan Manager Event Center</p>
+          <h1>Eventi, calendario e partite CODM</h1>
+          <p className="muted">
+            Lista mappe CODM, BAN selezionabili, badge stato, modifica/duplica
+            evento e import risultato collegato all’evento.
+          </p>
+          <div className="events-hero-pills">
+            <span className="pill-chip">⚡ Creazione rapida</span>
+            <span className="pill-chip">🧠 Sync Supabase</span>
+            <span className="pill-chip">📱 Mobile ready</span>
+          </div>
         </div>
       </section>
 
@@ -1991,7 +1995,7 @@ export default function EventsPage() {
       <section className="card top-gap">
         <div className="section-title">
           <div>
-            <h2>Archivio eventi</h2>
+            <h2>Eventi passati / archivio risultati</h2>
             <p className="muted">
               Caricati: {events.length} • futuri: {futureEvents.length} •
               passati: {pastEvents.length}
@@ -2004,9 +2008,9 @@ export default function EventsPage() {
               setEventFilter(e.target.value as "future" | "all" | "past")
             }
           >
+            <option value="past">Passati automatici</option>
             <option value="future">Futuri</option>
             <option value="all">Tutti</option>
-            <option value="past">Passati</option>
           </select>
         </div>
         <div className="ak-event-list top-gap">
@@ -2031,6 +2035,29 @@ export default function EventsPage() {
                     </span>
                     {event.location ? (
                       <span className="pill-chip">📍 {event.location}</span>
+                    ) : null}
+                    <span className="pill-chip">
+                      {eventEndTimestamp(event) <= Date.now() ? "📜 Passato" : "🔥 Da fare"}
+                    </span>
+                  </div>
+                  <div className="archive-result-links-v131">
+                    {(eventPlan.rounds || []).map((round, index) => (
+                      <a
+                        key={`${event.id}-${round.n || index + 1}`}
+                        className="btn small secondary"
+                        href={`/import/match?event=${event.id}&round=${round.n || index + 1}&matchCode=${encodeURIComponent(round.matchCode || "")}`}
+                      >
+                        Inserisci risultato P{round.n || index + 1}
+                      </a>
+                    ))}
+                    {!(eventPlan.rounds || []).length && canWrite ? (
+                      <button
+                        className="btn small secondary"
+                        type="button"
+                        onClick={() => loadEventIntoEditor(event)}
+                      >
+                        Aggiungi partite/risultato
+                      </button>
                     ) : null}
                   </div>
                 </div>

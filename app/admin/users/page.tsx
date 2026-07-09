@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { useCodmAuth, roleLabel, type CodmRole } from '@/lib/authRoles';
+import { useCodmAuth, roleLabel, CODM_PERMISSION_KEYS, defaultPermissionsForRole, type CodmRole, type CodmPermissionKey, type CodmPermissions } from '@/lib/authRoles';
 import { WriteAccessBlock } from '@/components/WriteAccessBlock';
 
 type AdminUserRow = {
@@ -19,7 +19,11 @@ type AdminUserRow = {
   clan_name?: string | null;
   pending_request_id?: string | null;
   pending_status?: string | null;
+  permissions?: Partial<CodmPermissions> | null;
 };
+
+type PlayerLinkOption = { id: string; nickname: string; uid_codm?: string | null; user_id?: string | null; clan_name?: string | null; status?: string | null };
+
 
 type Diagnostics = {
   auth_users: number;
@@ -39,10 +43,30 @@ type ApiResponse = {
   users?: AdminUserRow[];
   diagnostics?: Diagnostics;
   clan?: { id: string; name?: string | null; tag?: string | null };
+  players?: PlayerLinkOption[];
 };
 
 const roleOptions: CodmRole[] = ['viewer', 'player', 'staff', 'coach', 'owner'];
 const statusOptions = ['active', 'tryout', 'bench', 'inactive'];
+const permissionLabels: Record<CodmPermissionKey, string> = {
+  view_events: 'Vede eventi',
+  create_events: 'Crea eventi',
+  edit_events: 'Modifica eventi',
+  delete_events: 'Cancella eventi',
+  insert_results: 'Inserisce risultati',
+  view_stats: 'Vede statistiche',
+  manage_players: 'Gestisce giocatori',
+  link_accounts: 'Associa account',
+  manage_users: 'Gestisce utenti',
+  manage_telegram: 'Gestisce Telegram',
+  view_admin_panel: 'Vede admin panel',
+};
+
+function permissionsFor(row: AdminUserRow): CodmPermissions {
+  const role = row.role === 'registered' ? 'registered' : row.role;
+  return { ...defaultPermissionsForRole(role as CodmRole), ...(row.permissions || {}) } as CodmPermissions;
+}
+
 
 function dateLabel(value?: string | null) {
   if (!value) return '-';
@@ -60,6 +84,7 @@ export default function AdminUsersPage() {
   const [users, setUsers] = useState<AdminUserRow[]>([]);
   const [diagnostics, setDiagnostics] = useState<Diagnostics | null>(null);
   const [clanLabel, setClanLabel] = useState('AK47DX');
+  const [playerOptions, setPlayerOptions] = useState<PlayerLinkOption[]>([]);
   const [query, setQuery] = useState('');
   const [message, setMessage] = useState('');
   const [loading, setLoading] = useState(false);
@@ -88,6 +113,7 @@ export default function AdminUsersPage() {
     try {
       const data = await apiFetch(`/api/admin/users${sync ? '?sync=1' : ''}`);
       setUsers(data.users || []);
+      setPlayerOptions(data.players || []);
       setDiagnostics(data.diagnostics || null);
       setClanLabel(`${data.clan?.tag || data.clan?.name || 'AK47DX'}`);
       if (sync || data.diagnostics?.synced) setMessage(`Lista aggiornata. Sync completato: ${data.diagnostics?.synced || 0} utenti.`);
@@ -137,6 +163,30 @@ export default function AdminUsersPage() {
     }
   }
 
+  async function linkPlayerToUser(row: AdminUserRow, playerId: string) {
+    setMessage(playerId ? 'Associo account registrato al player CODM...' : 'Rimuovo associazione player/account...');
+    try {
+      const result = await apiFetch('/api/admin/users', { method: 'POST', body: JSON.stringify({ action: 'linkPlayer', userId: row.id, playerId, email: row.email }) });
+      setMessage(result.message || 'Associazione aggiornata.');
+      await load(false);
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : 'Errore associazione account/player.');
+    }
+  }
+
+  async function updatePermission(row: AdminUserRow, key: CodmPermissionKey, value: boolean) {
+    const next = { ...permissionsFor(row), [key]: value };
+    setUsers((current) => current.map((item) => item.id === row.id ? { ...item, permissions: next } : item));
+    setMessage('Aggiorno permessi utente...');
+    try {
+      const result = await apiFetch('/api/admin/users', { method: 'POST', body: JSON.stringify({ action: 'updatePermissions', userId: row.id, permissions: next, email: row.email }) });
+      setMessage(result.message || 'Permessi aggiornati.');
+      await load(false);
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : 'Errore aggiornamento permessi. Esegui prima lo script SQL V13.1 permessi.');
+      await load(false);
+    }
+  }
 
 
   async function deleteUser(row: AdminUserRow) {
@@ -240,8 +290,12 @@ export default function AdminUsersPage() {
                   </select>
                 </div>
                 <div className="field">
-                  <label>TAG clan</label>
-                  <input className="input" value={row.clan_name || clanLabel} disabled />
+                  <label>Associa account registrato</label>
+                  <select className="select" value={row.player_id || ''} disabled={row.email?.toLowerCase() === 'hasnaiiin@gmail.com'} onChange={(event) => void linkPlayerToUser(row, event.target.value)}>
+                    <option value="">Nessun player collegato</option>
+                    {playerOptions.map((player) => <option key={player.id} value={player.id}>{player.nickname}{player.uid_codm ? ` · UID ${player.uid_codm}` : ''}{player.user_id && player.user_id !== row.id ? ' · già collegato' : ''}</option>)}
+                  </select>
+                  <small className="muted">Collega il player CODM reale a email/account registrato.</small>
                 </div>
                 <div className="field">
                   <label>Azioni</label>
@@ -249,6 +303,23 @@ export default function AdminUsersPage() {
                   <small className="muted">Promuovi/declassa dal menu ruolo.</small>
                 </div>
               </div>
+
+              <details className="notice compact top-gap admin-permissions-v131">
+                <summary>Permessi granulari: cosa può fare e cosa può vedere</summary>
+                <div className="permissions-flag-grid-v131 top-gap">
+                  {CODM_PERMISSION_KEYS.map((key) => {
+                    const checked = permissionsFor(row)[key];
+                    const locked = row.email?.toLowerCase() === 'hasnaiiin@gmail.com';
+                    return (
+                      <label className="check-line permission-flag-v131" key={key}>
+                        <input type="checkbox" checked={checked} disabled={locked} onChange={(event) => void updatePermission(row, key, event.target.checked)} />
+                        {permissionLabels[key]}
+                      </label>
+                    );
+                  })}
+                </div>
+                <small className="muted">I flag permettono di dare permessi precisi senza dover rendere tutti Owner.</small>
+              </details>
             </article>
           ))}
         </div>

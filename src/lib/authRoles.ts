@@ -6,6 +6,19 @@ import { supabase, isSupabaseConfigured } from '@/lib/supabaseClient';
 import { loadClanIdentity, clanDisplayName, cacheClanIdentity } from '@/lib/clanIdentity';
 
 export type CodmRole = 'anon' | 'registered' | 'viewer' | 'player' | 'staff' | 'coach' | 'owner';
+export type CodmPermissionKey =
+  | 'view_events'
+  | 'create_events'
+  | 'edit_events'
+  | 'delete_events'
+  | 'insert_results'
+  | 'view_stats'
+  | 'manage_players'
+  | 'link_accounts'
+  | 'manage_users'
+  | 'manage_telegram'
+  | 'view_admin_panel';
+export type CodmPermissions = Record<CodmPermissionKey, boolean>;
 
 export type CodmAuthState = {
   loading: boolean;
@@ -15,6 +28,7 @@ export type CodmAuthState = {
   clanId: string | null;
   clanName: string;
   role: CodmRole;
+  permissions: CodmPermissions;
   canView: boolean;
   canWrite: boolean;
   canManageUsers: boolean;
@@ -22,9 +36,50 @@ export type CodmAuthState = {
   signOut: () => Promise<void>;
 };
 
+export const CODM_PERMISSION_KEYS: CodmPermissionKey[] = [
+  'view_events',
+  'create_events',
+  'edit_events',
+  'delete_events',
+  'insert_results',
+  'view_stats',
+  'manage_players',
+  'link_accounts',
+  'manage_users',
+  'manage_telegram',
+  'view_admin_panel',
+];
+
+const EMPTY_PERMISSIONS = Object.fromEntries(CODM_PERMISSION_KEYS.map((key) => [key, false])) as CodmPermissions;
+const FULL_PERMISSIONS = Object.fromEntries(CODM_PERMISSION_KEYS.map((key) => [key, true])) as CodmPermissions;
+
+const ROLE_DEFAULT_PERMISSIONS: Record<CodmRole, CodmPermissions> = {
+  anon: { ...EMPTY_PERMISSIONS, view_events: true, view_stats: true },
+  registered: { ...EMPTY_PERMISSIONS, view_events: true, view_stats: true },
+  viewer: { ...EMPTY_PERMISSIONS, view_events: true, view_stats: true },
+  player: { ...EMPTY_PERMISSIONS, view_events: true, view_stats: true },
+  staff: { ...EMPTY_PERMISSIONS, view_events: true, create_events: true, edit_events: true, insert_results: true, view_stats: true, manage_players: true },
+  coach: { ...EMPTY_PERMISSIONS, view_events: true, create_events: true, edit_events: true, delete_events: true, insert_results: true, view_stats: true, manage_players: true, link_accounts: true, manage_telegram: true, view_admin_panel: true },
+  owner: FULL_PERMISSIONS,
+};
+
 const WRITE_ROLES: CodmRole[] = ['owner', 'coach', 'staff'];
 const USER_MANAGEMENT_ROLES: CodmRole[] = ['owner'];
 export const CODM_MAIN_ADMIN_EMAIL = 'hasnaiiin@gmail.com';
+
+export function defaultPermissionsForRole(role: CodmRole): CodmPermissions {
+  return { ...(ROLE_DEFAULT_PERMISSIONS[role] || ROLE_DEFAULT_PERMISSIONS.registered) };
+}
+
+export function normalizeCodmPermissions(role: CodmRole, raw?: Record<string, unknown> | null): CodmPermissions {
+  const base = defaultPermissionsForRole(role);
+  if (!raw || typeof raw !== 'object') return base;
+  const next = { ...base };
+  for (const key of CODM_PERMISSION_KEYS) {
+    if (Object.prototype.hasOwnProperty.call(raw, key)) next[key] = Boolean(raw[key]);
+  }
+  return next;
+}
 
 export function canWriteRole(role: CodmRole) {
   return WRITE_ROLES.includes(role);
@@ -78,19 +133,31 @@ async function ensureMainAdminOwner(session: Session | null) {
   }
 }
 
-async function getRoleForUser(userId: string, clanId: string | null, email?: string | null): Promise<CodmRole> {
-  if (isCodmMainAdminEmail(email)) return 'owner';
-  if (!clanId) return 'registered';
+async function getAccessForUser(userId: string, clanId: string | null, email?: string | null): Promise<{ role: CodmRole; permissions: CodmPermissions }> {
+  if (isCodmMainAdminEmail(email)) return { role: 'owner', permissions: defaultPermissionsForRole('owner') };
+  if (!clanId) return { role: 'registered', permissions: defaultPermissionsForRole('registered') };
 
-  const { data, error } = await supabase
+  let { data, error } = await supabase
     .from('clan_members')
-    .select('role')
+    .select('role,permissions')
     .eq('clan_id', clanId)
     .eq('user_id', userId)
     .maybeSingle();
 
-  if (error) return 'registered';
-  return (data?.role as CodmRole) || 'registered';
+  if (error && /permissions|column/i.test(error.message || '')) {
+    const fallback = await supabase
+      .from('clan_members')
+      .select('role')
+      .eq('clan_id', clanId)
+      .eq('user_id', userId)
+      .maybeSingle();
+    data = fallback.data as any;
+    error = fallback.error;
+  }
+
+  if (error) return { role: 'registered', permissions: defaultPermissionsForRole('registered') };
+  const role = ((data?.role as CodmRole) || 'registered');
+  return { role, permissions: normalizeCodmPermissions(role, (data as any)?.permissions) };
 }
 
 export function useCodmAuth(): CodmAuthState {
@@ -99,6 +166,7 @@ export function useCodmAuth(): CodmAuthState {
   const [clanId, setClanId] = useState<string | null>(null);
   const [clanName, setClanName] = useState('AK47DX');
   const [role, setRole] = useState<CodmRole>('anon');
+  const [permissions, setPermissions] = useState<CodmPermissions>(() => defaultPermissionsForRole('anon'));
 
   const reload = useCallback(async () => {
     setLoading(true);
@@ -127,8 +195,11 @@ export function useCodmAuth(): CodmAuthState {
 
       if (!activeSession?.user?.id) {
         setRole('anon');
+        setPermissions(defaultPermissionsForRole('anon'));
       } else {
-        setRole(await getRoleForUser(activeSession.user.id, resolvedClanId, activeSession.user.email));
+        const access = await getAccessForUser(activeSession.user.id, resolvedClanId, activeSession.user.email);
+        setRole(access.role);
+        setPermissions(access.permissions);
       }
     } finally {
       setLoading(false);
@@ -149,18 +220,23 @@ export function useCodmAuth(): CodmAuthState {
     window.location.href = '/dashboard';
   }, [reload]);
 
-  return useMemo(() => ({
-    loading,
-    configured: isSupabaseConfigured,
-    session,
-    user: session?.user || null,
-    clanId,
-    clanName,
-    role,
-    canView: true,
-    canWrite: canWriteRole(role),
-    canManageUsers: canManageUsersRole(role),
-    reload,
-    signOut
-  }), [loading, session, clanId, clanName, role, reload, signOut]);
+  return useMemo(() => {
+    const canWriteFromFlags = permissions.create_events || permissions.edit_events || permissions.delete_events || permissions.insert_results || permissions.manage_players;
+    const canManageUsersFromFlags = permissions.manage_users;
+    return {
+      loading,
+      configured: isSupabaseConfigured,
+      session,
+      user: session?.user || null,
+      clanId,
+      clanName,
+      role,
+      permissions,
+      canView: permissions.view_events || permissions.view_stats,
+      canWrite: canWriteFromFlags || canWriteRole(role),
+      canManageUsers: canManageUsersFromFlags || canManageUsersRole(role),
+      reload,
+      signOut
+    };
+  }, [loading, session, clanId, clanName, role, permissions, reload, signOut]);
 }
