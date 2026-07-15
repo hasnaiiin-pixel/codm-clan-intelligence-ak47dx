@@ -2,7 +2,7 @@ import './globals.css';
 import type { Metadata, Viewport } from 'next';
 import { MobileSidebar } from '@/components/MobileSidebar';
 import { PwaInstaller } from '@/components/PwaInstaller';
-import { GlobalTableSorter } from '@/components/GlobalTableSorter';
+import { GlobalTableSorter } from './GlobalTableSorter';
 
 export const metadata: Metadata = {
   title: 'CLAN MANAGER',
