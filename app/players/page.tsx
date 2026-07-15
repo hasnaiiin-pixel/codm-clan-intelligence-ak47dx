@@ -632,9 +632,11 @@ export default function PlayersPage() {
                       <b>{card.player.nickname}</b>
                     </a>
                     <span className="muted player-uid-v136">
-                      {card.player.uid_codm
-                        ? `UID ${card.player.uid_codm}`
-                        : "profilo CODM da collegare"}
+                      {card.player.user_id
+                        ? "Profilo account collegato"
+                        : card.player.uid_codm
+                          ? `UID ${card.player.uid_codm}`
+                          : "Profilo CODM da associare"}
                     </span>
                   </td>
                   <td>{safeClan(card.player)}</td>
@@ -693,7 +695,8 @@ export default function PlayersPage() {
                     {auth.canManageUsers ? (
                       <div className="player-account-link-v135 player-account-link-v137">
                         <select
-                          className="select"
+                          className="select player-email-select-v139"
+                          title={registeredAccounts.find((u) => u.id === (accountEdits[card.player.id] || ""))?.email || "Seleziona email registrata"}
                           value={accountEdits[card.player.id] || ""}
                           onChange={(e) =>
                             setAccountEdits((current) => ({

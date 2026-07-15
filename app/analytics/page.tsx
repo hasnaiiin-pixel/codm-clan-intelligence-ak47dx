@@ -89,6 +89,7 @@ export default function AnalyticsPage() {
   const [filterMode, setFilterMode] = useState("ALL");
   const [filterMap, setFilterMap] = useState("ALL");
   const [message, setMessage] = useState("");
+  const [chartType, setChartType] = useState<"pie" | "donut" | "bar">("pie");
 
   useEffect(() => {
     load();
@@ -534,15 +535,39 @@ export default function AnalyticsPage() {
   }, [filteredRows, matches, filterMap]);
 
   function PieCard({ title, slices }: { title: string; slices: PieSlice[] }) {
+    const [selected, setSelected] = useState<string>("");
+    const active = slices.find((slice) => slice.label === selected) || null;
+    const colors = ["var(--ok)", "var(--accent)", "var(--accent2)", "var(--warning)", "#a78bfa", "#22d3ee", "#f97316"];
     return (
-      <div className="card stat-pie-card">
-        <h2>{title}</h2>
-        <div className="big-pie" style={{ background: pieGradient(slices) }} />
-        <div className="pie-legend">
-          {slices.map((s) => (
-            <span key={s.label}>
-              <b>{s.percent}%</b> {s.label} <small>({s.value})</small>
-            </span>
+      <div className="card stat-pie-card interactive-chart-card-v139">
+        <div className="chart-card-head-v139">
+          <h2>{title}</h2>
+          <select className="select chart-type-select-v139" value={chartType} onChange={(e) => setChartType(e.target.value as "pie" | "donut" | "bar")}>
+            <option value="pie">Torta</option>
+            <option value="donut">Ciambella</option>
+            <option value="bar">Barre</option>
+          </select>
+        </div>
+        {chartType === "bar" ? (
+          <div className="bar-chart-v139">
+            {slices.map((slice, index) => (
+              <button key={slice.label} type="button" className={`bar-row-v139 ${selected === slice.label ? "active" : ""}`} onClick={() => setSelected(selected === slice.label ? "" : slice.label)}>
+                <span>{slice.label}</span>
+                <i style={{ width: `${Math.max(slice.percent, 2)}%`, background: colors[index % colors.length] }} />
+                <b>{slice.percent}%</b>
+              </button>
+            ))}
+          </div>
+        ) : (
+          <button type="button" aria-label={`Apri dettagli ${title}`} className={`big-pie chart-click-v139 ${chartType === "donut" ? "donut-v139" : ""}`} style={{ background: pieGradient(slices) }} onClick={() => slices[0] && setSelected(selected || slices[0].label)} />
+        )}
+        {active && <div className="chart-selection-v139"><b>{active.label}</b>: {active.value} · {active.percent}%</div>}
+        <div className="pie-legend interactive-legend-v139">
+          {slices.map((slice, index) => (
+            <button type="button" key={slice.label} className={selected === slice.label ? "active" : ""} onClick={() => setSelected(selected === slice.label ? "" : slice.label)}>
+              <i style={{ background: colors[index % colors.length] }} />
+              <b>{slice.percent}%</b> {slice.label} <small>({slice.value})</small>
+            </button>
           ))}
           {!slices.length && <span className="muted">Nessun dato.</span>}
         </div>
@@ -745,8 +770,13 @@ export default function AnalyticsPage() {
             {filterMode === "ALL" ? "Tutte le modalità" : filterMode}
           </span>
         </div>
+        <div className="map-filter-inline-v139 top-gap">
+          <div className="field"><label>Filtra modalità</label><select className="select" value={filterMode} onChange={(e) => setFilterMode(e.target.value)}>{modeOptions.map((mode) => <option key={mode} value={mode}>{mode === "ALL" ? "Tutte le modalità" : mode}</option>)}</select></div>
+          <div className="field"><label>Filtra mappa</label><select className="select" value={filterMap} onChange={(e) => setFilterMap(e.target.value)}>{mapOptions.map((mapName) => <option key={mapName} value={mapName}>{mapName === "ALL" ? "Tutte le mappe" : mapName}</option>)}</select></div>
+          <button type="button" className="btn secondary" onClick={() => { setFilterMode("ALL"); setFilterMap("ALL"); }}>Azzera filtri</button>
+        </div>
         <div className="table-scroll top-gap">
-          <table className="table compact stats-lines-table-v132 map-ranking-single-v138">
+          <table className="table compact stats-lines-table-v132 map-ranking-single-v138 map-ranking-v139">
             <thead>
               <tr>
                 <th>#</th>
