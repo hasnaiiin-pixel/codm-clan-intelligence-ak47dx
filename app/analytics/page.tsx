@@ -89,7 +89,6 @@ export default function AnalyticsPage() {
   const [filterMode, setFilterMode] = useState("ALL");
   const [filterMap, setFilterMap] = useState("ALL");
   const [message, setMessage] = useState("");
-  const [chartType, setChartType] = useState<"pie" | "donut" | "bar">("pie");
 
   useEffect(() => {
     load();
@@ -536,6 +535,7 @@ export default function AnalyticsPage() {
 
   function PieCard({ title, slices }: { title: string; slices: PieSlice[] }) {
     const [selected, setSelected] = useState<string>("");
+    const [chartType, setChartType] = useState<"pie" | "donut" | "bar">("pie");
     const active = slices.find((slice) => slice.label === selected) || null;
     const colors = ["var(--ok)", "var(--accent)", "var(--accent2)", "var(--warning)", "#a78bfa", "#22d3ee", "#f97316"];
     return (
