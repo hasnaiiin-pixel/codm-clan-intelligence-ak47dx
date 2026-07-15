@@ -561,9 +561,9 @@ export default function AnalyticsPage() {
             ))}
           </div>
         ) : (
-          <button type="button" aria-label={`Apri dettagli ${title}`} className={`big-pie chart-click-v139 ${chartType === "donut" ? "donut-v139" : ""}`} style={{ background: pieGradient(slices) }} onClick={() => slices[0] && setSelected(selected || slices[0].label)} />
+          <button type="button" aria-label={`Apri dettagli ${title}`} className={`big-pie chart-click-v139 ${chartType === "donut" ? "donut-v139" : ""}`} style={{ background: pieGradient(slices) }} onClick={() => slices[0] && setSelected(selected ? "" : slices[0].label)} />
         )}
-        {active && <div className="chart-selection-v139"><b>{active.label}</b>: {active.value} · {active.percent}%</div>}
+        {active && <div className="chart-selection-v139"><span><b>{active.label}</b>: {active.value} · {active.percent}%</span><button type="button" className="chart-clear-selection-v1312" onClick={() => setSelected("")} aria-label="Togli selezione">✕ Togli</button></div>}
         <div className="pie-legend interactive-legend-v139">
           {slices.map((slice, index) => (
             <button type="button" key={slice.label} className={selected === slice.label ? "active" : ""} onClick={() => setSelected(selected === slice.label ? "" : slice.label)}>
@@ -669,19 +669,36 @@ export default function AnalyticsPage() {
   }
 
   function whatsappText() {
-    const leader = bestPlayersByMap[0]?.ranking?.[0] || topPlayers[0];
+    const ranking = (bestPlayersByMap[0]?.ranking || topPlayers || []).slice(0, 3);
     const lines = [
-      "🏆 STATISTICHE CLAN AK47DX",
+      "🏆 *STATISTICHE CLAN AK47DX*",
+      "━━━━━━━━━━━━━━━━",
       "",
+      "🎛️ *FILTRI APPLICATI*",
       `🎮 Modalità: ${filterMode === "ALL" ? "Tutte" : filterMode}`,
       `🗺️ Mappa: ${filterMap === "ALL" ? "Tutte" : filterMap}`,
-      `📊 Partite: ${summary.total}`,
-      `✅ Vittorie: ${summary.wins} · WR ${summary.wr}%`,
-      `💀 Kill / Death / Assist: ${summary.kills} / ${summary.deaths} / ${summary.assists}`,
+      "",
+      "📊 *RISULTATI*",
+      `🎯 Partite: ${summary.total}`,
+      `✅ Vittorie: ${summary.wins}`,
+      `❌ Sconfitte: ${summary.losses}`,
+      `➖ Pareggi: ${summary.draw}`,
+      `📈 Win rate: ${summary.wr}%`,
+      "",
+      "⚔️ *PRESTAZIONI*",
+      `💥 Kill: ${summary.kills}`,
+      `💀 Death: ${summary.deaths}`,
+      `🤝 Assist: ${summary.assists}`,
       `🎯 K/D: ${summary.kd}`,
     ];
-    if (leader) lines.push(`🥇 Miglior player filtrato: ${leader.name}`);
-    if (typeof window !== "undefined") lines.push("", `Statistiche complete: ${window.location.href}`);
+    if (ranking.length) {
+      lines.push("", "🥇 *TOP PLAYER*");
+      const medals = ["🥇", "🥈", "🥉"];
+      ranking.forEach((player: any, index: number) => {
+        lines.push(`${medals[index] || `${index + 1}.`} ${player.name || player.player || "Player"}`);
+      });
+    }
+    lines.push("", "🔥 AK47DX · CLAN MANAGER");
     return lines.join("\n");
   }
 
@@ -689,7 +706,7 @@ export default function AnalyticsPage() {
     const text = whatsappText();
     if (navigator.share) {
       try {
-        await navigator.share({ title: "Statistiche AK47DX", text, url: window.location.href });
+        await navigator.share({ title: "Statistiche AK47DX", text });
         return;
       } catch {}
     }

@@ -1,6 +1,6 @@
 {
   "name": "clan-manager-ak47dx",
-  "version": "13.11.1",
+  "version": "13.11.2",
   "private": true,
   "scripts": {
     "dev": "next dev",

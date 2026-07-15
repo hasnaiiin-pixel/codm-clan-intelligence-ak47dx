@@ -152,21 +152,26 @@ function compactEventForLocalStorage(event: CodmEvent) {
 function eventWhatsAppMessage(event: CodmEvent, plan?: MatchPlan | null) {
   const normalized = normalizePlan(plan || event.event_plan || emptyPlan());
   const rounds = normalized.rounds || [];
+  const startsAt = new Date(event.starts_at);
   const lines = [
-    `📅 ${String(event.title || "EVENTO AK47DX").toUpperCase()}`,
+    "📢 *EVENTO CLAN AK47DX*",
+    "━━━━━━━━━━━━━━━━",
     "",
-    `🗓️ ${new Date(event.starts_at).toLocaleString("it-IT")}`,
-    event.location ? `📍 ${event.location}` : "",
+    `🎮 *${String(event.title || "EVENTO AK47DX").toUpperCase()}*`,
+    `📅 Data: ${startsAt.toLocaleDateString("it-IT")}`,
+    `⏰ Ora: ${startsAt.toLocaleTimeString("it-IT", { hour: "2-digit", minute: "2-digit" })}`,
     normalized.teamBName ? `🆚 Avversario: ${normalized.teamBName}` : "",
-    event.description ? `📝 ${event.description}` : "",
+    event.location ? `📍 Luogo: ${event.location}` : "",
+    event.description ? `📝 Note: ${event.description}` : "",
   ].filter(Boolean);
   if (rounds.length) {
-    lines.push("", "🎮 PARTITE:");
-    rounds.forEach((round) => {
-      lines.push(`• P${round.n}: ${round.mode || "Modalità da decidere"} · ${round.map || "Mappa da decidere"}${round.startTime ? ` · ${round.startTime}` : ""}`);
+    lines.push("", "🎯 *PARTITE PROGRAMMATE*");
+    rounds.forEach((round, index) => {
+      lines.push(`${index + 1}️⃣ ${round.mode || "Modalità da decidere"}`);
+      lines.push(`   🗺️ ${round.map || "Mappa da decidere"}${round.startTime ? ` · ⏰ ${round.startTime}` : ""}`);
     });
   }
-  if (typeof window !== "undefined") lines.push("", `🔗 ${window.location.origin}/events#${event.id}`);
+  lines.push("", "🔥 Prepariamoci e confermiamo la presenza!");
   return lines.join("\n");
 }
 
@@ -174,7 +179,7 @@ async function shareEventWhatsApp(event: CodmEvent, plan?: MatchPlan | null) {
   const text = eventWhatsAppMessage(event, plan);
   if (navigator.share) {
     try {
-      await navigator.share({ title: event.title, text, url: `${window.location.origin}/events#${event.id}` });
+      await navigator.share({ title: event.title, text });
       return;
     } catch {}
   }

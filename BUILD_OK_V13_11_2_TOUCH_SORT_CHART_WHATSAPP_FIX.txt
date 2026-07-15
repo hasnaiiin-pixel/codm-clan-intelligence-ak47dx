@@ -1,0 +1,1 @@
+BUILD OK V13.11.2 - touch table sort, chart deselection, WhatsApp formatting without app links
