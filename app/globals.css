@@ -2861,3 +2861,118 @@ select.pro-select {
   .bottom-nav::-webkit-scrollbar,.mobile-bottom-nav::-webkit-scrollbar{display:none}
   body{padding-bottom:calc(84px + env(safe-area-inset-bottom))}
 }
+
+/* =========================================================
+   V13.11 - Share, visitor analytics and fund rotation
+   ========================================================= */
+.analytics-share-actions-v1311,
+.fund-add-player-v1311,
+.fund-draw-actions-v1311,
+.fund-row-actions-v1311,
+.fund-create-actions-v1311 {
+  display: flex;
+  align-items: center;
+  gap: .65rem;
+  flex-wrap: wrap;
+}
+.whatsapp-btn-v1311 {
+  background: linear-gradient(135deg, rgba(37,211,102,.95), rgba(18,140,72,.95));
+  border-color: rgba(90,255,151,.7);
+  color: #fff;
+}
+.analytics-share-summary-v1311 {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  background:
+    radial-gradient(circle at top right, rgba(21,231,255,.13), transparent 40%),
+    linear-gradient(135deg, #07101d, #101827);
+  border: 1px solid rgba(80,220,255,.28);
+}
+.analytics-share-summary-v1311 h2 { margin: .2rem 0 0; }
+.analytics-share-kpis-v1311 {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(100px, 1fr));
+  gap: .6rem;
+  min-width: min(680px, 65vw);
+}
+.analytics-share-kpis-v1311 span {
+  display: flex;
+  flex-direction: column;
+  gap: .18rem;
+  padding: .7rem .85rem;
+  border-radius: 12px;
+  background: rgba(255,255,255,.045);
+  border: 1px solid rgba(255,255,255,.1);
+  text-align: center;
+}
+.analytics-share-kpis-v1311 b { font-size: 1.12rem; color: #fff; }
+
+.visitor-kpis-v1311 { grid-template-columns: repeat(5, minmax(0, 1fr)); }
+.visitor-trend-v1311 { display: grid; gap: .45rem; }
+.visitor-trend-row-v1311 {
+  display: grid;
+  grid-template-columns: 72px minmax(120px, 1fr) 54px 110px;
+  gap: .65rem;
+  align-items: center;
+}
+.visitor-trend-row-v1311 > div {
+  height: 10px;
+  border-radius: 999px;
+  background: rgba(255,255,255,.07);
+  overflow: hidden;
+}
+.visitor-trend-row-v1311 i {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, var(--accent), var(--accent2));
+}
+.visitor-trend-row-v1311 small { color: var(--muted); }
+
+.fund-page-v1311 .block { display: block; }
+.fund-month-v1311 { width: 170px; }
+.fund-add-player-v1311 .select { min-width: 260px; flex: 1; }
+.fund-create-actions-v1311 { align-self: end; }
+.fund-table-v1311 th:nth-child(1) { min-width: 145px; }
+.fund-table-v1311 th:nth-child(2) { min-width: 180px; }
+.fund-table-v1311 th:nth-child(3) { min-width: 125px; }
+.fund-table-v1311 th:nth-child(4) { min-width: 145px; }
+.fund-table-v1311 th:nth-child(5) { min-width: 145px; }
+.fund-table-v1311 th:nth-child(6) { min-width: 360px; }
+.fund-table-v1311 td { vertical-align: middle; }
+.fund-draw-panel-v1311 {
+  border-color: rgba(255,199,64,.35);
+  background: radial-gradient(circle at right top, rgba(255,199,64,.10), transparent 42%), var(--panel);
+}
+.fund-draw-actions-v1311 .select { width: 190px; }
+.fund-row-actions-v1311 { min-width: 340px; }
+.fund-row-actions-v1311 .btn { white-space: nowrap; }
+.fund-page-v1311 code { font-size: .72rem; word-break: break-all; }
+
+@media (max-width: 900px) {
+  .analytics-share-summary-v1311 { align-items: stretch; flex-direction: column; }
+  .analytics-share-kpis-v1311 { min-width: 0; width: 100%; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .visitor-kpis-v1311 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .visitor-trend-row-v1311 { grid-template-columns: 62px minmax(90px, 1fr) 42px; }
+  .visitor-trend-row-v1311 small { display: none; }
+}
+
+@media (max-width: 640px) {
+  .analytics-share-actions-v1311 { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .analytics-share-actions-v1311 .btn { width: 100%; min-height: 44px; padding: .55rem .45rem; font-size: .78rem; }
+  .analytics-share-kpis-v1311 { grid-template-columns: 1fr 1fr; }
+  .visitor-kpis-v1311 { grid-template-columns: 1fr 1fr; }
+  .visitor-kpis-v1311 .kpi:last-child { grid-column: 1 / -1; }
+  .fund-add-player-v1311 { display: grid; grid-template-columns: 1fr; }
+  .fund-add-player-v1311 .select, .fund-month-v1311, .fund-draw-actions-v1311 .select { width: 100%; min-width: 0; }
+  .fund-draw-actions-v1311 { display: grid; grid-template-columns: 1fr; }
+  .fund-draw-actions-v1311 .btn { width: 100%; min-height: 48px; }
+  .fund-create-actions-v1311 { display: grid; grid-template-columns: 1fr; }
+  .fund-create-actions-v1311 .btn { width: 100%; }
+  .fund-table-v1311 { font-size: .78rem; }
+  .fund-table-v1311 th:nth-child(6) { min-width: 300px; }
+  .fund-row-actions-v1311 { min-width: 290px; gap: .35rem; }
+  .fund-row-actions-v1311 .btn { padding: .42rem .48rem; }
+}

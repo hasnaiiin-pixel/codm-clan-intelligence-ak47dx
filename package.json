@@ -1,6 +1,6 @@
 {
   "name": "clan-manager-ak47dx",
-  "version": "13.4.0-registration-confirmation-fix",
+  "version": "13.11.0",
   "private": true,
   "scripts": {
     "dev": "next dev",

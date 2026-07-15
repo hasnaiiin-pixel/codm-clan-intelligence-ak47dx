@@ -3,6 +3,7 @@ import type { Metadata, Viewport } from 'next';
 import { MobileSidebar } from '@/components/MobileSidebar';
 import { PwaInstaller } from '@/components/PwaInstaller';
 import { GlobalTableSorter } from './GlobalTableSorter';
+import { PageViewTracker } from '@/components/PageViewTracker';
 
 export const metadata: Metadata = {
   title: 'CLAN MANAGER',
@@ -41,6 +42,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             <span>Clan Manager · sviluppato da <strong>MIRZA</strong></span>
           </div>
         </footer>
+        <PageViewTracker />
         <GlobalTableSorter />
         <PwaInstaller />
       </body>

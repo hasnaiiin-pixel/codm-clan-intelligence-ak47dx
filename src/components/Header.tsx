@@ -4,6 +4,7 @@ const navItems = [
   { href: '/players', icon: '🪖', label: 'Giocatori' },
   { href: '/tournament', icon: '🏆', label: 'Torneo' },
   { href: '/analytics', icon: '📊', label: 'Stats' },
+  { href: '/fund', icon: '💰', label: 'Fondo' },
   { href: '/clan', icon: '🐺', label: 'Clan HQ' },
   { href: '/invite', icon: '🔗', label: 'Inviti' },
   { href: '/yolo', icon: '🧬', label: 'Dataset' },

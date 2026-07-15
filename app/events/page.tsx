@@ -149,6 +149,37 @@ function compactEventForLocalStorage(event: CodmEvent) {
     event_plan: compactPlanForLocalStorage(event.event_plan || null),
   } as CodmEvent;
 }
+function eventWhatsAppMessage(event: CodmEvent, plan?: MatchPlan | null) {
+  const normalized = normalizePlan(plan || event.event_plan || emptyPlan());
+  const rounds = normalized.rounds || [];
+  const lines = [
+    `📅 ${String(event.title || "EVENTO AK47DX").toUpperCase()}`,
+    "",
+    `🗓️ ${new Date(event.starts_at).toLocaleString("it-IT")}`,
+    event.location ? `📍 ${event.location}` : "",
+    normalized.teamBName ? `🆚 Avversario: ${normalized.teamBName}` : "",
+    event.description ? `📝 ${event.description}` : "",
+  ].filter(Boolean);
+  if (rounds.length) {
+    lines.push("", "🎮 PARTITE:");
+    rounds.forEach((round) => {
+      lines.push(`• P${round.n}: ${round.mode || "Modalità da decidere"} · ${round.map || "Mappa da decidere"}${round.startTime ? ` · ${round.startTime}` : ""}`);
+    });
+  }
+  if (typeof window !== "undefined") lines.push("", `🔗 ${window.location.origin}/events#${event.id}`);
+  return lines.join("\n");
+}
+
+async function shareEventWhatsApp(event: CodmEvent, plan?: MatchPlan | null) {
+  const text = eventWhatsAppMessage(event, plan);
+  if (navigator.share) {
+    try {
+      await navigator.share({ title: event.title, text, url: `${window.location.origin}/events#${event.id}` });
+      return;
+    } catch {}
+  }
+  window.open(`https://wa.me/?text=${encodeURIComponent(text)}`, "_blank", "noopener,noreferrer");
+}
 const matchStatuses = ["Da giocare", "Giocata", "Risultato caricato"];
 const resultLabels = ["Vinto", "Perso", "Pareggiato"];
 
@@ -2257,6 +2288,13 @@ export default function EventsPage() {
                   >
                     Duplica
                   </button>
+                  <button
+                    className="btn whatsapp-btn-v1311"
+                    type="button"
+                    onClick={() => void shareEventWhatsApp(event, eventPlan)}
+                  >
+                    🟢 WhatsApp
+                  </button>
                   {manualLink ? (
                     <a
                       href={manualLink}
@@ -2319,6 +2357,7 @@ export default function EventsPage() {
                 </p>
               </div>
               <div className="ak-event-actions">
+                <button className="btn whatsapp-btn-v1311" type="button" onClick={() => void shareEventWhatsApp(event, event.event_plan)}>🟢 WhatsApp</button>
                 <button
                   className="btn secondary"
                   onClick={() => loadEventIntoEditor(event)}
@@ -2873,6 +2912,9 @@ function EventPresentation({
             </div>
           );
         })}
+      </div>
+      <div className="event-card-actions-v65">
+        <button className="btn small whatsapp-btn-v1311" type="button" onClick={() => void shareEventWhatsApp(event, normalizedPlan)}>🟢 Condividi WhatsApp</button>
       </div>
       {canWrite && (
         <div className="event-card-actions-v65">

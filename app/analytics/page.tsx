@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import * as XLSX from "xlsx";
 import { supabase } from "@/lib/supabaseClient";
 import { kdRatio, winRate } from "@/lib/statistics";
 import type { Match, MatchPlayerStat, Player } from "@/lib/types";
@@ -89,6 +90,7 @@ export default function AnalyticsPage() {
   const [filterMode, setFilterMode] = useState("ALL");
   const [filterMap, setFilterMap] = useState("ALL");
   const [message, setMessage] = useState("");
+  const [shareBusy, setShareBusy] = useState(false);
 
   useEffect(() => {
     load();
@@ -575,6 +577,153 @@ export default function AnalyticsPage() {
     );
   }
 
+  function exportExcel(useAll = false) {
+    const selectedMatches = useAll ? matches : filteredMatches;
+    const selectedRows = useAll ? scoreboardRows : filteredRows;
+    const selectedStats = useAll ? stats : filteredStats;
+    const matchById = new Map(matches.map((match) => [match.id, match]));
+    const grouped = new Map<string, { player: string; clan: string; matches: Set<string>; kills: number; deaths: number; assists: number; mvp: number; rankSum: number; rankCount: number }>();
+    for (const row of selectedRows) {
+      const key = row.player_id || row.nickname_resolved || row.nickname_raw || row.id;
+      const item = grouped.get(key) || {
+        player: row.nickname_resolved || row.nickname_raw || row.players?.nickname || "Player non letto",
+        clan: row.players?.clan_name || "Senza clan",
+        matches: new Set<string>(), kills: 0, deaths: 0, assists: 0, mvp: 0, rankSum: 0, rankCount: 0,
+      };
+      item.matches.add(row.match_id);
+      item.kills += row.kills || 0;
+      item.deaths += row.deaths || 0;
+      item.assists += row.assists || 0;
+      if (row.mvp_type) item.mvp += 1;
+      if (row.team_rank) { item.rankSum += row.team_rank; item.rankCount += 1; }
+      grouped.set(key, item);
+    }
+    if (!selectedRows.length) {
+      for (const row of selectedStats) {
+        const key = row.player_id || row.id;
+        const item = grouped.get(key) || {
+          player: row.players?.nickname || "Player",
+          clan: row.players?.clan_name || "Senza clan",
+          matches: new Set<string>(), kills: 0, deaths: 0, assists: 0, mvp: 0, rankSum: 0, rankCount: 0,
+        };
+        item.matches.add(row.match_id);
+        item.kills += row.kills || 0;
+        item.deaths += row.deaths || 0;
+        item.assists += row.assists || 0;
+        if (row.is_mvp) item.mvp += 1;
+        grouped.set(key, item);
+      }
+    }
+    const playerRows = Array.from(grouped.values()).map((item) => ({
+      PLAYER: item.player,
+      CLAN: item.clan,
+      PARTITE: item.matches.size,
+      KILL: item.kills,
+      DEATH: item.deaths,
+      ASSIST: item.assists,
+      "K/D": kdRatio(item.kills, item.deaths),
+      MVP: item.mvp,
+      "POSIZIONE MEDIA": item.rankCount ? Number((item.rankSum / item.rankCount).toFixed(1)) : "-",
+    }));
+    const matchRows = selectedMatches.map((match) => ({
+      DATA: new Date(match.match_date).toLocaleString("it-IT"),
+      TIPO: match.match_type,
+      MODALITA: match.mode,
+      MAPPA: match.map_name || "",
+      AVVERSARIO: match.opponent || "",
+      RISULTATO: match.result,
+      "PUNTEGGIO NOSTRO": match.team_score ?? "",
+      "PUNTEGGIO AVVERSARIO": match.enemy_score ?? "",
+    }));
+    const rawRows = selectedRows.map((row) => {
+      const match = matchById.get(row.match_id);
+      return {
+        PARTITA: row.match_id,
+        DATA: match ? new Date(match.match_date).toLocaleString("it-IT") : "",
+        MODALITA: match?.mode || "",
+        MAPPA: match?.map_name || "",
+        PLAYER: row.nickname_resolved || row.nickname_raw || row.players?.nickname || "",
+        CLAN: row.players?.clan_name || "",
+        KILL: row.kills,
+        DEATH: row.deaths,
+        ASSIST: row.assists,
+        "K/D": kdRatio(row.kills, row.deaths),
+        POSIZIONE: row.team_rank || "",
+        MVP: row.mvp_type || "",
+      };
+    });
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, XLSX.utils.json_to_sheet([{
+      FILTRO_CLAN: useAll ? "Tutti" : filterClan,
+      FILTRO_MODALITA: useAll ? "Tutte" : filterMode,
+      FILTRO_MAPPA: useAll ? "Tutte" : filterMap,
+      PARTITE: selectedMatches.length,
+      VITTORIE: selectedMatches.filter((item) => item.result === "WIN").length,
+      SCONFITTE: selectedMatches.filter((item) => item.result === "LOSE").length,
+      PAREGGI: selectedMatches.filter((item) => item.result === "DRAW").length,
+    }]), "RIEPILOGO");
+    XLSX.utils.book_append_sheet(workbook, XLSX.utils.json_to_sheet(playerRows), "STATISTICHE_GIOCATORI");
+    XLSX.utils.book_append_sheet(workbook, XLSX.utils.json_to_sheet(matchRows), "PARTITE");
+    XLSX.utils.book_append_sheet(workbook, XLSX.utils.json_to_sheet(rawRows), "DETTAGLIO_KDA");
+    XLSX.writeFile(workbook, `CODM_AK47DX_STATISTICHE_${useAll ? "COMPLETE" : "FILTRATE"}_${new Date().toISOString().slice(0, 10)}.xlsx`);
+  }
+
+  function whatsappText() {
+    const leader = bestPlayersByMap[0]?.ranking?.[0] || topPlayers[0];
+    const lines = [
+      "🏆 STATISTICHE CLAN AK47DX",
+      "",
+      `🎮 Modalità: ${filterMode === "ALL" ? "Tutte" : filterMode}`,
+      `🗺️ Mappa: ${filterMap === "ALL" ? "Tutte" : filterMap}`,
+      `📊 Partite: ${summary.total}`,
+      `✅ Vittorie: ${summary.wins} · WR ${summary.wr}%`,
+      `💀 Kill / Death / Assist: ${summary.kills} / ${summary.deaths} / ${summary.assists}`,
+      `🎯 K/D: ${summary.kd}`,
+    ];
+    if (leader) lines.push(`🥇 Miglior player filtrato: ${leader.name}`);
+    if (typeof window !== "undefined") lines.push("", `Statistiche complete: ${window.location.href}`);
+    return lines.join("\n");
+  }
+
+  async function shareWhatsApp() {
+    const text = whatsappText();
+    if (navigator.share) {
+      try {
+        await navigator.share({ title: "Statistiche AK47DX", text, url: window.location.href });
+        return;
+      } catch {}
+    }
+    window.open(`https://wa.me/?text=${encodeURIComponent(text)}`, "_blank", "noopener,noreferrer");
+  }
+
+  async function shareSummaryImage() {
+    const element = document.getElementById("analytics-share-summary-v1311");
+    if (!element) return;
+    setShareBusy(true);
+    try {
+      const { default: html2canvas } = await import("html2canvas");
+      const canvas = await html2canvas(element, { backgroundColor: "#07101d", scale: Math.min(window.devicePixelRatio || 1, 2) });
+      const blob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, "image/png"));
+      if (!blob) throw new Error("Immagine non generata");
+      const file = new File([blob], `STATISTICHE_AK47DX_${new Date().toISOString().slice(0, 10)}.png`, { type: "image/png" });
+      const shareNavigator = navigator as Navigator & { canShare?: (data: ShareData) => boolean };
+      if (navigator.share && (!shareNavigator.canShare || shareNavigator.canShare({ files: [file] }))) {
+        await navigator.share({ title: "Statistiche AK47DX", text: whatsappText(), files: [file] });
+      } else {
+        const url = URL.createObjectURL(blob);
+        const anchor = document.createElement("a");
+        anchor.href = url;
+        anchor.download = file.name;
+        anchor.click();
+        URL.revokeObjectURL(url);
+      }
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Impossibile condividere l’immagine.");
+    } finally {
+      setShareBusy(false);
+    }
+  }
+
   return (
     <main className="container wide analytics-page">
       <section className="card hero-compact gaming-panel">
@@ -630,6 +779,17 @@ export default function AnalyticsPage() {
             </select>
           </div>
         </div>
+        <div className="analytics-share-actions-v1311 top-gap">
+          <button className="btn" type="button" onClick={() => exportExcel(false)}>📊 Excel filtrato</button>
+          <button className="btn secondary" type="button" onClick={() => exportExcel(true)}>📚 Excel completo</button>
+          <button className="btn whatsapp-btn-v1311" type="button" onClick={() => void shareWhatsApp()}>🟢 Condividi WhatsApp</button>
+          <button className="btn secondary" type="button" disabled={shareBusy} onClick={() => void shareSummaryImage()}>{shareBusy ? "Genero immagine..." : "🖼️ Condividi immagine"}</button>
+        </div>
+      </section>
+
+      <section id="analytics-share-summary-v1311" className="card top-gap analytics-share-summary-v1311">
+        <div><p className="eyebrow">AK47DX · RIEPILOGO CONDIVISIBILE</p><h2>{filterMap === "ALL" ? "Tutte le mappe" : filterMap} · {filterMode === "ALL" ? "Tutte le modalità" : filterMode}</h2></div>
+        <div className="analytics-share-kpis-v1311"><span><b>{summary.total}</b> Partite</span><span><b>{summary.wr}%</b> Win rate</span><span><b>{summary.kd}</b> K/D</span><span><b>{summary.kills}/{summary.deaths}/{summary.assists}</b> Kill/Death/Assist</span></div>
       </section>
 
       <section className="grid grid-4 top-gap">

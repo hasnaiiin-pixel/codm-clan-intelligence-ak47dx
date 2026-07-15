@@ -1,0 +1,10 @@
+CLAN MANAGER AK47DX V13.11
+V13_11_SHARE_VISITORS_FUND_OK
+- TypeScript: OK
+- Next.js build: OK
+- Static pages: 42/42
+- Excel/WhatsApp statistics share: included
+- Admin visitor analytics: included
+- WhatsApp event share: included
+- Fund rotation page: included
+- SQL: supabase/UPDATE_V13_11_SHARE_VISITORS_FUND.sql

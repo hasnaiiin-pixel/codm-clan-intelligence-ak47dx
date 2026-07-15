@@ -4,19 +4,19 @@ export default function VersionPage() {
       <section className="ak-login-wrap">
         <div className="ak-login-card">
           <div className="ak-pill">CLAN MANAGER DEPLOY CHECK</div>
-          <h1 className="ak-title">CLAN MANAGER</h1>
-          <p className="ak-lead">Release definitiva V12.1: Excel + foto prova allegabile subito o dopo, import senza OCR e collegamento giocatori ai profili reali registrati.</p>
-          <div className="notice top-gap"><strong>Marker:</strong> V12_1_EXCEL_PHOTO_PROOF_PLAYER_LINK_OK</div>
-          <div className="notice top-gap"><strong>Import:</strong> carichi Excel, selezioni ID_PARTITA, alleghi foto prova accanto alla tabella oppure dopo dalla partita registrata, colleghi player al profilo reale e salvi su Supabase.</div>
-          <div className="notice top-gap"><strong>SQL:</strong> inclusi SQL V12.1 per import staging e supporto foto/profili.</div>
+          <h1 className="ak-title">CLAN MANAGER V13.11</h1>
+          <p className="ak-lead">Condivisione statistiche Excel/WhatsApp, analytics visitatori admin, condivisione eventi WhatsApp e Fondo estrazioni con turnazione completa.</p>
+          <div className="notice top-gap"><strong>Marker:</strong> V13_11_SHARE_VISITORS_FUND_OK</div>
+          <div className="notice top-gap"><strong>Statistiche:</strong> Excel filtrato/completo, riepilogo WhatsApp e immagine condivisibile.</div>
+          <div className="notice top-gap"><strong>Admin:</strong> visite, visitatori unici, PWA, mobile, andamento giornaliero e pagine più viste.</div>
+          <div className="notice top-gap"><strong>Fondo:</strong> quote mensili, preferenza arma, Leggendaria/Mitica, estrazione casuale e blocco vincitore fino a giro completo.</div>
+          <div className="notice top-gap"><strong>SQL:</strong> eseguire supabase/UPDATE_V13_11_SHARE_VISITORS_FUND.sql.</div>
           <div className="ak-quick-links">
+            <a href="/analytics">Statistiche</a>
+            <a href="/admin/visitors">Visitatori sito</a>
+            <a href="/fund">Fondo estrazioni</a>
+            <a href="/events">Eventi</a>
             <a href="/cache-reset">Reset cache sicuro</a>
-            <a href="/events-health">Health eventi</a>
-            <a href="/tournament">Torneo</a>
-            <a href="/profile">Mio profilo</a>
-            <a href="/calibration">Calibrazione</a>
-            <a href="/import/match">Import partite</a>
-            <a href="/import/profile">Import profilo</a>
           </div>
         </div>
       </section>
