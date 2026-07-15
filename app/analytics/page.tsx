@@ -87,6 +87,7 @@ export default function AnalyticsPage() {
   const [scoreboardRows, setScoreboardRows] = useState<ScoreboardRow[]>([]);
   const [filterClan, setFilterClan] = useState("ALL");
   const [filterMode, setFilterMode] = useState("ALL");
+  const [filterMap, setFilterMap] = useState("ALL");
   const [message, setMessage] = useState("");
 
   useEffect(() => {
@@ -130,13 +131,31 @@ export default function AnalyticsPage() {
   }, [players, stats, scoreboardRows]);
 
   const modeOptions = useMemo(
-    () => ["ALL", ...Array.from(new Set(matches.map((m) => m.mode))).sort()],
+    () => [
+      "ALL",
+      ...Array.from(new Set(matches.map((m) => m.mode).filter(Boolean))).sort(),
+    ],
+    [matches],
+  );
+  const mapOptions = useMemo(
+    () => [
+      "ALL",
+      ...Array.from(
+        new Set(matches.map((m) => m.map_name || "Mappa non letta")),
+      ).sort(),
+    ],
     [matches],
   );
 
   const filteredMatches = useMemo(
-    () => matches.filter((m) => filterMode === "ALL" || m.mode === filterMode),
-    [matches, filterMode],
+    () =>
+      matches.filter(
+        (m) =>
+          (filterMode === "ALL" || m.mode === filterMode) &&
+          (filterMap === "ALL" ||
+            (m.map_name || "Mappa non letta") === filterMap),
+      ),
+    [matches, filterMode, filterMap],
   );
 
   const filteredRows = useMemo(
@@ -144,11 +163,16 @@ export default function AnalyticsPage() {
       scoreboardRows.filter((r) => {
         const clan = r.players?.clan_name || "Senza clan";
         if (filterClan !== "ALL" && clan !== filterClan) return false;
-        if (filterMode === "ALL") return true;
         const match = matches.find((m) => m.id === r.match_id);
-        return match?.mode === filterMode;
+        if (filterMode !== "ALL" && match?.mode !== filterMode) return false;
+        if (
+          filterMap !== "ALL" &&
+          (match?.map_name || "Mappa non letta") !== filterMap
+        )
+          return false;
+        return true;
       }),
-    [scoreboardRows, matches, filterClan, filterMode],
+    [scoreboardRows, matches, filterClan, filterMode, filterMap],
   );
 
   const filteredStats = useMemo(
@@ -156,10 +180,16 @@ export default function AnalyticsPage() {
       stats.filter((s) => {
         const clan = s.players?.clan_name || "Senza clan";
         if (filterClan !== "ALL" && clan !== filterClan) return false;
-        if (filterMode === "ALL") return true;
-        return s.matches?.mode === filterMode;
+        if (filterMode !== "ALL" && s.matches?.mode !== filterMode)
+          return false;
+        if (
+          filterMap !== "ALL" &&
+          (s.matches?.map_name || "Mappa non letta") !== filterMap
+        )
+          return false;
+        return true;
       }),
-    [stats, filterClan, filterMode],
+    [stats, filterClan, filterMode, filterMap],
   );
 
   const summary = useMemo(() => {
@@ -397,32 +427,45 @@ export default function AnalyticsPage() {
       .slice(0, 12);
   }, [filteredRows]);
 
-
   const bestPlayersByMap = useMemo(() => {
     const matchById = new Map(matches.map((match) => [match.id, match]));
-    const grouped = new Map<string, Map<string, {
-      id: string;
-      name: string;
-      clan: string;
-      matches: Set<string>;
-      wins: Set<string>;
-      kills: number;
-      deaths: number;
-      assists: number;
-      mvp: number;
-      rankSum: number;
-      rankCount: number;
-    }>>();
+    const grouped = new Map<
+      string,
+      Map<
+        string,
+        {
+          id: string;
+          name: string;
+          clan: string;
+          matches: Set<string>;
+          wins: Set<string>;
+          kills: number;
+          deaths: number;
+          assists: number;
+          mvp: number;
+          rankSum: number;
+          rankCount: number;
+        }
+      >
+    >();
 
     for (const row of filteredRows) {
       const match = matchById.get(row.match_id);
-      const mapName = (match?.map_name || "Mappa non letta").trim();
-      const playerKey = row.player_id || row.nickname_resolved || row.nickname_raw || row.id;
+      const mapName =
+        filterMap === "ALL"
+          ? "Tutte le mappe"
+          : (match?.map_name || "Mappa non letta").trim();
+      const playerKey =
+        row.player_id || row.nickname_resolved || row.nickname_raw || row.id;
       if (!grouped.has(mapName)) grouped.set(mapName, new Map());
       const mapPlayers = grouped.get(mapName)!;
       const item = mapPlayers.get(playerKey) || {
         id: row.player_id || "",
-        name: row.nickname_resolved || row.nickname_raw || row.players?.nickname || "Player non letto",
+        name:
+          row.nickname_resolved ||
+          row.nickname_raw ||
+          row.players?.nickname ||
+          "Player non letto",
         clan: row.players?.clan_name || "Senza clan",
         matches: new Set<string>(),
         wins: new Set<string>(),
@@ -439,25 +482,56 @@ export default function AnalyticsPage() {
       item.deaths += row.deaths || 0;
       item.assists += row.assists || 0;
       if (row.mvp_type) item.mvp += 1;
-      if (row.team_rank) { item.rankSum += row.team_rank; item.rankCount += 1; }
+      if (row.team_rank) {
+        item.rankSum += row.team_rank;
+        item.rankCount += 1;
+      }
       mapPlayers.set(playerKey, item);
     }
 
-    return Array.from(grouped.entries()).map(([mapName, mapPlayers]) => {
-      const ranking = Array.from(mapPlayers.values()).map((item) => {
-        const matchCount = item.matches.size;
-        const wins = item.wins.size;
-        const wr = matchCount ? Math.round((wins / matchCount) * 100) : 0;
-        const kd = kdRatio(item.kills, item.deaths);
-        const avgRank = item.rankCount ? item.rankSum / item.rankCount : 99;
-        const reliability = Math.min(matchCount, 5) / 5;
-        const score = reliability * (wr * 0.35 + Number(kd) * 18 + item.mvp * 6 + Math.max(0, 6 - avgRank) * 4 + (item.kills / Math.max(matchCount, 1)) * 0.35);
-        return { ...item, matchCount, winCount: wins, wr, kd, avgRank, score };
-      }).sort((a, b) => b.score - a.score || b.matchCount - a.matchCount || b.kills - a.kills);
-      const eligible = ranking.filter((player) => player.matchCount >= 2);
-      return { mapName, best: (eligible[0] || ranking[0]), ranking: ranking.slice(0, 5) };
-    }).filter((entry) => entry.best).sort((a, b) => a.mapName.localeCompare(b.mapName));
-  }, [filteredRows, matches]);
+    return Array.from(grouped.entries())
+      .map(([mapName, mapPlayers]) => {
+        const ranking = Array.from(mapPlayers.values())
+          .map((item) => {
+            const matchCount = item.matches.size;
+            const wins = item.wins.size;
+            const wr = matchCount ? Math.round((wins / matchCount) * 100) : 0;
+            const kd = kdRatio(item.kills, item.deaths);
+            const avgRank = item.rankCount ? item.rankSum / item.rankCount : 99;
+            const reliability = Math.min(matchCount, 5) / 5;
+            const score =
+              reliability *
+              (wr * 0.35 +
+                Number(kd) * 18 +
+                item.mvp * 6 +
+                Math.max(0, 6 - avgRank) * 4 +
+                (item.kills / Math.max(matchCount, 1)) * 0.35);
+            return {
+              ...item,
+              matchCount,
+              winCount: wins,
+              wr,
+              kd,
+              avgRank,
+              score,
+            };
+          })
+          .sort(
+            (a, b) =>
+              b.score - a.score ||
+              b.matchCount - a.matchCount ||
+              b.kills - a.kills,
+          );
+        const eligible = ranking.filter((player) => player.matchCount >= 2);
+        return {
+          mapName,
+          best: eligible[0] || ranking[0],
+          ranking,
+        };
+      })
+      .filter((entry) => entry.best)
+      .sort((a, b) => a.mapName.localeCompare(b.mapName));
+  }, [filteredRows, matches, filterMap]);
 
   function PieCard({ title, slices }: { title: string; slices: PieSlice[] }) {
     return (
@@ -487,7 +561,7 @@ export default function AnalyticsPage() {
           restano visibili nelle statistiche anche senza profilo registrato.
         </p>
         {message && <div className="notice">{message}</div>}
-        <div className="grid grid-2 top-gap">
+        <div className="grid grid-3 top-gap analytics-filter-grid-v138">
           <div className="field">
             <label>Clan appartenenza</label>
             <select
@@ -512,6 +586,20 @@ export default function AnalyticsPage() {
               {modeOptions.map((m) => (
                 <option key={m} value={m}>
                   {m === "ALL" ? "Tutte le modalità" : m}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div className="field">
+            <label>Mappa</label>
+            <select
+              className="select"
+              value={filterMap}
+              onChange={(e) => setFilterMap(e.target.value)}
+            >
+              {mapOptions.map((mapName) => (
+                <option key={mapName} value={mapName}>
+                  {mapName === "ALL" ? "Tutte le mappe" : mapName}
                 </option>
               ))}
             </select>
@@ -642,40 +730,75 @@ export default function AnalyticsPage() {
         </div>
       </section>
 
-      <section className="card top-gap map-ranking-section-v137">
-        <h2>🗺️ Migliori giocatori per mappa</h2>
-        <p className="muted">
-          Il migliore viene calcolato usando partite, vittorie, K/D, Kill, MVP e posizione media. Quando possibile servono almeno 2 partite sulla mappa, così una singola partita non falsifica la classifica.
-        </p>
-        <div className="map-ranking-grid-v137">
-          {bestPlayersByMap.map((entry) => (
-            <article className="map-ranking-card-v137" key={entry.mapName}>
-              <div className="map-ranking-title-v137">
-                <div><span className="eyebrow">MAPPA</span><h3>{entry.mapName}</h3></div>
-                <span className="badge ok">🏆 {entry.best.name}</span>
-              </div>
-              <div className="table-scroll">
-                <table className="table compact stats-lines-table-v132 map-ranking-table-v137">
-                  <thead><tr><th>#</th><th>Player</th><th>Partite</th><th>W/WR</th><th>Kill / Death / Assist</th><th>K/D</th><th>MVP</th><th>Pos.</th></tr></thead>
-                  <tbody>
-                    {entry.ranking.map((player, index) => (
-                      <tr key={`${entry.mapName}-${player.name}`}>
-                        <td>{index + 1}</td>
-                        <td>{player.id ? <a href={`/players/${player.id}`}><b>{player.name}</b></a> : <b>{player.name}</b>}<small>{player.clan}</small></td>
-                        <td>{player.matchCount}</td>
-                        <td>{player.winCount}/{player.wr}%</td>
-                        <td>{player.kills} / {player.deaths} / {player.assists}</td>
-                        <td>{player.kd}</td>
-                        <td>{player.mvp}</td>
-                        <td>{player.avgRank === 99 ? "-" : player.avgRank.toFixed(1)}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </article>
-          ))}
-          {!bestPlayersByMap.length && <div className="notice">Nessun dato mappa disponibile con i filtri selezionati.</div>}
+      <section className="card top-gap map-ranking-section-v138">
+        <div className="section-title">
+          <div>
+            <h2>🗺️ Migliori giocatori per mappa</h2>
+            <p className="muted">
+              Seleziona mappa e modalità dai filtri in alto. Viene mostrata una
+              sola classifica ordinata usando partite, vittorie, K/D, Kill, MVP
+              e posizione media.
+            </p>
+          </div>
+          <span className="badge ok">
+            {filterMap === "ALL" ? "Tutte le mappe" : filterMap} ·{" "}
+            {filterMode === "ALL" ? "Tutte le modalità" : filterMode}
+          </span>
+        </div>
+        <div className="table-scroll top-gap">
+          <table className="table compact stats-lines-table-v132 map-ranking-single-v138">
+            <thead>
+              <tr>
+                <th>#</th>
+                <th>Player</th>
+                <th>Clan</th>
+                <th>Partite</th>
+                <th>Vittorie</th>
+                <th>WR%</th>
+                <th>Kill</th>
+                <th>Death</th>
+                <th>Assist</th>
+                <th>K/D</th>
+                <th>MVP</th>
+                <th>Pos. media</th>
+              </tr>
+            </thead>
+            <tbody>
+              {(bestPlayersByMap[0]?.ranking || []).map((player, index) => (
+                <tr key={`${filterMap}-${player.name}`}>
+                  <td>{index + 1}</td>
+                  <td>
+                    {player.id ? (
+                      <a href={`/players/${player.id}`}>
+                        <b>{player.name}</b>
+                      </a>
+                    ) : (
+                      <b>{player.name}</b>
+                    )}
+                  </td>
+                  <td>{player.clan}</td>
+                  <td>{player.matchCount}</td>
+                  <td>{player.winCount}</td>
+                  <td>{player.wr}%</td>
+                  <td>{player.kills}</td>
+                  <td>{player.deaths}</td>
+                  <td>{player.assists}</td>
+                  <td>{player.kd}</td>
+                  <td>{player.mvp}</td>
+                  <td>
+                    {player.avgRank === 99 ? "-" : player.avgRank.toFixed(1)}
+                  </td>
+                </tr>
+              ))}
+              {!bestPlayersByMap[0]?.ranking?.length && (
+                <tr>
+                  <td colSpan={12} className="muted">
+                    Nessun dato disponibile con i filtri selezionati.
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
         </div>
       </section>
 

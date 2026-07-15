@@ -1117,7 +1117,8 @@ export default function EventsPage() {
         isAutoEventTitle(currentTitle) &&
         !isDefaultOpponentName(currentPlan.teamBName)
           ? `Scrim ${(currentPlan.teamAName || auth.clanName || "AK47DX").trim()} vs ${currentPlan.teamBName.trim()}`
-          : currentTitle || `Evento ${(currentPlan.teamAName || auth.clanName || "AK47DX").trim()}`;
+          : currentTitle ||
+            `Evento ${(currentPlan.teamAName || auth.clanName || "AK47DX").trim()}`;
       if (!finalTitle) {
         setMessage("Inserisci il titolo evento prima di salvare.");
         return;
@@ -1326,6 +1327,81 @@ export default function EventsPage() {
       setSavingEvent(false);
     }
   }
+  async function cancelEvent(event: CodmEvent) {
+    if (!canWrite)
+      return setMessage("Solo staff/coach/owner possono annullare eventi.");
+    if (!isUuid(event.id)) return setMessage("Evento non valido nel database.");
+    if (
+      !confirm(
+        `Segnare come ANNULLATO l evento "${event.title}"? Non verrà cancellato e resterà nello storico.`,
+      )
+    )
+      return;
+    try {
+      const token = await readSessionToken();
+      if (!token)
+        throw new Error("Login richiesto: fai logout/login e riprova.");
+      const cancelledPlan = normalizePlan(readPlan(event));
+      cancelledPlan.eventStatus = "Annullato";
+      cancelledPlan.rounds = cancelledPlan.rounds.map((round) => ({
+        ...round,
+        status: "Annullata",
+      }));
+      const response = await fetch("/api/events/save", {
+        method: "POST",
+        cache: "no-store",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          id: event.id,
+          mode: "updated",
+          event: {
+            title: event.title,
+            description: event.description,
+            starts_at: event.starts_at,
+            ends_at: event.ends_at,
+            location: event.location,
+            event_type: event.event_type,
+            google_calendar_url: event.google_calendar_url,
+            telegram_enabled: event.telegram_enabled,
+            convocations: event.convocations || [],
+            convocations_text: event.convocations_text,
+            reminder_minutes: [],
+            telegram_message_template: event.telegram_message_template,
+            event_notes: planNote(cancelledPlan, event.event_notes || ""),
+            event_plan: cancelledPlan,
+          },
+          players: eventPlayers
+            .filter((row) => row.event_id === event.id)
+            .map((row) => ({
+              player_id: row.player_id,
+              nickname: row.nickname,
+              status: row.status || "titolare",
+            })),
+        }),
+      });
+      const json = await response.json().catch(() => null);
+      if (!response.ok || !json?.ok)
+        throw new Error(
+          json?.error || "Annullamento non confermato dal database.",
+        );
+      setMessage(
+        "Evento annullato. Rimane visibile nello storico come ANNULLATO.",
+      );
+      await loadEvents();
+    } catch (error) {
+      setMessage(
+        adminSuffix(
+          error instanceof Error
+            ? `Errore annullamento evento: ${error.message}`
+            : "Errore annullamento evento.",
+        ),
+      );
+    }
+  }
+
   async function deleteEvent(id: string) {
     if (!canWrite)
       return setMessage("Solo staff/coach/owner possono cancellare eventi.");
@@ -1450,15 +1526,41 @@ export default function EventsPage() {
     [events],
   );
 
+  function isCancelledEvent(event: CodmEvent) {
+    const eventPlan = normalizePlan(event.event_plan || emptyPlan());
+    return /annull|cancel/.test(
+      String(eventPlan.eventStatus || "").toLowerCase(),
+    );
+  }
+  const cancelledEvents = useMemo(
+    () =>
+      events
+        .filter(isCancelledEvent)
+        .sort(
+          (a, b) =>
+            new Date(b.starts_at).getTime() - new Date(a.starts_at).getTime(),
+        ),
+    [events],
+  );
   const futureEvents = useMemo(
-    () => events.filter((event) => eventEndTimestamp(event) > Date.now()),
+    () =>
+      events.filter(
+        (event) =>
+          !isCancelledEvent(event) && eventEndTimestamp(event) > Date.now(),
+      ),
     [events],
   );
   const pastEvents = useMemo(
     () =>
       events
-        .filter((event) => eventEndTimestamp(event) <= Date.now())
-        .reverse(),
+        .filter(
+          (event) =>
+            !isCancelledEvent(event) && eventEndTimestamp(event) <= Date.now(),
+        )
+        .sort(
+          (a, b) =>
+            new Date(b.starts_at).getTime() - new Date(a.starts_at).getTime(),
+        ),
     [events],
   );
   const visibleEvents =
@@ -1532,6 +1634,7 @@ export default function EventsPage() {
               onDelete={deleteEvent}
               onEdit={() => loadEventIntoEditor(event)}
               onDuplicate={() => loadEventIntoEditor(event, true)}
+              onCancel={() => void cancelEvent(event)}
             />
           ))}
           {!todoEvents.length && (
@@ -1664,7 +1767,8 @@ export default function EventsPage() {
                     placeholder="Scrivi il nome che vuoi tu: clan avversario, torneo o organizzatore"
                   />
                   <small className="muted">
-                    Non viene più salvato automaticamente “Avversario / Organizzatore”.
+                    Non viene più salvato automaticamente “Avversario /
+                    Organizzatore”.
                   </small>
                 </div>
               </div>
@@ -2070,7 +2174,8 @@ export default function EventsPage() {
             <h2>Eventi passati / archivio risultati</h2>
             <p className="muted">
               Caricati: {events.length} • da fare: {todoEvents.length} • futuri:{" "}
-              {futureEvents.length} • passati: {pastEvents.length}
+              {futureEvents.length} • passati: {pastEvents.length} • annullati:{" "}
+              {cancelledEvents.length}
             </p>
           </div>
           <select
@@ -2162,6 +2267,14 @@ export default function EventsPage() {
                       Apri link evento
                     </a>
                   ) : null}
+                  {canWrite && !isCancelledEvent(event) && (
+                    <button
+                      className="btn secondary event-cancel-btn-v138"
+                      onClick={() => void cancelEvent(event)}
+                    >
+                      Annulla evento
+                    </button>
+                  )}
                   {canWrite && (
                     <button
                       className="btn danger secondary"
@@ -2176,6 +2289,55 @@ export default function EventsPage() {
           })}
           {!visibleEvents.length && (
             <p className="empty-state">Nessun evento da mostrare.</p>
+          )}
+        </div>
+      </section>
+
+      <section className="card top-gap cancelled-events-v138">
+        <div className="section-title">
+          <div>
+            <h2>🚫 Eventi annullati</h2>
+            <p className="muted">
+              Gli eventi annullati non compaiono tra quelli da fare e restano
+              consultabili qui.
+            </p>
+          </div>
+          <span className="badge warn">{cancelledEvents.length} annullati</span>
+        </div>
+        <div className="ak-event-list top-gap">
+          {cancelledEvents.map((event) => (
+            <article
+              className="ak-event-card event-cancelled-card-v138"
+              key={`cancelled-${event.id}`}
+            >
+              <div className="ak-event-copy">
+                <div className="eyebrow">ANNULLATO</div>
+                <h3>{event.title}</h3>
+                <p className="muted">
+                  {new Date(event.starts_at).toLocaleString("it-IT")}{" "}
+                  {event.location ? `• ${event.location}` : ""}
+                </p>
+              </div>
+              <div className="ak-event-actions">
+                <button
+                  className="btn secondary"
+                  onClick={() => loadEventIntoEditor(event)}
+                >
+                  Modifica / riprogramma
+                </button>
+                {canWrite && (
+                  <button
+                    className="btn danger secondary"
+                    onClick={() => void deleteEvent(event.id)}
+                  >
+                    Cancella
+                  </button>
+                )}
+              </div>
+            </article>
+          ))}
+          {!cancelledEvents.length && (
+            <p className="empty-state">Nessun evento annullato.</p>
           )}
         </div>
       </section>
@@ -2557,6 +2719,7 @@ function EventPresentation({
   onDelete,
   onEdit,
   onDuplicate,
+  onCancel,
 }: {
   event: CodmEvent;
   plan: MatchPlan;
@@ -2566,6 +2729,7 @@ function EventPresentation({
   onDelete: (id: string) => Promise<void>;
   onEdit: () => void;
   onDuplicate: () => void;
+  onCancel: () => void;
 }) {
   const normalizedPlan = normalizePlan(plan);
   const statusLabel =
@@ -2717,6 +2881,12 @@ function EventPresentation({
           </button>
           <button className="btn small secondary" onClick={onDuplicate}>
             Duplica
+          </button>
+          <button
+            className="btn small secondary event-cancel-btn-v138"
+            onClick={onCancel}
+          >
+            Annulla evento
           </button>
           <button
             className="btn danger secondary small"

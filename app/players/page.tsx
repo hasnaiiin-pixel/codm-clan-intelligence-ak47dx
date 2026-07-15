@@ -66,9 +66,13 @@ export default function PlayersPage() {
   const [search, setSearch] = useState("");
   const [message, setMessage] = useState("");
   const [clanEdits, setClanEdits] = useState<Record<string, string>>({});
-  const [nicknameEdits, setNicknameEdits] = useState<Record<string, string>>({});
+  const [nicknameEdits, setNicknameEdits] = useState<Record<string, string>>(
+    {},
+  );
   const [savingNicknameId, setSavingNicknameId] = useState("");
-  const [registeredAccounts, setRegisteredAccounts] = useState<RegisteredAccount[]>([]);
+  const [registeredAccounts, setRegisteredAccounts] = useState<
+    RegisteredAccount[]
+  >([]);
   const [accountEdits, setAccountEdits] = useState<Record<string, string>>({});
   const [linkingPlayerId, setLinkingPlayerId] = useState("");
 
@@ -77,7 +81,8 @@ export default function PlayersPage() {
   }, []);
 
   useEffect(() => {
-    if (auth.canManageUsers && auth.session?.access_token) void loadRegisteredAccounts();
+    if (auth.canManageUsers && auth.session?.access_token)
+      void loadRegisteredAccounts();
   }, [auth.canManageUsers, auth.session?.access_token]);
 
   async function loadRegisteredAccounts() {
@@ -88,27 +93,45 @@ export default function PlayersPage() {
         headers: { Authorization: `Bearer ${token}` },
       });
       const data = await response.json().catch(() => ({}));
-      if (!response.ok || data?.ok === false) throw new Error(data?.error || "Errore utenti registrati.");
+      if (!response.ok || data?.ok === false)
+        throw new Error(data?.error || "Errore utenti registrati.");
       const users = (data.users || []) as RegisteredAccount[];
       setRegisteredAccounts(users);
       setAccountEdits(
-        Object.fromEntries(users.filter((u) => u.player_id).map((u) => [String(u.player_id), u.id])),
+        Object.fromEntries(
+          users
+            .filter((u) => u.player_id)
+            .map((u) => [String(u.player_id), u.id]),
+        ),
       );
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : "Errore caricamento email registrate.");
+      setMessage(
+        error instanceof Error
+          ? error.message
+          : "Errore caricamento email registrate.",
+      );
     }
   }
 
   async function linkRegisteredAccount(player: Player) {
     const token = auth.session?.access_token;
     if (!token || !auth.canManageUsers)
-      return setMessage("Solo Owner/Admin può associare un account registrato.");
+      return setMessage(
+        "Solo Owner/Admin può associare un account registrato.",
+      );
     const selectedUserId = accountEdits[player.id] || "";
-    const currentUser = registeredAccounts.find((u) => u.player_id === player.id);
+    const currentUser = registeredAccounts.find(
+      (u) => u.player_id === player.id,
+    );
     const userId = selectedUserId || currentUser?.id || "";
-    if (!userId) return setMessage("Seleziona un'email registrata da associare.");
+    if (!userId)
+      return setMessage("Seleziona un'email registrata da associare.");
     setLinkingPlayerId(player.id);
-    setMessage(selectedUserId ? "Associo email al player e alle sue statistiche..." : "Rimuovo associazione email...");
+    setMessage(
+      selectedUserId
+        ? "Associo email al player e alle sue statistiche..."
+        : "Rimuovo associazione email...",
+    );
     try {
       const selected = registeredAccounts.find((u) => u.id === userId);
       const response = await fetch("/api/admin/users", {
@@ -125,14 +148,21 @@ export default function PlayersPage() {
         }),
       });
       const data = await response.json().catch(() => ({}));
-      if (!response.ok || data?.ok === false) throw new Error(data?.error || "Errore associazione.");
-      setMessage(selectedUserId
-        ? `Email ${selected?.email || "registrata"} associata a ${player.nickname}. Le statistiche restano collegate a questo player.`
-        : `Associazione rimossa da ${player.nickname}.`);
+      if (!response.ok || data?.ok === false)
+        throw new Error(data?.error || "Errore associazione.");
+      setMessage(
+        selectedUserId
+          ? `Email ${selected?.email || "registrata"} associata a ${player.nickname}. Le statistiche restano collegate a questo player.`
+          : `Associazione rimossa da ${player.nickname}.`,
+      );
       await load();
       await loadRegisteredAccounts();
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : "Errore associazione account/player.");
+      setMessage(
+        error instanceof Error
+          ? error.message
+          : "Errore associazione account/player.",
+      );
     } finally {
       setLinkingPlayerId("");
     }
@@ -200,19 +230,26 @@ export default function PlayersPage() {
     load();
   }
 
-
   async function updatePlayerNickname(player: Player) {
     if (!canWrite)
-      return setMessage("Solo Staff, Coach o Owner possono modificare il nome del player.");
+      return setMessage(
+        "Solo Staff, Coach o Owner possono modificare il nome del player.",
+      );
     const nextNickname = (nicknameEdits[player.id] || "").trim();
-    if (!nextNickname) return setMessage("Il nome del giocatore non può essere vuoto.");
-    if (nextNickname === player.nickname) return setMessage("Il nome del giocatore non è cambiato.");
+    if (!nextNickname)
+      return setMessage("Il nome del giocatore non può essere vuoto.");
+    if (nextNickname === player.nickname)
+      return setMessage("Il nome del giocatore non è cambiato.");
 
     const duplicate = players.find(
-      (p) => p.id !== player.id && p.nickname.trim().toLowerCase() === nextNickname.toLowerCase(),
+      (p) =>
+        p.id !== player.id &&
+        p.nickname.trim().toLowerCase() === nextNickname.toLowerCase(),
     );
     if (duplicate)
-      return setMessage(`Esiste già un giocatore chiamato ${duplicate.nickname}. Scegli un nome diverso.`);
+      return setMessage(
+        `Esiste già un giocatore chiamato ${duplicate.nickname}. Scegli un nome diverso.`,
+      );
 
     setSavingNicknameId(player.id);
     setMessage(`Aggiorno il nome di ${player.nickname}...`);
@@ -277,7 +314,10 @@ export default function PlayersPage() {
         const matchIds = new Set(pStats.map((s) => s.match_id).filter(Boolean));
         const matchCount = matchIds.size;
         const wins = new Set(
-          pStats.filter((s) => s.matches?.result === "WIN").map((s) => s.match_id).filter(Boolean),
+          pStats
+            .filter((s) => s.matches?.result === "WIN")
+            .map((s) => s.match_id)
+            .filter(Boolean),
         ).size;
         const gold = pStats.filter((s) => s.rank_position === 1).length;
         const silver = pStats.filter((s) => s.rank_position === 2).length;
@@ -522,7 +562,7 @@ export default function PlayersPage() {
                 ))}
                 {!clanSummary.length && (
                   <tr>
-                    <td colSpan={9} className="muted">
+                    <td colSpan={12} className="muted">
                       Nessun dato.
                     </td>
                   </tr>
@@ -547,10 +587,37 @@ export default function PlayersPage() {
                 <th>Clan</th>
                 <th>Account</th>
                 <th>Partite</th>
-                <th>Vittorie<br />WR%</th>
-                <th>Kill / Death / Assist<br />K/D</th>
-                <th>Medaglie<br />Pos. media</th>
-                <th>Associa email registrata</th>
+                <th>
+                  Vittorie
+                  <br />
+                  WR%
+                </th>
+                <th>
+                  Kill / Death / Assist
+                  <br />
+                  K/D
+                </th>
+                <th>
+                  🥇
+                  <br />
+                  Oro
+                </th>
+                <th>
+                  🥈
+                  <br />
+                  Arg.
+                </th>
+                <th>
+                  🥉
+                  <br />
+                  Bronzo
+                </th>
+                <th>
+                  Pos.
+                  <br />
+                  media
+                </th>
+                <th>Associa email</th>
                 <th>Modifica player</th>
               </tr>
             </thead>
@@ -558,38 +625,69 @@ export default function PlayersPage() {
               {playerCards.map((card) => (
                 <tr key={card.player.id}>
                   <td className="player-main-cell-v137">
-                    <a className="player-click-link-v132" href={`/players/${card.player.id}`}>
+                    <a
+                      className="player-click-link-v132"
+                      href={`/players/${card.player.id}`}
+                    >
                       <b>{card.player.nickname}</b>
                     </a>
                     <span className="muted player-uid-v136">
-                      {card.player.uid_codm ? `UID ${card.player.uid_codm}` : "profilo CODM da collegare"}
+                      {card.player.uid_codm
+                        ? `UID ${card.player.uid_codm}`
+                        : "profilo CODM da collegare"}
                     </span>
                   </td>
                   <td>{safeClan(card.player)}</td>
                   <td>
-                    <span className={card.player.user_id ? "badge ok" : "badge warn"}>
+                    <span
+                      className={
+                        card.player.user_id ? "badge ok" : "badge warn"
+                      }
+                    >
                       {profileStatus(card.player)}
                     </span>
-                    {registeredAccounts.find((u) => u.player_id === card.player.id)?.email && (
+                    {registeredAccounts.find(
+                      (u) => u.player_id === card.player.id,
+                    )?.email && (
                       <small className="player-linked-email-v135">
-                        {registeredAccounts.find((u) => u.player_id === card.player.id)?.email}
+                        {
+                          registeredAccounts.find(
+                            (u) => u.player_id === card.player.id,
+                          )?.email
+                        }
                       </small>
                     )}
                   </td>
-                  <td className="numeric-cell-v137"><b>{card.matchCount}</b></td>
                   <td className="numeric-cell-v137">
-                    <b>{card.wins}/{Math.max(card.matchCount - card.wins, 0)}</b>
+                    <b>{card.matchCount}</b>
+                  </td>
+                  <td className="numeric-cell-v137">
+                    <b>
+                      {card.wins}/{Math.max(card.matchCount - card.wins, 0)}
+                    </b>
                     <small>{card.winRate}%</small>
                   </td>
                   <td className="kda-cell-v137">
-                    <b>{card.kills} / {card.deaths} / {card.assists}</b>
+                    <b>
+                      {card.kills} / {card.deaths} / {card.assists}
+                    </b>
                     <small>K/D {card.kd}</small>
                   </td>
-                  <td className="medals-cell-v137">
-                    <span className="rank-medal medal-gold">🥇 {card.gold}</span>
-                    <span className="rank-medal medal-silver">🥈 {card.silver}</span>
-                    <span className="rank-medal medal-bronze">🥉 {card.bronze}</span>
-                    <small>Media {card.avgRank}</small>
+                  <td className="numeric-cell-v138 medal-number-v138">
+                    <span className="rank-medal medal-gold">{card.gold}</span>
+                  </td>
+                  <td className="numeric-cell-v138 medal-number-v138">
+                    <span className="rank-medal medal-silver">
+                      {card.silver}
+                    </span>
+                  </td>
+                  <td className="numeric-cell-v138 medal-number-v138">
+                    <span className="rank-medal medal-bronze">
+                      {card.bronze}
+                    </span>
+                  </td>
+                  <td className="numeric-cell-v138">
+                    <b>{card.avgRank}</b>
                   </td>
                   <td>
                     {auth.canManageUsers ? (
@@ -597,22 +695,42 @@ export default function PlayersPage() {
                         <select
                           className="select"
                           value={accountEdits[card.player.id] || ""}
-                          onChange={(e) => setAccountEdits((current) => ({ ...current, [card.player.id]: e.target.value }))}
+                          onChange={(e) =>
+                            setAccountEdits((current) => ({
+                              ...current,
+                              [card.player.id]: e.target.value,
+                            }))
+                          }
                         >
                           <option value="">Non associato</option>
                           {registeredAccounts.map((account) => (
                             <option key={account.id} value={account.id}>
-                              {account.email || account.display_name || account.id}
-                              {account.player_id && account.player_id !== card.player.id ? " · già associato" : ""}
+                              {account.email ||
+                                account.display_name ||
+                                account.id}
+                              {account.player_id &&
+                              account.player_id !== card.player.id
+                                ? " · già associato"
+                                : ""}
                             </option>
                           ))}
                         </select>
-                        <button className="btn small" disabled={linkingPlayerId === card.player.id} onClick={() => linkRegisteredAccount(card.player)}>
-                          {linkingPlayerId === card.player.id ? "Salvo..." : "Associa"}
+                        <button
+                          className="btn small"
+                          disabled={linkingPlayerId === card.player.id}
+                          onClick={() => linkRegisteredAccount(card.player)}
+                        >
+                          {linkingPlayerId === card.player.id
+                            ? "Salvo..."
+                            : "Associa"}
                         </button>
                       </div>
                     ) : (
-                      <span className="muted">{registeredAccounts.find((u) => u.player_id === card.player.id)?.email || "Da associare"}</span>
+                      <span className="muted">
+                        {registeredAccounts.find(
+                          (u) => u.player_id === card.player.id,
+                        )?.email || "Da associare"}
+                      </span>
                     )}
                   </td>
                   <td>
@@ -621,22 +739,46 @@ export default function PlayersPage() {
                         <div className="player-name-edit-v136 player-name-edit-v137">
                           <input
                             className="input player-name-input-v136"
-                            value={nicknameEdits[card.player.id] ?? card.player.nickname}
-                            onChange={(e) => setNicknameEdits((current) => ({ ...current, [card.player.id]: e.target.value }))}
+                            value={
+                              nicknameEdits[card.player.id] ??
+                              card.player.nickname
+                            }
+                            onChange={(e) =>
+                              setNicknameEdits((current) => ({
+                                ...current,
+                                [card.player.id]: e.target.value,
+                              }))
+                            }
                             placeholder="Nome giocatore"
                           />
-                          <button className="btn small secondary" disabled={savingNicknameId === card.player.id} onClick={() => updatePlayerNickname(card.player)}>
-                            {savingNicknameId === card.player.id ? "Salvo..." : "Nome"}
+                          <button
+                            className="btn small secondary"
+                            disabled={savingNicknameId === card.player.id}
+                            onClick={() => updatePlayerNickname(card.player)}
+                          >
+                            {savingNicknameId === card.player.id
+                              ? "Salvo..."
+                              : "Nome"}
                           </button>
                         </div>
                         <div className="inline-edit player-clan-edit-v137">
                           <input
                             className="input clan-edit"
                             value={clanEdits[card.player.id] ?? ""}
-                            onChange={(e) => setClanEdits((current) => ({ ...current, [card.player.id]: e.target.value }))}
+                            onChange={(e) =>
+                              setClanEdits((current) => ({
+                                ...current,
+                                [card.player.id]: e.target.value,
+                              }))
+                            }
                             placeholder="Clan"
                           />
-                          <button className="btn small secondary" onClick={() => updatePlayerClan(card.player)}>Clan</button>
+                          <button
+                            className="btn small secondary"
+                            onClick={() => updatePlayerClan(card.player)}
+                          >
+                            Clan
+                          </button>
                         </div>
                       </div>
                     ) : (
@@ -646,7 +788,11 @@ export default function PlayersPage() {
                 </tr>
               ))}
               {!playerCards.length && (
-                <tr><td colSpan={9} className="muted">Nessun player per i filtri selezionati.</td></tr>
+                <tr>
+                  <td colSpan={12} className="muted">
+                    Nessun player per i filtri selezionati.
+                  </td>
+                </tr>
               )}
             </tbody>
           </table>

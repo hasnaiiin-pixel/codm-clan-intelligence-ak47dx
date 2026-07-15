@@ -1,0 +1,3 @@
+V13.8
+TypeScript: OK
+Next.js: compilazione riuscita; lint/type check riusciti; il sandbox ha raggiunto il timeout durante Collecting page data.
