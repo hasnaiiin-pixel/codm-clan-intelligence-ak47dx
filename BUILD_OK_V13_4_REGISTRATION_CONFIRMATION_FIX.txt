@@ -1,0 +1,2 @@
+BUILD V13.4
+Fix registrazione e conferma email senza 404.

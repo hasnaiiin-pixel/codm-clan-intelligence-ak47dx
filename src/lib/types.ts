@@ -19,6 +19,7 @@ export type TeamSide = 'ALLY' | 'ENEMY';
 export type Player = {
   id: string;
   clan_id: string;
+  user_id?: string | null;
   nickname: string;
   uid_codm: string | null;
   avatar_url: string | null;

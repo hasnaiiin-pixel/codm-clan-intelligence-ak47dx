@@ -557,9 +557,6 @@ export default function AdminUsersPage() {
                   <select
                     className="select"
                     value={row.player_id || ""}
-                    disabled={
-                      row.email?.toLowerCase() === "hasnaiiin@gmail.com"
-                    }
                     onChange={(event) =>
                       void linkPlayerToUser(row, event.target.value)
                     }
@@ -579,9 +576,7 @@ export default function AdminUsersPage() {
                     ))}
                   </select>
                   <small className="muted">
-                    La lista include roster + nomi trovati nelle statistiche. Se
-                    scegli un nome da statistiche, viene creato il player e
-                    collegato all’account.
+                    La lista include roster + nomi trovati nelle statistiche. Vale anche per l’admin principale: puoi spostare il tuo account sul player corretto con statistiche. Se scegli un nome da statistiche, viene creato il player e collegato all’account.
                   </small>
                 </div>
                 <div className="field">

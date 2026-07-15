@@ -412,7 +412,7 @@ function emptyPlan(clanName = "AK47DX"): MatchPlan {
     eventStatus: "Bozza",
     matchesDeferred: true,
     teamAName: clanName,
-    teamBName: "Avversario / Organizzatore",
+    teamBName: "",
     teamALogo: "/assets/ak47dx-logo.jpeg",
     teamBLogo: "",
     coverImage: "",
@@ -1053,7 +1053,14 @@ export default function EventsPage() {
 
   function isDefaultOpponentName(value: string) {
     const text = value.trim().toLowerCase();
-    return !text || text === "clan avversario" || text === "cl clan avversario";
+    return (
+      !text ||
+      text === "clan avversario" ||
+      text === "cl clan avversario" ||
+      text === "avversario / organizzatore" ||
+      text === "avversario/organizzatore" ||
+      text === "organizzatore"
+    );
   }
   function isAutoEventTitle(value: string) {
     const text = value.trim().toLowerCase();
@@ -1072,7 +1079,7 @@ export default function EventsPage() {
       ...current,
       teamAName:
         teamAFromInput || current.teamAName || auth.clanName || "AK47DX",
-      teamBName: teamBFromInput || current.teamBName || "Clan avversario",
+      teamBName: teamBFromInput || current.teamBName || "",
     });
   }
   function updateTeamName(side: "A" | "B", value: string) {
@@ -1084,7 +1091,7 @@ export default function EventsPage() {
     planRef.current = next;
     setPlan(next);
     const teamA = next.teamAName?.trim() || auth.clanName || "AK47DX";
-    const teamB = next.teamBName?.trim() || "Clan avversario";
+    const teamB = next.teamBName?.trim() || "";
     if (
       side === "B" &&
       !isDefaultOpponentName(teamB) &&
@@ -1110,7 +1117,7 @@ export default function EventsPage() {
         isAutoEventTitle(currentTitle) &&
         !isDefaultOpponentName(currentPlan.teamBName)
           ? `Scrim ${(currentPlan.teamAName || auth.clanName || "AK47DX").trim()} vs ${currentPlan.teamBName.trim()}`
-          : currentTitle;
+          : currentTitle || `Evento ${(currentPlan.teamAName || auth.clanName || "AK47DX").trim()}`;
       if (!finalTitle) {
         setMessage("Inserisci il titolo evento prima di salvare.");
         return;
@@ -1634,6 +1641,32 @@ export default function EventsPage() {
                   onChange={(e) => commitTitle(e.target.value)}
                   placeholder="Esempio: Scrim AK47DX / Allenamento / Torneo interno"
                 />
+              </div>
+
+              <div className="grid grid-2 opponent-free-name-v133">
+                <div className="field">
+                  <label>Nome nostro clan</label>
+                  <input
+                    className="input"
+                    ref={teamAInputRef}
+                    value={plan.teamAName || auth.clanName || "AK47DX"}
+                    onChange={(e) => updateTeamName("A", e.target.value)}
+                    placeholder="AK47DX"
+                  />
+                </div>
+                <div className="field">
+                  <label>Nome avversario / organizzatore</label>
+                  <input
+                    className="input"
+                    ref={teamBInputRef}
+                    value={plan.teamBName || ""}
+                    onChange={(e) => updateTeamName("B", e.target.value)}
+                    placeholder="Scrivi il nome che vuoi tu: clan avversario, torneo o organizzatore"
+                  />
+                  <small className="muted">
+                    Non viene più salvato automaticamente “Avversario / Organizzatore”.
+                  </small>
+                </div>
               </div>
 
               <div className="grid grid-3">
@@ -2697,16 +2730,17 @@ function EventPresentation({
   );
 }
 function TeamLogo({ name, logo }: { name: string; logo?: string }) {
+  const displayName = String(name || "Da impostare").trim() || "Da impostare";
   return (
     <div className="team-logo-card">
       {logo ? (
-        <img src={logo} alt={name} />
+        <img src={logo} alt={displayName} />
       ) : (
         <div className="team-logo-placeholder">
-          {name.slice(0, 2).toUpperCase()}
+          {displayName.slice(0, 2).toUpperCase()}
         </div>
       )}
-      <strong>{name}</strong>
+      <strong>{displayName}</strong>
     </div>
   );
 }

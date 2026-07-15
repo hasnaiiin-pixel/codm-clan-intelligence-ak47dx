@@ -33,7 +33,7 @@ function sanitizeReminderMinutes(value: unknown) {
 function normalizeEventPlan(event: Record<string, any>) {
   const plan = event.event_plan && typeof event.event_plan === 'object' ? { ...event.event_plan } : {};
   const teamA = cleanText(plan.teamAName, 'AK47DX');
-  const teamB = cleanText(plan.teamBName || plan.opponentName, 'Clan avversario');
+  const teamB = cleanText(plan.teamBName || plan.opponentName, '');
   return { ...plan, teamAName: teamA, teamBName: teamB };
 }
 
@@ -44,7 +44,7 @@ function buildEventPayload(body: EventSaveBody, clanId: string, userId: string, 
   const endsAt = normalizeIso(event.ends_at);
   const payload: Record<string, unknown> = {
     clan_id: clanId,
-    title: cleanText(event.title, `Scrim ${eventPlan.teamAName} vs ${eventPlan.teamBName}`),
+    title: cleanText(event.title, eventPlan.teamBName ? `Scrim ${eventPlan.teamAName} vs ${eventPlan.teamBName}` : `Evento ${eventPlan.teamAName}`),
     description: cleanText(event.description, '') || null,
     location: cleanText(event.location, '') || null,
     event_type: cleanText(event.event_type, 'scrim'),

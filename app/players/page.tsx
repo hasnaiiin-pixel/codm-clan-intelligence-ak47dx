@@ -39,8 +39,15 @@ function safeClan(player: Player) {
 }
 
 function profileStatus(player: Player) {
-  return player.uid_codm ? "Registrato" : "Manuale / da collegare";
+  return player.user_id ? "Account associato" : "Da associare";
 }
+
+type RegisteredAccount = {
+  id: string;
+  email?: string | null;
+  display_name?: string | null;
+  player_id?: string | null;
+};
 
 export default function PlayersPage() {
   const auth = useCodmAuth();
@@ -59,10 +66,77 @@ export default function PlayersPage() {
   const [search, setSearch] = useState("");
   const [message, setMessage] = useState("");
   const [clanEdits, setClanEdits] = useState<Record<string, string>>({});
+  const [nicknameEdits, setNicknameEdits] = useState<Record<string, string>>({});
+  const [savingNicknameId, setSavingNicknameId] = useState("");
+  const [registeredAccounts, setRegisteredAccounts] = useState<RegisteredAccount[]>([]);
+  const [accountEdits, setAccountEdits] = useState<Record<string, string>>({});
+  const [linkingPlayerId, setLinkingPlayerId] = useState("");
 
   useEffect(() => {
     load();
   }, []);
+
+  useEffect(() => {
+    if (auth.canManageUsers && auth.session?.access_token) void loadRegisteredAccounts();
+  }, [auth.canManageUsers, auth.session?.access_token]);
+
+  async function loadRegisteredAccounts() {
+    const token = auth.session?.access_token;
+    if (!token) return;
+    try {
+      const response = await fetch("/api/admin/users", {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok || data?.ok === false) throw new Error(data?.error || "Errore utenti registrati.");
+      const users = (data.users || []) as RegisteredAccount[];
+      setRegisteredAccounts(users);
+      setAccountEdits(
+        Object.fromEntries(users.filter((u) => u.player_id).map((u) => [String(u.player_id), u.id])),
+      );
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Errore caricamento email registrate.");
+    }
+  }
+
+  async function linkRegisteredAccount(player: Player) {
+    const token = auth.session?.access_token;
+    if (!token || !auth.canManageUsers)
+      return setMessage("Solo Owner/Admin può associare un account registrato.");
+    const selectedUserId = accountEdits[player.id] || "";
+    const currentUser = registeredAccounts.find((u) => u.player_id === player.id);
+    const userId = selectedUserId || currentUser?.id || "";
+    if (!userId) return setMessage("Seleziona un'email registrata da associare.");
+    setLinkingPlayerId(player.id);
+    setMessage(selectedUserId ? "Associo email al player e alle sue statistiche..." : "Rimuovo associazione email...");
+    try {
+      const selected = registeredAccounts.find((u) => u.id === userId);
+      const response = await fetch("/api/admin/users", {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          action: "linkPlayer",
+          userId,
+          playerId: selectedUserId ? player.id : "",
+          email: selected?.email || null,
+        }),
+      });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok || data?.ok === false) throw new Error(data?.error || "Errore associazione.");
+      setMessage(selectedUserId
+        ? `Email ${selected?.email || "registrata"} associata a ${player.nickname}. Le statistiche restano collegate a questo player.`
+        : `Associazione rimossa da ${player.nickname}.`);
+      await load();
+      await loadRegisteredAccounts();
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Errore associazione account/player.");
+    } finally {
+      setLinkingPlayerId("");
+    }
+  }
 
   async function load() {
     const identity = await loadClanIdentity();
@@ -90,6 +164,9 @@ export default function PlayersPage() {
     setStats((statData || []) as StatWithMatch[]);
     setClanEdits(
       Object.fromEntries(loadedPlayers.map((p) => [p.id, p.clan_name || ""])),
+    );
+    setNicknameEdits(
+      Object.fromEntries(loadedPlayers.map((p) => [p.id, p.nickname || ""])),
     );
   }
 
@@ -121,6 +198,34 @@ export default function PlayersPage() {
       "Player aggiunto. Le statistiche future saranno associate a questo nome/clan.",
     );
     load();
+  }
+
+
+  async function updatePlayerNickname(player: Player) {
+    if (!canWrite)
+      return setMessage("Solo Staff, Coach o Owner possono modificare il nome del player.");
+    const nextNickname = (nicknameEdits[player.id] || "").trim();
+    if (!nextNickname) return setMessage("Il nome del giocatore non può essere vuoto.");
+    if (nextNickname === player.nickname) return setMessage("Il nome del giocatore non è cambiato.");
+
+    const duplicate = players.find(
+      (p) => p.id !== player.id && p.nickname.trim().toLowerCase() === nextNickname.toLowerCase(),
+    );
+    if (duplicate)
+      return setMessage(`Esiste già un giocatore chiamato ${duplicate.nickname}. Scegli un nome diverso.`);
+
+    setSavingNicknameId(player.id);
+    setMessage(`Aggiorno il nome di ${player.nickname}...`);
+    const { error } = await supabase
+      .from("players")
+      .update({ nickname: nextNickname })
+      .eq("id", player.id);
+    setSavingNicknameId("");
+    if (error) return setMessage(`Errore modifica nome: ${error.message}`);
+    setMessage(
+      `Nome aggiornato da ${player.nickname} a ${nextNickname}. Account email e statistiche restano associati allo stesso profilo.`,
+    );
+    await load();
   }
 
   async function updatePlayerClan(player: Player) {
@@ -169,7 +274,11 @@ export default function PlayersPage() {
         const kills = pStats.reduce((sum, s) => sum + (s.kills || 0), 0);
         const deaths = pStats.reduce((sum, s) => sum + (s.deaths || 0), 0);
         const assists = pStats.reduce((sum, s) => sum + (s.assists || 0), 0);
-        const wins = pStats.filter((s) => s.matches?.result === "WIN").length;
+        const matchIds = new Set(pStats.map((s) => s.match_id).filter(Boolean));
+        const matchCount = matchIds.size;
+        const wins = new Set(
+          pStats.filter((s) => s.matches?.result === "WIN").map((s) => s.match_id).filter(Boolean),
+        ).size;
         const gold = pStats.filter((s) => s.rank_position === 1).length;
         const silver = pStats.filter((s) => s.rank_position === 2).length;
         const bronze = pStats.filter((s) => s.rank_position === 3).length;
@@ -181,13 +290,13 @@ export default function PlayersPage() {
           : 0;
         return {
           player: p,
-          matchCount: pStats.length,
+          matchCount,
           kills,
           deaths,
           assists,
           kd: kdRatio(kills, deaths),
           wins,
-          winRate: pStats.length ? Math.round((wins / pStats.length) * 100) : 0,
+          winRate: matchCount ? Math.round((wins / matchCount) * 100) : 0,
           gold,
           silver,
           bronze,
@@ -431,13 +540,13 @@ export default function PlayersPage() {
           tutti i dati.
         </p>
         <div className="table-scroll">
-          <table className="table compact player-stats-table stats-tight-table">
+          <table className="table compact player-stats-table stats-tight-table stats-lines-table-v132 player-stats-table-v135">
             <thead>
               <tr>
                 <th>Player</th>
                 <th>Clan</th>
-                <th>Tipo</th>
-                <th>Match</th>
+                <th>Account</th>
+                <th>Partite</th>
                 <th>W/R</th>
                 <th>WR%</th>
                 <th>Kill</th>
@@ -448,6 +557,7 @@ export default function PlayersPage() {
                 <th>🥈 Argento</th>
                 <th>🥉 Bronzo</th>
                 <th>Pos. media</th>
+                <th>Associa email registrata</th>
                 <th>Azione clan</th>
               </tr>
             </thead>
@@ -461,8 +571,30 @@ export default function PlayersPage() {
                     >
                       <b>{card.player.nickname}</b>
                     </a>
-                    <br />
-                    <span className="muted">
+                    {canWrite && (
+                      <div className="player-name-edit-v136">
+                        <input
+                          className="input player-name-input-v136"
+                          value={nicknameEdits[card.player.id] ?? card.player.nickname}
+                          onChange={(e) =>
+                            setNicknameEdits((current) => ({
+                              ...current,
+                              [card.player.id]: e.target.value,
+                            }))
+                          }
+                          placeholder="Nome giocatore"
+                          aria-label={`Modifica nome ${card.player.nickname}`}
+                        />
+                        <button
+                          className="btn small secondary"
+                          disabled={savingNicknameId === card.player.id}
+                          onClick={() => updatePlayerNickname(card.player)}
+                        >
+                          {savingNicknameId === card.player.id ? "Salvo..." : "Modifica nome"}
+                        </button>
+                      </div>
+                    )}
+                    <span className="muted player-uid-v136">
                       {card.player.uid_codm
                         ? `UID ${card.player.uid_codm}`
                         : "profilo CODM da collegare"}
@@ -470,13 +602,14 @@ export default function PlayersPage() {
                   </td>
                   <td>{safeClan(card.player)}</td>
                   <td>
-                    <span
-                      className={
-                        card.player.uid_codm ? "badge ok" : "badge warn"
-                      }
-                    >
+                    <span className={card.player.user_id ? "badge ok" : "badge warn"}>
                       {profileStatus(card.player)}
                     </span>
+                    {registeredAccounts.find((u) => u.player_id === card.player.id)?.email && (
+                      <small className="player-linked-email-v135">
+                        {registeredAccounts.find((u) => u.player_id === card.player.id)?.email}
+                      </small>
+                    )}
                   </td>
                   <td>{card.matchCount}</td>
                   <td>
@@ -503,6 +636,38 @@ export default function PlayersPage() {
                     </span>
                   </td>
                   <td>{card.avgRank}</td>
+                  <td>
+                    {auth.canManageUsers ? (
+                      <div className="player-account-link-v135">
+                        <select
+                          className="select"
+                          value={accountEdits[card.player.id] || ""}
+                          onChange={(e) =>
+                            setAccountEdits((current) => ({ ...current, [card.player.id]: e.target.value }))
+                          }
+                        >
+                          <option value="">Non associato</option>
+                          {registeredAccounts.map((account) => (
+                            <option key={account.id} value={account.id}>
+                              {account.email || account.display_name || account.id}
+                              {account.player_id && account.player_id !== card.player.id ? " · già associato" : ""}
+                            </option>
+                          ))}
+                        </select>
+                        <button
+                          className="btn small"
+                          disabled={linkingPlayerId === card.player.id}
+                          onClick={() => linkRegisteredAccount(card.player)}
+                        >
+                          {linkingPlayerId === card.player.id ? "Salvo..." : "Associa"}
+                        </button>
+                      </div>
+                    ) : (
+                      <span className="muted">
+                        {registeredAccounts.find((u) => u.player_id === card.player.id)?.email || "Da associare"}
+                      </span>
+                    )}
+                  </td>
                   <td>
                     {canWrite ? (
                       <div className="inline-edit">
@@ -532,7 +697,7 @@ export default function PlayersPage() {
               ))}
               {!playerCards.length && (
                 <tr>
-                  <td colSpan={15} className="muted">
+                  <td colSpan={16} className="muted">
                     Nessun player per i filtri selezionati.
                   </td>
                 </tr>

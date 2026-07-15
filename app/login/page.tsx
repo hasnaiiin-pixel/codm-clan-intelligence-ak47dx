@@ -104,7 +104,7 @@ export default function LoginPage() {
     setMessage('');
     try {
       const appUrl = getAppUrl();
-      const emailRedirectTo = `${appUrl}/auth/callback?next=/profile`;
+      const emailRedirectTo = `${appUrl}/auth/callback`;
       const clan = await getFirstClan().catch(() => null);
 
       const { data, error } = await supabase.auth.signUp({
@@ -134,7 +134,8 @@ export default function LoginPage() {
         return;
       }
 
-      setMessage('Registrazione inviata. Il nome in gioco viene inserito nel roster automaticamente; conferma la tua email e poi entra nella app.');
+      setMessage('Registrazione completata. Controlla la tua email per confermare l’account.');
+      window.location.href = `/registration-confirmed?status=pending&email=${encodeURIComponent(email.trim())}`;
     } catch (error) {
       setMessage(error instanceof Error ? error.message : 'Errore registrazione. Riprova.');
     } finally {

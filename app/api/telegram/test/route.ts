@@ -13,12 +13,17 @@ export async function GET(request: NextRequest) {
         { status: 401 },
       );
     const now = new Date().toLocaleString("it-IT", { timeZone: "Europe/Rome" });
+    const targetParam = request.nextUrl.searchParams.get("target");
+    const target =
+      targetParam === "group" || targetParam === "private" ? targetParam : "all";
     const result = await sendTelegramHtml(
-      `✅ <b>AK47DX Telegram collegato</b>\nTest manuale riuscito.\nQuesto messaggio viene inviato sia alla chat privata configurata sia al gruppo clan se TELEGRAM_GROUP_CHAT_ID è presente.\n🕒 ${now}`,
+      `✅ <b>AK47DX Telegram collegato</b>\nTest manuale riuscito.\nTarget richiesto: <b>${target}</b>.\nSe target=group deve apparire nel gruppo Telegram del clan.\n🕒 ${now}`,
+      { target },
     );
     return NextResponse.json({
       ok: result.ok,
       route: "/api/telegram/test",
+      target,
       result,
     });
   } catch (error) {

@@ -1,0 +1,14 @@
+CLAN MANAGER AK47DX V13.3
+
+Patch sopra V13.2 stabile.
+
+Modifiche:
+- Admin principale può modificare associazione account -> player CODM, mantenendo ruolo Owner e protezione cancellazione.
+- Sync Auth non sovrascrive più nickname/UID di player già collegati manualmente con statistiche.
+- Eventi: rimosso default obbligatorio "Avversario / Organizzatore"; campo libero "Nome avversario / organizzatore".
+- Salvataggio evento non forza più clan avversario se il campo è vuoto.
+- Telegram: parsing più robusto chat id, supporto più ID separati da virgola, test target=group/private/all e diagnostica targetCounts.
+
+Verifica:
+- npx tsc --noEmit OK.
+- npm run build: compilazione, type check e pagine OK; timeout sandbox solo su Collecting build traces.

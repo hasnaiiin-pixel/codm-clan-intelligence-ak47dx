@@ -2667,3 +2667,87 @@ select.pro-select {
     max-width: 125px !important;
   }
 }
+
+/* V13.5 - associazione email/player e tabella giocatori senza sovrapposizioni */
+.player-stats-table-v135 th,
+.player-stats-table-v135 td {
+  position: static !important;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  vertical-align: middle !important;
+}
+.player-stats-table-v135 th:nth-child(n+4):nth-child(-n+14),
+.player-stats-table-v135 td:nth-child(n+4):nth-child(-n+14) {
+  min-width: 54px !important;
+  max-width: 72px !important;
+}
+.player-stats-table-v135 th:nth-child(3),
+.player-stats-table-v135 td:nth-child(3) {
+  min-width: 118px !important;
+  max-width: 170px !important;
+  white-space: normal !important;
+}
+.player-stats-table-v135 th:nth-child(15),
+.player-stats-table-v135 td:nth-child(15) {
+  min-width: 230px !important;
+  max-width: 300px !important;
+  white-space: normal !important;
+}
+.player-stats-table-v135 th:nth-child(16),
+.player-stats-table-v135 td:nth-child(16) {
+  min-width: 180px !important;
+  max-width: 240px !important;
+  white-space: normal !important;
+}
+.player-linked-email-v135 {
+  display: block;
+  margin-top: 5px;
+  max-width: 160px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  opacity: .82;
+}
+.player-account-link-v135 {
+  display: grid;
+  grid-template-columns: minmax(150px, 1fr) auto;
+  align-items: center;
+  gap: 6px;
+}
+.player-account-link-v135 .select {
+  min-width: 0 !important;
+  width: 100%;
+}
+@media (max-width: 720px) {
+  .player-stats-table-v135 { min-width: 1320px !important; }
+  .player-stats-table-v135 th,
+  .player-stats-table-v135 td { overflow: visible; }
+  .player-account-link-v135 { grid-template-columns: 1fr; }
+}
+
+/* V13.6 - modifica nome giocatore senza perdere account o statistiche */
+.player-name-edit-v136 {
+  display: grid;
+  grid-template-columns: minmax(130px, 1fr) auto;
+  gap: 6px;
+  margin-top: 7px;
+  min-width: 250px;
+}
+.player-name-input-v136 {
+  min-width: 0;
+  width: 100%;
+}
+.player-uid-v136 {
+  display: block;
+  margin-top: 5px;
+  white-space: normal;
+}
+@media (max-width: 760px) {
+  .player-name-edit-v136 {
+    grid-template-columns: minmax(120px, 1fr);
+    min-width: 170px;
+  }
+  .player-name-edit-v136 .btn {
+    width: 100%;
+  }
+}

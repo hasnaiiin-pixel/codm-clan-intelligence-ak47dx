@@ -67,23 +67,58 @@ function env(name: string) {
   return String(process.env[name] || "").trim();
 }
 
-export function telegramChatTargets() {
-  const privateChatId =
-    env("TELEGRAM_CHAT_ID") || env("TELEGRAM_PRIVATE_CHAT_ID");
-  const groupChatId =
-    env("TELEGRAM_GROUP_CHAT_ID") ||
-    env("TELEGRAM_CLAN_GROUP_CHAT_ID") ||
-    env("TELEGRAM_GROUP_ID") ||
-    env("TELEGRAM_CHAT_ID_GROUP") ||
-    env("NEXT_PUBLIC_TELEGRAM_GROUP_CHAT_ID");
+function splitChatIds(value: string) {
+  return value
+    .split(/[\n,;]+/)
+    .map((item) =>
+      item
+        .trim()
+        .replace(/^['"]|['"]$/g, "")
+        .replace(/^chat_id\s*=\s*/i, "")
+        .replace(/^group\s*[:=]\s*/i, "")
+        .replace(/^private\s*[:=]\s*/i, ""),
+    )
+    .map((item) => {
+      const urlMatch = item.match(/[?&]chat_id=([^&]+)/i);
+      return urlMatch ? decodeURIComponent(urlMatch[1]) : item;
+    })
+    .map((item) => item.trim())
+    .filter(Boolean);
+}
+
+function envChatIds(names: string[]) {
+  return names.flatMap((name) => splitChatIds(env(name)));
+}
+
+function looksLikeGroupChatId(chatId: string) {
+  return chatId.startsWith("-") || chatId.startsWith("@") || chatId.includes("/+");
+}
+
+export function telegramChatTargets(target: "all" | "private" | "group" = "all") {
+  const privateIds = envChatIds(["TELEGRAM_CHAT_ID", "TELEGRAM_PRIVATE_CHAT_ID"]);
+  const groupIds = envChatIds([
+    "TELEGRAM_GROUP_CHAT_ID",
+    "TELEGRAM_CLAN_GROUP_CHAT_ID",
+    "TELEGRAM_GROUP_ID",
+    "TELEGRAM_CHAT_ID_GROUP",
+    "NEXT_PUBLIC_TELEGRAM_GROUP_CHAT_ID",
+  ]);
+
+  // Se per errore in TELEGRAM_CHAT_ID vengono messi due valori, es.
+  // "123456789,-1009876543210", separiamo privato e gruppo automaticamente.
   const targets = [
-    privateChatId ? { name: "private", chatId: privateChatId } : null,
-    groupChatId ? { name: "group", chatId: groupChatId } : null,
-  ].filter(Boolean) as Array<{ name: string; chatId: string }>;
+    ...privateIds.map((chatId) => ({
+      name: looksLikeGroupChatId(chatId) ? "group" : "private",
+      chatId,
+    })),
+    ...groupIds.map((chatId) => ({ name: "group", chatId })),
+  ].filter((item) => target === "all" || item.name === target);
+
   const seen = new Set<string>();
-  return targets.filter((target) => {
-    if (seen.has(target.chatId)) return false;
-    seen.add(target.chatId);
+  return targets.filter((item) => {
+    const key = `${item.name}:${item.chatId}`;
+    if (seen.has(key)) return false;
+    seen.add(key);
     return true;
   });
 }
@@ -155,8 +190,8 @@ function eventTypeLabel(event: TelegramEvent) {
 function teamBName(event: TelegramEvent) {
   const plan = planOf(event);
   return (
-    String(plan.teamBName || plan.opponentName || "Clan avversario").trim() ||
-    "Clan avversario"
+    String(plan.teamBName || plan.opponentName || "Da impostare").trim() ||
+    "Da impostare"
   );
 }
 
@@ -349,15 +384,18 @@ export function renderProfessionalEventTelegram(
     .slice(0, 3900);
 }
 
-export async function sendTelegramHtml(text: string): Promise<TelegramResult> {
+export async function sendTelegramHtml(
+  text: string,
+  options?: { target?: "all" | "private" | "group" },
+): Promise<TelegramResult> {
   const token = env("TELEGRAM_BOT_TOKEN");
-  const targets = telegramChatTargets();
+  const targets = telegramChatTargets(options?.target || "all");
   if (!token || !targets.length) {
     return {
       ok: false,
       skipped: true,
       error:
-        "TELEGRAM_BOT_TOKEN e almeno uno tra TELEGRAM_CHAT_ID / TELEGRAM_GROUP_CHAT_ID mancanti. Per il gruppo usa un ID negativo tipo -100xxxxxxxxxx.",
+        `TELEGRAM_BOT_TOKEN e target Telegram mancanti. Target richiesto: ${options?.target || "all"}. Per il gruppo usa TELEGRAM_GROUP_CHAT_ID con ID negativo tipo -100xxxxxxxxxx.`,
     };
   }
 

@@ -3,6 +3,8 @@ import { telegramChatTargets } from "@/lib/server/codmTelegram";
 
 export async function GET() {
   const targets = telegramChatTargets();
+  const privateTargets = telegramChatTargets("private");
+  const groupTargets = telegramChatTargets("group");
   const required = {
     TELEGRAM_BOT_TOKEN: Boolean(process.env.TELEGRAM_BOT_TOKEN),
     TELEGRAM_CHAT_ID_PRIVATE: Boolean(
@@ -29,16 +31,23 @@ export async function GET() {
     ok,
     route: "/api/telegram/status",
     reminders_route: "/api/telegram/reminders?secret=CRON_SECRET",
+    targetCounts: {
+      total: targets.length,
+      private: privateTargets.length,
+      group: groupTargets.length,
+    },
     targets: targets.map((target) => ({
       name: target.name,
       configured: true,
       chatIdPreview: target.chatId.replace(/.(?=.{4})/g, "*"),
       looksLikeGroup:
-        target.name === "group" ? target.chatId.startsWith("-") : undefined,
+        target.name === "group"
+          ? target.chatId.startsWith("-") || target.chatId.startsWith("@")
+          : undefined,
     })),
     required,
     note: ok
-      ? "Telegram/Supabase presenti. Gli eventi vengono inviati a tutti i target configurati. Per il gruppo il chat_id deve essere negativo, spesso -100..."
-      : "Mancano token, chat privata/gruppo o variabili Supabase server.",
+      ? "Telegram/Supabase presenti. Usa /api/telegram/test?secret=CRON_SECRET&target=group per provare solo il gruppo."
+      : "Mancano token, chat privata/gruppo o variabili Supabase server. Se vedi solo private nei target, Vercel non ha TELEGRAM_GROUP_CHAT_ID o non è stato ridistribuito dopo il salvataggio.",
   });
 }

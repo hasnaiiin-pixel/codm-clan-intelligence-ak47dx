@@ -434,11 +434,17 @@ async function ensurePlayerForUser(
   };
 
   if (existingId) {
+    // Non sovrascrivere nickname/UID quando un account è già collegato manualmente
+    // a un player reale con statistiche. Serve soprattutto per l’admin principale.
     const { error } = await admin
       .from("players")
-      .update(payload)
+      .update({
+        clan_name: clanTag,
+        status: "active",
+        updated_at: new Date().toISOString(),
+      })
       .eq("id", existingId);
-    if (error) throw error;
+    if (error && !/updated_at|schema cache|column/i.test(error.message || "")) throw error;
     return existingId as string;
   }
 
@@ -732,13 +738,8 @@ export async function POST(request: NextRequest) {
       const email = String(body.email || "").toLowerCase();
       if (!userId)
         throw Object.assign(new Error("Utente mancante."), { status: 400 });
-      if (email === MAIN_ADMIN_EMAIL)
-        throw Object.assign(
-          new Error(
-            "Admin principale non modificabile da associazione manuale.",
-          ),
-          { status: 400 },
-        );
+      // V13.3: anche l’admin principale può cambiare il player collegato.
+      // Restano bloccati ruolo Owner, permessi completi e cancellazione account.
       await admin
         .from("players")
         .update({ user_id: null })
@@ -782,7 +783,9 @@ export async function POST(request: NextRequest) {
       const profileUpdate = await admin.from("profiles").upsert(
         {
           id: userId,
+          email: body.email || null,
           player_nickname: player.nickname || null,
+          display_name: player.nickname || null,
           codm_uid: player.uid_codm || null,
           updated_at: new Date().toISOString(),
         },
@@ -790,7 +793,7 @@ export async function POST(request: NextRequest) {
       );
       if (
         profileUpdate.error &&
-        !/player_nickname|codm_uid|updated_at|schema cache/i.test(
+        !/email|display_name|player_nickname|codm_uid|updated_at|schema cache/i.test(
           profileUpdate.error.message || "",
         )
       )

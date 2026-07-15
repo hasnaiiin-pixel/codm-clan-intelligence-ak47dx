@@ -1,6 +1,6 @@
 {
   "name": "clan-manager-ak47dx",
-  "version": "13.2.0-stats-events-players-telegram-group-fix",
+  "version": "13.4.0-registration-confirmation-fix",
   "private": true,
   "scripts": {
     "dev": "next dev",
