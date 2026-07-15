@@ -3,7 +3,7 @@ import type { Metadata, Viewport } from 'next';
 import { MobileSidebar } from '@/components/MobileSidebar';
 import { PwaInstaller } from '@/components/PwaInstaller';
 import { GlobalTableSorter } from './GlobalTableSorter';
-import { PageViewTracker } from '@/components/PageViewTracker';
+import { PageViewTracker } from './PageViewTracker';
 
 export const metadata: Metadata = {
   title: 'CLAN MANAGER',

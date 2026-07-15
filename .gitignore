@@ -19,7 +19,6 @@ __codm_v4_source/
 _codm_backup_before_auth_role_guard/
 backup_visible_routes_*/
 components_old_unused/
-components/
 *.bak_*
 *.bak*
 
