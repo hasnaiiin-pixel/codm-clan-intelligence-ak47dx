@@ -539,65 +539,30 @@ export default function PlayersPage() {
           Clicca sul nome del giocatore per aprire il profilo personale con
           tutti i dati.
         </p>
-        <div className="table-scroll">
-          <table className="table compact player-stats-table stats-tight-table stats-lines-table-v132 player-stats-table-v135">
+        <div className="table-scroll player-table-scroll-v137">
+          <table className="table compact stats-lines-table-v132 player-table-v137">
             <thead>
               <tr>
                 <th>Player</th>
                 <th>Clan</th>
                 <th>Account</th>
                 <th>Partite</th>
-                <th>W/R</th>
-                <th>WR%</th>
-                <th>Kill</th>
-                <th>Death</th>
-                <th>Assist</th>
-                <th>K/D</th>
-                <th>🥇 Oro/MVP</th>
-                <th>🥈 Argento</th>
-                <th>🥉 Bronzo</th>
-                <th>Pos. media</th>
+                <th>Vittorie<br />WR%</th>
+                <th>Kill / Death / Assist<br />K/D</th>
+                <th>Medaglie<br />Pos. media</th>
                 <th>Associa email registrata</th>
-                <th>Azione clan</th>
+                <th>Modifica player</th>
               </tr>
             </thead>
             <tbody>
               {playerCards.map((card) => (
                 <tr key={card.player.id}>
-                  <td>
-                    <a
-                      className="player-click-link-v132"
-                      href={`/players/${card.player.id}`}
-                    >
+                  <td className="player-main-cell-v137">
+                    <a className="player-click-link-v132" href={`/players/${card.player.id}`}>
                       <b>{card.player.nickname}</b>
                     </a>
-                    {canWrite && (
-                      <div className="player-name-edit-v136">
-                        <input
-                          className="input player-name-input-v136"
-                          value={nicknameEdits[card.player.id] ?? card.player.nickname}
-                          onChange={(e) =>
-                            setNicknameEdits((current) => ({
-                              ...current,
-                              [card.player.id]: e.target.value,
-                            }))
-                          }
-                          placeholder="Nome giocatore"
-                          aria-label={`Modifica nome ${card.player.nickname}`}
-                        />
-                        <button
-                          className="btn small secondary"
-                          disabled={savingNicknameId === card.player.id}
-                          onClick={() => updatePlayerNickname(card.player)}
-                        >
-                          {savingNicknameId === card.player.id ? "Salvo..." : "Modifica nome"}
-                        </button>
-                      </div>
-                    )}
                     <span className="muted player-uid-v136">
-                      {card.player.uid_codm
-                        ? `UID ${card.player.uid_codm}`
-                        : "profilo CODM da collegare"}
+                      {card.player.uid_codm ? `UID ${card.player.uid_codm}` : "profilo CODM da collegare"}
                     </span>
                   </td>
                   <td>{safeClan(card.player)}</td>
@@ -611,40 +576,28 @@ export default function PlayersPage() {
                       </small>
                     )}
                   </td>
-                  <td>{card.matchCount}</td>
-                  <td>
-                    {card.wins}/{Math.max(card.matchCount - card.wins, 0)}
+                  <td className="numeric-cell-v137"><b>{card.matchCount}</b></td>
+                  <td className="numeric-cell-v137">
+                    <b>{card.wins}/{Math.max(card.matchCount - card.wins, 0)}</b>
+                    <small>{card.winRate}%</small>
                   </td>
-                  <td>{card.winRate}%</td>
-                  <td>{card.kills}</td>
-                  <td>{card.deaths}</td>
-                  <td>{card.assists}</td>
-                  <td>{card.kd}</td>
-                  <td>
-                    <span className="rank-medal medal-gold">
-                      🥇 {card.gold}
-                    </span>
+                  <td className="kda-cell-v137">
+                    <b>{card.kills} / {card.deaths} / {card.assists}</b>
+                    <small>K/D {card.kd}</small>
                   </td>
-                  <td>
-                    <span className="rank-medal medal-silver">
-                      🥈 {card.silver}
-                    </span>
+                  <td className="medals-cell-v137">
+                    <span className="rank-medal medal-gold">🥇 {card.gold}</span>
+                    <span className="rank-medal medal-silver">🥈 {card.silver}</span>
+                    <span className="rank-medal medal-bronze">🥉 {card.bronze}</span>
+                    <small>Media {card.avgRank}</small>
                   </td>
-                  <td>
-                    <span className="rank-medal medal-bronze">
-                      🥉 {card.bronze}
-                    </span>
-                  </td>
-                  <td>{card.avgRank}</td>
                   <td>
                     {auth.canManageUsers ? (
-                      <div className="player-account-link-v135">
+                      <div className="player-account-link-v135 player-account-link-v137">
                         <select
                           className="select"
                           value={accountEdits[card.player.id] || ""}
-                          onChange={(e) =>
-                            setAccountEdits((current) => ({ ...current, [card.player.id]: e.target.value }))
-                          }
+                          onChange={(e) => setAccountEdits((current) => ({ ...current, [card.player.id]: e.target.value }))}
                         >
                           <option value="">Non associato</option>
                           {registeredAccounts.map((account) => (
@@ -654,40 +607,37 @@ export default function PlayersPage() {
                             </option>
                           ))}
                         </select>
-                        <button
-                          className="btn small"
-                          disabled={linkingPlayerId === card.player.id}
-                          onClick={() => linkRegisteredAccount(card.player)}
-                        >
+                        <button className="btn small" disabled={linkingPlayerId === card.player.id} onClick={() => linkRegisteredAccount(card.player)}>
                           {linkingPlayerId === card.player.id ? "Salvo..." : "Associa"}
                         </button>
                       </div>
                     ) : (
-                      <span className="muted">
-                        {registeredAccounts.find((u) => u.player_id === card.player.id)?.email || "Da associare"}
-                      </span>
+                      <span className="muted">{registeredAccounts.find((u) => u.player_id === card.player.id)?.email || "Da associare"}</span>
                     )}
                   </td>
                   <td>
                     {canWrite ? (
-                      <div className="inline-edit">
-                        <input
-                          className="input clan-edit"
-                          value={clanEdits[card.player.id] ?? ""}
-                          onChange={(e) =>
-                            setClanEdits((current) => ({
-                              ...current,
-                              [card.player.id]: e.target.value,
-                            }))
-                          }
-                          placeholder="AK47DX / clan avversario"
-                        />
-                        <button
-                          className="btn small secondary"
-                          onClick={() => updatePlayerClan(card.player)}
-                        >
-                          Salva
-                        </button>
+                      <div className="player-actions-v137">
+                        <div className="player-name-edit-v136 player-name-edit-v137">
+                          <input
+                            className="input player-name-input-v136"
+                            value={nicknameEdits[card.player.id] ?? card.player.nickname}
+                            onChange={(e) => setNicknameEdits((current) => ({ ...current, [card.player.id]: e.target.value }))}
+                            placeholder="Nome giocatore"
+                          />
+                          <button className="btn small secondary" disabled={savingNicknameId === card.player.id} onClick={() => updatePlayerNickname(card.player)}>
+                            {savingNicknameId === card.player.id ? "Salvo..." : "Nome"}
+                          </button>
+                        </div>
+                        <div className="inline-edit player-clan-edit-v137">
+                          <input
+                            className="input clan-edit"
+                            value={clanEdits[card.player.id] ?? ""}
+                            onChange={(e) => setClanEdits((current) => ({ ...current, [card.player.id]: e.target.value }))}
+                            placeholder="Clan"
+                          />
+                          <button className="btn small secondary" onClick={() => updatePlayerClan(card.player)}>Clan</button>
+                        </div>
                       </div>
                     ) : (
                       <span>{card.player.clan_name || "Senza clan"}</span>
@@ -696,11 +646,7 @@ export default function PlayersPage() {
                 </tr>
               ))}
               {!playerCards.length && (
-                <tr>
-                  <td colSpan={16} className="muted">
-                    Nessun player per i filtri selezionati.
-                  </td>
-                </tr>
+                <tr><td colSpan={9} className="muted">Nessun player per i filtri selezionati.</td></tr>
               )}
             </tbody>
           </table>

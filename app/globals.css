@@ -2751,3 +2751,38 @@ select.pro-select {
     width: 100%;
   }
 }
+
+/* V13.7 DEFINITIVA - tabella player compatta e migliori per mappa */
+.player-table-scroll-v137 { width: 100%; overflow-x: auto; }
+.player-table-v137 { width: 100%; min-width: 1120px; table-layout: fixed; }
+.player-table-v137 th, .player-table-v137 td { padding: 7px 6px !important; white-space: normal !important; }
+.player-table-v137 th:nth-child(1) { width: 145px; }
+.player-table-v137 th:nth-child(2) { width: 72px; }
+.player-table-v137 th:nth-child(3) { width: 125px; }
+.player-table-v137 th:nth-child(4) { width: 58px; }
+.player-table-v137 th:nth-child(5) { width: 72px; }
+.player-table-v137 th:nth-child(6) { width: 145px; }
+.player-table-v137 th:nth-child(7) { width: 150px; }
+.player-table-v137 th:nth-child(8) { width: 250px; }
+.player-table-v137 th:nth-child(9) { width: 250px; }
+.player-table-v137 small { display: block; margin-top: 4px; opacity: .78; }
+.numeric-cell-v137, .kda-cell-v137 { text-align: center; }
+.medals-cell-v137 { display: flex; flex-wrap: wrap; gap: 4px; justify-content: center; }
+.medals-cell-v137 small { flex-basis: 100%; text-align: center; }
+.player-account-link-v137 { grid-template-columns: minmax(145px,1fr) 66px; }
+.player-actions-v137 { display: grid; gap: 6px; }
+.player-name-edit-v137 { min-width: 0; grid-template-columns: minmax(110px,1fr) 58px; margin: 0; }
+.player-clan-edit-v137 { display: grid; grid-template-columns: minmax(90px,1fr) 58px; gap: 6px; }
+.player-main-cell-v137 { overflow-wrap: anywhere; }
+.map-ranking-grid-v137 { display: grid; grid-template-columns: repeat(auto-fit,minmax(460px,1fr)); gap: 14px; margin-top: 14px; }
+.map-ranking-card-v137 { border: 1px solid rgba(34,211,238,.24); border-radius: 16px; background: rgba(8,15,29,.66); padding: 12px; }
+.map-ranking-title-v137 { display:flex; align-items:center; justify-content:space-between; gap:12px; margin-bottom:10px; }
+.map-ranking-title-v137 h3 { margin:2px 0 0; }
+.map-ranking-table-v137 { min-width: 700px; }
+.map-ranking-table-v137 td:nth-child(n+3) { text-align:center; }
+.map-ranking-table-v137 td:nth-child(2) small { display:block; opacity:.7; }
+@media (max-width: 760px) {
+  .player-table-v137 { min-width: 1040px; }
+  .map-ranking-grid-v137 { grid-template-columns: 1fr; }
+  .map-ranking-card-v137 { padding: 9px; }
+}

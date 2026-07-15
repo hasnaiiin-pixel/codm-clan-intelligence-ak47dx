@@ -397,6 +397,68 @@ export default function AnalyticsPage() {
       .slice(0, 12);
   }, [filteredRows]);
 
+
+  const bestPlayersByMap = useMemo(() => {
+    const matchById = new Map(matches.map((match) => [match.id, match]));
+    const grouped = new Map<string, Map<string, {
+      id: string;
+      name: string;
+      clan: string;
+      matches: Set<string>;
+      wins: Set<string>;
+      kills: number;
+      deaths: number;
+      assists: number;
+      mvp: number;
+      rankSum: number;
+      rankCount: number;
+    }>>();
+
+    for (const row of filteredRows) {
+      const match = matchById.get(row.match_id);
+      const mapName = (match?.map_name || "Mappa non letta").trim();
+      const playerKey = row.player_id || row.nickname_resolved || row.nickname_raw || row.id;
+      if (!grouped.has(mapName)) grouped.set(mapName, new Map());
+      const mapPlayers = grouped.get(mapName)!;
+      const item = mapPlayers.get(playerKey) || {
+        id: row.player_id || "",
+        name: row.nickname_resolved || row.nickname_raw || row.players?.nickname || "Player non letto",
+        clan: row.players?.clan_name || "Senza clan",
+        matches: new Set<string>(),
+        wins: new Set<string>(),
+        kills: 0,
+        deaths: 0,
+        assists: 0,
+        mvp: 0,
+        rankSum: 0,
+        rankCount: 0,
+      };
+      item.matches.add(row.match_id);
+      if (match?.result === "WIN") item.wins.add(row.match_id);
+      item.kills += row.kills || 0;
+      item.deaths += row.deaths || 0;
+      item.assists += row.assists || 0;
+      if (row.mvp_type) item.mvp += 1;
+      if (row.team_rank) { item.rankSum += row.team_rank; item.rankCount += 1; }
+      mapPlayers.set(playerKey, item);
+    }
+
+    return Array.from(grouped.entries()).map(([mapName, mapPlayers]) => {
+      const ranking = Array.from(mapPlayers.values()).map((item) => {
+        const matchCount = item.matches.size;
+        const wins = item.wins.size;
+        const wr = matchCount ? Math.round((wins / matchCount) * 100) : 0;
+        const kd = kdRatio(item.kills, item.deaths);
+        const avgRank = item.rankCount ? item.rankSum / item.rankCount : 99;
+        const reliability = Math.min(matchCount, 5) / 5;
+        const score = reliability * (wr * 0.35 + Number(kd) * 18 + item.mvp * 6 + Math.max(0, 6 - avgRank) * 4 + (item.kills / Math.max(matchCount, 1)) * 0.35);
+        return { ...item, matchCount, winCount: wins, wr, kd, avgRank, score };
+      }).sort((a, b) => b.score - a.score || b.matchCount - a.matchCount || b.kills - a.kills);
+      const eligible = ranking.filter((player) => player.matchCount >= 2);
+      return { mapName, best: (eligible[0] || ranking[0]), ranking: ranking.slice(0, 5) };
+    }).filter((entry) => entry.best).sort((a, b) => a.mapName.localeCompare(b.mapName));
+  }, [filteredRows, matches]);
+
   function PieCard({ title, slices }: { title: string; slices: PieSlice[] }) {
     return (
       <div className="card stat-pie-card">
@@ -577,6 +639,43 @@ export default function AnalyticsPage() {
               </tbody>
             </table>
           </div>
+        </div>
+      </section>
+
+      <section className="card top-gap map-ranking-section-v137">
+        <h2>🗺️ Migliori giocatori per mappa</h2>
+        <p className="muted">
+          Il migliore viene calcolato usando partite, vittorie, K/D, Kill, MVP e posizione media. Quando possibile servono almeno 2 partite sulla mappa, così una singola partita non falsifica la classifica.
+        </p>
+        <div className="map-ranking-grid-v137">
+          {bestPlayersByMap.map((entry) => (
+            <article className="map-ranking-card-v137" key={entry.mapName}>
+              <div className="map-ranking-title-v137">
+                <div><span className="eyebrow">MAPPA</span><h3>{entry.mapName}</h3></div>
+                <span className="badge ok">🏆 {entry.best.name}</span>
+              </div>
+              <div className="table-scroll">
+                <table className="table compact stats-lines-table-v132 map-ranking-table-v137">
+                  <thead><tr><th>#</th><th>Player</th><th>Partite</th><th>W/WR</th><th>Kill / Death / Assist</th><th>K/D</th><th>MVP</th><th>Pos.</th></tr></thead>
+                  <tbody>
+                    {entry.ranking.map((player, index) => (
+                      <tr key={`${entry.mapName}-${player.name}`}>
+                        <td>{index + 1}</td>
+                        <td>{player.id ? <a href={`/players/${player.id}`}><b>{player.name}</b></a> : <b>{player.name}</b>}<small>{player.clan}</small></td>
+                        <td>{player.matchCount}</td>
+                        <td>{player.winCount}/{player.wr}%</td>
+                        <td>{player.kills} / {player.deaths} / {player.assists}</td>
+                        <td>{player.kd}</td>
+                        <td>{player.mvp}</td>
+                        <td>{player.avgRank === 99 ? "-" : player.avgRank.toFixed(1)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </article>
+          ))}
+          {!bestPlayersByMap.length && <div className="notice">Nessun dato mappa disponibile con i filtri selezionati.</div>}
         </div>
       </section>
 
