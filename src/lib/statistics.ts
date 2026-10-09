@@ -58,6 +58,12 @@ export function formatSeconds(seconds?: number | null): string {
   return `${String(mm).padStart(2, '0')}:${String(ss).padStart(2, '0')}`;
 }
 
+// Alias storico: i record piu' recenti possono contenere CONTROLLO, il catalogo originario CONTROL.
+export function normalizeGameMode(mode?: string | null): string {
+  const normalized = String(mode || '').trim().toUpperCase();
+  return normalized === 'CONTROL' ? 'CONTROLLO' : normalized;
+}
+
 export function modeLabel(mode?: string | null): string {
   const labels: Record<string, string> = {
     CED: 'Cerca e Distruggi',
@@ -66,6 +72,7 @@ export function modeLabel(mode?: string | null): string {
     DOMINIO: 'Dominio',
     POSTAZIONE: 'Postazione',
     CONTROLLO: 'Controllo',
+    CONTROL: 'Controllo',
     ALTRO: 'Altro',
     KILL_CONFIRMED: 'Kill Confirmed',
     BR_SOLO: 'BR Solo',

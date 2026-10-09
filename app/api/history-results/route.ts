@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 export const runtime='nodejs';
-const MODES=['CED','POSTAZIONE','DOMINIO','CONTROLLO','ALTRO'];
+// Le schermate mostrano CONTROLLO; il codice persistito compatibile con il catalogo storico e' CONTROL.
+const MODES=['CED','POSTAZIONE','DOMINIO','CONTROLLO','CONTROL','ALTRO'];
 const UUID=/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 type Row={season_id:string;match_date:string;opponent:string;mode:string;map_name?:string|null;result:string;team_score:number;enemy_score:number;match_scope:string;notes?:string|null;screenshot_url?:string|null;source_key?:string|null};
 export async function POST(request:NextRequest){
@@ -36,14 +37,17 @@ export async function POST(request:NextRequest){
    const sourceKey=String(r.source_key||'').trim();
    const photo=String(r.screenshot_url||'').trim();
    if(photo && (!/^https:\/\//i.test(photo)||photo.length>2000))return NextResponse.json({error:`Riga ${i+1}: il link foto deve essere HTTPS`},{status:400});
-   payload.push({clan_id:clanId,season_id:r.season_id,match_date:dt.toISOString(),match_type:'scrim',mode,map_name:r.map_name||null,opponent,result,team_score:a,enemy_score:b,notes:String(r.notes||'').slice(0,1000),screenshot_url:photo||null,record_quality:'result_only',match_scope:r.match_scope,historical_source_key:sourceKey||null,created_by:user.id});
+   payload.push({clan_id:clanId,season_id:r.season_id,match_date:dt.toISOString(),match_type:'scrim',mode:mode==='CONTROLLO'?'CONTROL':mode,map_name:r.map_name||null,opponent,result,team_score:a,enemy_score:b,notes:String(r.notes||'').slice(0,1000),screenshot_url:photo||null,record_quality:'result_only',match_scope:r.match_scope,historical_source_key:sourceKey||null,created_by:user.id});
   }
   // Non sovrascrivere mai un match completo: l'import con chiave già presente viene rifiutato.
   const keys=payload.map(p=>p.historical_source_key).filter(Boolean) as string[];
   if(new Set(keys).size!==keys.length)return NextResponse.json({error:'Chiavi Excel duplicate nel lotto'},{status:409});
   if(keys.length){const {data:existing,error:e}=await db.from('matches').select('historical_source_key').eq('clan_id',clanId).in('historical_source_key',keys);if(e)throw e;if(existing?.length)return NextResponse.json({error:`Risultati già caricati (${existing.length}). Non inseriti duplicati.`},{status:409});}
   const {data,error}=await db.from('matches').insert(payload).select('id');
-  if(error)throw error;
+  if(error){
+   const hint=payload.some(p=>p.mode==='CONTROL')?' Verifica la configurazione SQL della modalita CONTROL nel database.':'';
+   return NextResponse.json({error:`Salvataggio rifiutato da Supabase (${error.code||'DB'}): ${error.message}.${hint}`},{status:500});
+  }
   return NextResponse.json({inserted:data?.length||0,ids:(data||[]).map(x=>x.id)});
  }catch(err){return NextResponse.json({error:err instanceof Error?err.message:'Errore importazione'},{status:500})}
 }

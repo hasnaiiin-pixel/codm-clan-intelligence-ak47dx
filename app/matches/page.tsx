@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { supabase } from '@/lib/supabaseClient';
 import { useCodmAuth } from '@/lib/authRoles';
 import type { GameMode, Match, MatchResult, MatchType } from '@/lib/types';
+import { normalizeGameMode, modeLabel } from '@/lib/statistics';
 
 const modes: Array<GameMode | 'ALL'> = ['ALL', 'CED', 'TDM', 'PRIMA_LINEA', 'DOMINIO', 'POSTAZIONE', 'CONTROLLO', 'ALTRO', 'KILL_CONFIRMED', 'BR_SOLO', 'BR_DUO', 'BR_SQUAD'];
 const types: Array<MatchType | 'ALL'> = ['ALL', 'scrim', 'ranked', 'private', 'training', 'tournament', 'br'];
@@ -91,7 +92,7 @@ export default function MatchesPage() {
     const toTime = dateTo ? new Date(`${dateTo}T23:59:59`).getTime() : null;
     return matches.filter((m) => {
       if (selectedSeasonId !== 'ALL' && m.season_id !== selectedSeasonId) return false;
-      if (filterMode !== 'ALL' && m.mode !== filterMode) return false;
+      if (filterMode !== 'ALL' && normalizeGameMode(m.mode) !== normalizeGameMode(filterMode)) return false;
       if (filterType !== 'ALL' && m.match_type !== filterType) return false;
       if (filterResult !== 'ALL' && m.result !== filterResult) return false;
       const matchTime = new Date(m.match_date).getTime();
@@ -136,7 +137,7 @@ export default function MatchesPage() {
           <div className="field"><label>Da data</label><input className="input" type="date" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} /></div>
           <div className="field"><label>A data</label><input className="input" type="date" value={dateTo} onChange={(e) => setDateTo(e.target.value)} /></div>
           <div className="field"><label>Stagione</label><select className="select" value={filterSeason} onChange={e => setFilterSeason(e.target.value)}><option value="ACTIVE">Stagione attuale</option><option value="ALL">Carriera · Tutte</option>{seasons.map(s => <option value={s.id} key={s.id}>{s.name}</option>)}</select></div>
-          <div className="field"><label>Modalità</label><select className="select" value={filterMode} onChange={(e) => setFilterMode(e.target.value as GameMode | 'ALL')}>{modes.map((m) => <option key={m} value={m}>{m === 'ALL' ? 'Tutte' : m}</option>)}</select></div>
+          <div className="field"><label>Modalità</label><select className="select" value={filterMode} onChange={(e) => setFilterMode(e.target.value as GameMode | 'ALL')}>{modes.map((m) => <option key={m} value={m}>{m === 'ALL' ? 'Tutte' : modeLabel(m)}</option>)}</select></div>
           <div className="field"><label>Tipo</label><select className="select" value={filterType} onChange={(e) => setFilterType(e.target.value as MatchType | 'ALL')}>{types.map((t) => <option key={t} value={t}>{t === 'ALL' ? 'Tutti' : t}</option>)}</select></div>
           <div className="field"><label>Esito</label><select className="select" value={filterResult} onChange={(e) => setFilterResult(e.target.value as MatchResult | 'ALL')}>{results.map((r) => <option key={r} value={r}>{r === 'ALL' ? 'Tutti' : r}</option>)}</select></div>
           <div className="field"><label>MVP</label><select className="select" value={filterMvp} onChange={(e) => setFilterMvp(e.target.value as 'ALL' | 'MVP_WIN' | 'MVP_LOSE' | 'NO_MVP')}><option value="ALL">Tutti</option><option value="MVP_WIN">MVP vincente</option><option value="MVP_LOSE">MVP perdente</option><option value="NO_MVP">Senza MVP</option></select></div>
@@ -167,7 +168,7 @@ export default function MatchesPage() {
                   <tr key={m.id} className={selected?.id === m.id ? 'selected-row' : ''}>
                     <td>{new Date(m.match_date).toLocaleString('it-IT')}</td>
                     <td>{m.record_quality==='result_only'?'Solo risultato':'Completi'}{m.match_scope==='series'?' · Serie':''}</td>
-                    <td>{m.mode}</td>
+                    <td>{modeLabel(m.mode)}</td>
                     <td>{m.map_name || '-'}</td>
                     <td>{m.opponent || '-'}</td>
                     <td>{m.team_score ?? '-'}:{m.enemy_score ?? '-'}</td>
@@ -186,7 +187,7 @@ export default function MatchesPage() {
           {!selected ? <div className="empty-state">Seleziona una partita dall'elenco.</div> : (
             <div className="form">
               <div className="grid grid-2">
-                <div className="kpi"><span>Modalità</span><strong>{selected.mode}</strong></div>
+                <div className="kpi"><span>Modalità</span><strong>{modeLabel(selected.mode)}</strong></div>
                 <div className="kpi"><span>Esito</span><strong>{selected.result}</strong></div>
               </div>
               <p><b>Mappa:</b> {selected.map_name || '-'} · <b>Avversario:</b> {selected.opponent || '-'} · <b>Score:</b> {selected.team_score ?? '-'}:{selected.enemy_score ?? '-'}</p>

@@ -971,7 +971,7 @@ function ImportMatchEditor() {
       setSavedMatchId(match.id);
       setSaveCompleted(false);
       setSelectedExistingMatchId(match.id);
-      setMode((match.mode || 'CED') as GameMode);
+      setMode((match.mode === 'CONTROL' ? 'CONTROLLO' : (match.mode || 'CED')) as GameMode);
       setMatchType((match.match_type || 'scrim') as MatchType);
       setResult((match.result || 'WIN') as MatchResult);
       setMapName(match.map_name || '');
@@ -1449,7 +1449,7 @@ function ImportMatchEditor() {
       const screenshotPath = screenshotProof?.path || null;
       const matchPayload: Record<string, unknown> = {
         clan_id: activeClanId,
-        mode,
+        mode: mode === 'CONTROLLO' ? 'CONTROL' : mode,
         match_type: matchType,
         result: effectiveResult,
         map_name: mapName || null,

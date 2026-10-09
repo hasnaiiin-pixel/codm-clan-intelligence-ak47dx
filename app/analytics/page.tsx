@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import * as XLSX from "xlsx";
 import { supabase } from "@/lib/supabaseClient";
-import { kdRatio, winRate } from "@/lib/statistics";
+import { kdRatio, winRate, normalizeGameMode, modeLabel } from "@/lib/statistics";
 import type { Match, MatchPlayerStat, Player } from "@/lib/types";
 
 type StatRow = MatchPlayerStat & {
@@ -140,7 +140,7 @@ export default function AnalyticsPage() {
   const modeOptions = useMemo(
     () => [
       "ALL",
-      ...Array.from(new Set(matches.map((m) => m.mode).filter(Boolean))).sort(),
+      ...Array.from(new Set(matches.map((m) => normalizeGameMode(m.mode)).filter(Boolean))).sort(),
     ],
     [matches],
   );
@@ -160,7 +160,7 @@ export default function AnalyticsPage() {
     () =>
       matches.filter(
         (m) =>
-          isInSeason(m) && (filterMode === "ALL" || m.mode === filterMode) &&
+          isInSeason(m) && (filterMode === "ALL" || normalizeGameMode(m.mode) === normalizeGameMode(filterMode)) &&
           (filterMap === "ALL" ||
             (m.map_name || "Mappa non letta") === filterMap),
       ),
@@ -181,7 +181,7 @@ export default function AnalyticsPage() {
         if (filterClan !== "ALL" && clan !== filterClan) return false;
         const match = matches.find((m) => m.id === r.match_id);
         if (!isInSeason(match)) return false;
-        if (filterMode !== "ALL" && match?.mode !== filterMode) return false;
+        if (filterMode !== "ALL" && normalizeGameMode(match?.mode) !== normalizeGameMode(filterMode)) return false;
         if (
           filterMap !== "ALL" &&
           (match?.map_name || "Mappa non letta") !== filterMap
@@ -198,7 +198,7 @@ export default function AnalyticsPage() {
         const clan = s.players?.clan_name || "Senza clan";
         if (selectedSeasonId !== "ALL" && s.matches?.season_id !== selectedSeasonId) return false;
         if (filterClan !== "ALL" && clan !== filterClan) return false;
-        if (filterMode !== "ALL" && s.matches?.mode !== filterMode)
+        if (filterMode !== "ALL" && normalizeGameMode(s.matches?.mode) !== normalizeGameMode(filterMode))
           return false;
         if (
           filterMap !== "ALL" &&
@@ -258,7 +258,7 @@ export default function AnalyticsPage() {
   }, [summary]);
 
   const modePie = useMemo(
-    () => groupPie(filteredMatches.map((m) => ({ key: m.mode }))),
+    () => groupPie(filteredMatches.map((m) => ({ key: modeLabel(m.mode) }))),
     [filteredMatches],
   );
   const mapPie = useMemo(
@@ -972,7 +972,7 @@ export default function AnalyticsPage() {
           </span>
         </div>
         <div className="map-filter-inline-v139 top-gap">
-          <div className="field"><label>Filtra modalità</label><select className="select" value={filterMode} onChange={(e) => setFilterMode(e.target.value)}>{modeOptions.map((mode) => <option key={mode} value={mode}>{mode === "ALL" ? "Tutte le modalità" : mode}</option>)}</select></div>
+          <div className="field"><label>Filtra modalità</label><select className="select" value={filterMode} onChange={(e) => setFilterMode(e.target.value)}>{modeOptions.map((mode) => <option key={mode} value={mode}>{mode === "ALL" ? "Tutte le modalità" : modeLabel(mode)}</option>)}</select></div>
           <div className="field"><label>Filtra mappa</label><select className="select" value={filterMap} onChange={(e) => setFilterMap(e.target.value)}>{mapOptions.map((mapName) => <option key={mapName} value={mapName}>{mapName === "ALL" ? "Tutte le mappe" : mapName}</option>)}</select></div>
           <button type="button" className="btn secondary" onClick={() => { setFilterMode("ALL"); setFilterMap("ALL"); }}>Azzera filtri</button>
         </div>
