@@ -1,0 +1,21 @@
+AK47DX V14.1 TEST — FIX2 VERCEL TYPESCRIPT
+
+Errore Vercel b2b2518:
+./app/import/match/page.tsx:375:9
+Record<GameMode, string> incompleto: mancano CONTROLLO e ALTRO.
+
+INSTALLAZIONE PATCH su V14.1 TEST FIX1 già installata:
+1. Estrarre lo ZIP.
+2. Copiare app/import/match/page.tsx nella stessa cartella del repository, sovrascrivendo il vecchio file.
+3. Copiare src/lib/statistics.ts nella stessa cartella del repository, sovrascrivendo il vecchio file.
+4. Non toccare il database Supabase: nessuno script SQL necessario.
+5. Nella cartella del repository eseguire:
+   npm ci --legacy-peer-deps
+   npm run build
+   git add -A
+   git commit -m "AK47DX V14.1 FIX2 import mode labels"
+   git push origin main
+
+La patch contiene solo FIX2 e presuppone FIX1 gia' installata.
+Lo ZIP completo FIX2 contiene invece anche FIX1.
+La build completa NON e' stata verificata in questo ambiente per dipendenze npm non disponibili.

@@ -378,6 +378,8 @@ function modeLabel(mode: GameMode) {
     PRIMA_LINEA: 'Prima Linea',
     DOMINIO: 'Dominio',
     POSTAZIONE: 'Postazione / Hardpoint',
+    CONTROLLO: 'Controllo',
+    ALTRO: 'Altro',
     KILL_CONFIRMED: 'Kill Confirmed',
     BR_SOLO: 'BR Solo',
     BR_DUO: 'BR Duo',
