@@ -1,5 +1,13 @@
 # AK47DX V14.1 TEST — Release di prova (NON Official Stable)
 
+## Hotfix 14.1 TEST FIX1 — Vercel TypeScript
+
+- Corretto `app/admin/seasons/page.tsx`: le chiamate Supabase RPC usate nei pulsanti **Attiva** e **Archivia / Rendi attivabile** vengono ora racchiuse in funzioni `async`, che restituiscono una vera `Promise` come richiesto dall'helper `run()`.
+- Risolve il primo errore TypeScript segnalato da Vercel al percorso `./app/admin/seasons/page.tsx:17:615`: `PostgrestFilterBuilder ... is missing ... from type Promise`.
+- Nessuna migrazione SQL aggiuntiva rispetto alla V14.1 TEST originale.
+- **Verifica:** il blocco non è stato riprodotto con una build completa in questo ambiente perché `npm ci` non riesce a raggiungere npm (`EAI_AGAIN`). Eseguire `npm run build` localmente o attendere il risultato del deploy Vercel.
+
+
 **Partenza:** sorgente V14 Preview basata su V13.11.2.
 **Hosting invariato:** Vercel + Supabase + GitHub. Nessun reset o migrazione verso VPS.
 
