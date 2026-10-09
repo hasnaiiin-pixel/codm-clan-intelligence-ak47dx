@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useParams } from "next/navigation";
 import { supabase } from "@/lib/supabaseClient";
-import { kdRatio, winRate } from "@/lib/statistics";
+import { kdRatio, winRate, normalizeGameMode, modeLabel } from "@/lib/statistics";
 import type { Player, PlayerSnapshot } from "@/lib/types";
 
 type StatRow = {
@@ -14,6 +14,8 @@ type StatRow = {
   assists?: number | null;
   is_mvp?: boolean | null;
   rank_position?: number | null;
+  objective_time_seconds?: number | null;
+  objective_time_text?: string | null;
   created_at?: string | null;
   matches?: {
     id?: string;
@@ -35,6 +37,9 @@ type BoardRow = {
   deaths?: number | null;
   assists?: number | null;
   mvp_type?: string | null;
+  objective_time_seconds?: number | null;
+  objective_time_text?: string | null;
+  matches?: { mode?: string | null } | null;
 };
 
 function dateLabel(value?: string | null) {
@@ -84,7 +89,7 @@ export default function PlayerProfilePage() {
           .order("imported_at", { ascending: false }),
         supabase
           .from("match_scoreboard_rows")
-          .select("*")
+          .select("*, matches(mode)")
           .eq("player_id", playerId)
           .order("created_at", { ascending: false }),
       ]);
@@ -157,6 +162,34 @@ export default function PlayerProfilePage() {
     };
   }, [stats, boardRows]);
 
+  const objectiveByMode = useMemo(() => {
+    const supported = ['POSTAZIONE','DOMINIO','CONTROLLO'];
+    const byMode = new Map<string,{total:number; count:number; maximum:number}>();
+    const visited = new Set<string>();
+    const statById = new Map(stats.map(s=>[s.match_id,s]));
+    function add(row: StatRow | BoardRow, mode?: string | null) {
+      const normalized = normalizeGameMode(mode);
+      if (!supported.includes(normalized)) return;
+      const secondsRaw = row.objective_time_seconds;
+      const text = String(row.objective_time_text || '').trim();
+      let seconds: number | null = null;
+      if (secondsRaw != null && Number.isFinite(Number(secondsRaw)) && (Number(secondsRaw)>0 || !!text)) seconds = Number(secondsRaw);
+      else if (/^\d{1,4}:[0-5]\d$/.test(text)) {const [mm,ss]=text.split(':').map(Number); seconds=mm*60+ss;}
+      if (seconds == null || seconds<0) return;
+      const id = String(row.match_id || row.id);
+      if (visited.has(id)) return;
+      visited.add(id);
+      const item = byMode.get(normalized) || {total:0,count:0,maximum:0};
+      item.total+=seconds;item.count++;item.maximum=Math.max(item.maximum,seconds);
+      byMode.set(normalized,item);
+    }
+    // Preferenza scoreboard; fallback alle statistiche individuali.
+    for (const row of boardRows) add(row,row.matches?.mode || statById.get(row.match_id)?.matches?.mode);
+    for (const row of stats) add(row,row.matches?.mode);
+    return supported.map(mode=>({mode,...(byMode.get(mode)||{total:0,count:0,maximum:0})}));
+  },[stats,boardRows]);
+  function duration(total:number){const n=Math.floor(Math.max(0,total));const h=Math.floor(n/3600),m=Math.floor(n%3600/60),sec=n%60;return h?`${h}:${String(m).padStart(2,'0')}:${String(sec).padStart(2,'0')}`:`${String(m).padStart(2,'0')}:${String(sec).padStart(2,'0')}`;}
+
   if (loading)
     return (
       <main className="container wide">
@@ -208,6 +241,17 @@ export default function PlayerProfilePage() {
               <strong>
                 {summary.mvp} / {summary.avgRank}
               </strong>
+            </div>
+          </section>
+
+          <section className="card top-gap">
+            <h2>⏱ Tempo obiettivo — Postazione, Dominio e Controllo</h2>
+            <p className="muted">Tempi registrati per questo giocatore. Le altre modalità non prevedono questa statistica.</p>
+            <div className="grid grid-3 top-gap">
+              {objectiveByMode.map(row=><div className="kpi" key={row.mode}>
+                <span>{modeLabel(row.mode)}</span><strong>{row.count?duration(row.total):'—'}</strong>
+                <small className="muted">{row.count?`${row.count} partite · media ${duration(Math.round(row.total/row.count))}`:'Nessun tempo registrato'}</small>
+              </div>)}
             </div>
           </section>
 

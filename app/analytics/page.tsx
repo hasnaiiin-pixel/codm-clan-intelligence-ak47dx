@@ -30,10 +30,35 @@ type ScoreboardRow = {
   deaths: number;
   assists: number;
   mvp_type: string | null;
+  objective_time_seconds?: number | null;
+  objective_time_text?: string | null;
   players?: { nickname: string; clan_name?: string | null } | null;
 };
 
 type PieSlice = { label: string; value: number; percent: number };
+
+const OBJECTIVE_MODES = ['POSTAZIONE', 'DOMINIO', 'CONTROLLO'] as const;
+function supportsObjectiveTime(mode?: string | null): boolean {
+  return OBJECTIVE_MODES.some(m => m === normalizeGameMode(mode));
+}
+function formatObjectiveDuration(value: number): string {
+  const n = Math.max(0, Math.floor(value));
+  const hours = Math.floor(n / 3600);
+  const minutes = Math.floor((n % 3600) / 60);
+  const seconds = n % 60;
+  return hours ? `${hours}:${String(minutes).padStart(2,'0')}:${String(seconds).padStart(2,'0')}` : `${String(minutes).padStart(2,'0')}:${String(seconds).padStart(2,'0')}`;
+}
+function objectiveSeconds(row: {objective_time_seconds?: number | null; objective_time_text?: string | null}): number | null {
+  const raw = row.objective_time_seconds;
+  const text = String(row.objective_time_text || '').trim();
+  // Nei vecchi record il default 0 non indica necessariamente una misura acquisita.
+  if (raw != null && Number.isFinite(Number(raw)) && Number(raw) >= 0 && (Number(raw) !== 0 || text)) return Math.floor(Number(raw));
+  if (/^\d{1,4}:[0-5]\d$/.test(text)) { const [mm,ss] = text.split(':').map(Number); return mm*60+ss; }
+  return null;
+}
+
+type ObjectivePlayerRow = { name:string; clan:string; mode:string; playerId:string|null; total:number; maximum:number; count:number; matchIds:Set<string> };
+
 
 function pct(value: number, total: number) {
   return total ? Math.round((value / total) * 100) : 0;
@@ -209,6 +234,48 @@ export default function AnalyticsPage() {
       }),
     [stats, filterClan, filterMode, filterMap, selectedSeasonId],
   );
+
+  // Una misura per giocatore e partita; evita doppi conteggi tra scoreboard e statistiche.
+  const objectivePlayers = useMemo(() => {
+    const lookup = new Map(matches.map(m => [m.id, m]));
+    const grouped = new Map<string, ObjectivePlayerRow>();
+    const already = new Set<string>();
+    function add(row: {match_id:string; player_id?:string|null; objective_time_seconds?:number|null; objective_time_text?:string|null; players?:{nickname:string;clan_name?:string|null}|null}, nickname:string) {
+      const match = lookup.get(row.match_id);
+      if (!match || !supportsObjectiveTime(match.mode)) return;
+      const seconds = objectiveSeconds(row);
+      if (seconds == null) return;
+      const name = nickname.trim() || row.players?.nickname || 'Giocatore';
+      const mode = normalizeGameMode(match.mode);
+      const normalizedName = name.toLocaleLowerCase('it-IT');
+      const key = `${row.match_id}::${row.player_id || normalizedName}`;
+      const alias = `${row.match_id}::${normalizedName}`;
+      if (already.has(key) || already.has(alias)) return;
+      already.add(key); already.add(alias);
+      const bucket = `${mode}::${row.player_id || normalizedName}`;
+      const item = grouped.get(bucket) || {name, clan:row.players?.clan_name||'Senza clan', mode, playerId:row.player_id||null, total:0, maximum:0, count:0, matchIds:new Set<string>()};
+      item.total += seconds;
+      item.maximum = Math.max(item.maximum,seconds);
+      item.count++;
+      item.matchIds.add(row.match_id);
+      grouped.set(bucket,item);
+    }
+    for (const r of filteredRows) add(r, r.nickname_resolved || r.nickname_raw || r.players?.nickname || '');
+    for (const r of filteredStats) add(r, r.players?.nickname || '');
+    return [...grouped.values()].sort((a,b)=>b.total-a.total||a.name.localeCompare(b.name,'it'));
+  }, [matches,filteredRows,filteredStats]);
+  const showObjective = filterMode === 'ALL' || supportsObjectiveTime(filterMode);
+  const objectiveTotals = useMemo(() => {
+    const map = new Map<string,number>();
+    for (const p of objectivePlayers) {
+      const key = (p.playerId || p.name).toLocaleLowerCase('it-IT');
+      map.set(key,(map.get(key)||0)+p.total);
+    }
+    return map;
+  },[objectivePlayers]);
+  const objectiveTotalSeconds = objectivePlayers.reduce((sum,p)=>sum+p.total,0);
+  const objectiveSamples = objectivePlayers.reduce((sum,p)=>sum+p.count,0);
+  const objectivePlayerCount = new Set(objectivePlayers.map(p=>p.playerId||p.name.toLocaleLowerCase('it-IT'))).size;
 
   const summary = useMemo(() => {
     const wins = filteredMatches.filter((m) => m.result === "WIN").length;
@@ -663,7 +730,7 @@ export default function AnalyticsPage() {
         MAPPA: match?.map_name || "",
         PLAYER: row.nickname_resolved || row.nickname_raw || row.players?.nickname || "",
         CLAN: row.players?.clan_name || "",
-        TEMPO_OBIETTIVO: (row as any).objective_time_text || (((row as any).objective_time_seconds != null) ? `${Math.floor((row as any).objective_time_seconds / 60).toString().padStart(2, "0")}:${((row as any).objective_time_seconds % 60).toString().padStart(2, "0")}` : ""),
+        TEMPO_OBIETTIVO: supportsObjectiveTime(match?.mode) && objectiveSeconds(row) !== null ? formatObjectiveDuration(objectiveSeconds(row)!) : "",
         KILL: row.kills,
         DEATH: row.deaths,
         ASSIST: row.assists,
@@ -853,6 +920,37 @@ export default function AnalyticsPage() {
           </strong>
         </div>
       </section>
+
+      {showObjective && <section className="card top-gap v14-objective-stats">
+        <div className="section-title"><div>
+          <h2>⏱ Tempo obiettivo per giocatore</h2>
+          <p className="muted">Solo Postazione, Dominio e Controllo. Rispetta i filtri di stagione, modalità, mappa e clan. Le altre modalità non usano il tempo.</p>
+        </div></div>
+        <div className="grid grid-3 top-gap">
+          <div className="kpi"><span>Tempo totale</span><strong>{objectiveSamples?formatObjectiveDuration(objectiveTotalSeconds):'—'}</strong></div>
+          <div className="kpi"><span>Giocatori con tempo</span><strong>{objectivePlayerCount}</strong></div>
+          <div className="kpi"><span>Misure acquisite</span><strong>{objectiveSamples}</strong></div>
+        </div>
+        <div className="grid grid-2 top-gap">
+          {OBJECTIVE_MODES.filter(mode=>filterMode==='ALL'||normalizeGameMode(filterMode)===mode).map(mode=>{
+            const rows=objectivePlayers.filter(p=>p.mode===mode);
+            return <div key={mode} className="card v14-objective-mode-card">
+              <div className="section-title"><h3>{modeLabel(mode)}</h3><span className="badge">{rows.length} giocatori</span></div>
+              <div className="table-scroll"><table className="table compact stats-lines-table-v132">
+                <thead><tr><th>Giocatore</th><th>Clan</th><th>Partite</th><th>Totale</th><th>Media</th><th>Max</th></tr></thead>
+                <tbody>{rows.map(p=><tr key={`${mode}-${p.playerId||p.name}`}>
+                  <td>{p.playerId?<a href={`/players/${p.playerId}`}><b>{p.name}</b></a>:<b>{p.name}</b>}</td>
+                  <td>{p.clan}</td><td>{p.matchIds.size}</td>
+                  <td><b>{formatObjectiveDuration(p.total)}</b></td>
+                  <td>{formatObjectiveDuration(Math.round(p.total/p.count))}</td>
+                  <td>{formatObjectiveDuration(p.maximum)}</td>
+                </tr>)}{!rows.length&&<tr><td colSpan={6} className="muted">Nessun tempo disponibile per i filtri scelti. Importa il valore TEMPO_OBIETTIVO mm:ss per i singoli giocatori.</td></tr>}</tbody>
+              </table></div>
+            </div>;
+          })}
+        </div>
+        <p className="muted top-gap">I tempi mancanti non contribuiscono alle medie. Le partite storiche con il solo risultato non ricevono tempi fittizi.</p>
+      </section>}
 
       <section className="grid grid-3 top-gap analytics-main-pies-v131">
         <PieCard title="Vittorie / sconfitte" slices={resultPie} />
@@ -1086,6 +1184,7 @@ export default function AnalyticsPage() {
                 <th>
                   <span>MVP</span>
                 </th>
+                {showObjective && <th>⏱ Tempo obiettivo</th>}
                 <th>
                   <span>
                     Pos.
@@ -1121,12 +1220,13 @@ export default function AnalyticsPage() {
                   <td>{p.wood}</td>
                   <td>{p.olympic}</td>
                   <td>{p.mvp}</td>
+                  {showObjective && <td>{objectiveTotals.has((p.id || p.name).toLocaleLowerCase('it-IT')) ? formatObjectiveDuration(objectiveTotals.get((p.id || p.name).toLocaleLowerCase('it-IT'))!) : '—'}</td>}
                   <td>{p.avgRank}</td>
                 </tr>
               ))}
               {!topPlayers.length && (
                 <tr>
-                  <td colSpan={14} className="muted">
+                  <td colSpan={showObjective ? 15 : 14} className="muted">
                     Nessun player trovato.
                   </td>
                 </tr>

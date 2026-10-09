@@ -1,5 +1,13 @@
 # AK47DX V14.1 TEST — Release di prova (NON Official Stable)
 
+## Hotfix 14.1 TEST FIX2 — Vercel TypeScript (09/10/2026)
+
+- Corretto `app/import/match/page.tsx`: la mappa `Record<GameMode, string>` comprende ora le nuove modalità `CONTROLLO` e `ALTRO`. Risolve il blocco TypeScript `./app/import/match/page.tsx:375:9` segnalato dal deploy b2b2518.
+- Allineato `src/lib/statistics.ts` per mostrare etichette coerenti nelle statistiche.
+- Include anche FIX1 in `app/admin/seasons/page.tsx` (RPC Supabase chiamate come funzioni `async`).
+- **Nessuna modifica SQL o ai dati** rispetto alla V14.1 TEST.
+- La compilazione completa `npm run build` non è stata verificabile nell'ambiente di generazione: eseguire prima del push sulla macchina locale o verificare log Vercel.
+
 ## Hotfix 14.1 TEST FIX1 — Vercel TypeScript
 
 - Corretto `app/admin/seasons/page.tsx`: le chiamate Supabase RPC usate nei pulsanti **Attiva** e **Archivia / Rendi attivabile** vengono ora racchiuse in funzioni `async`, che restituiscono una vera `Promise` come richiesto dall'helper `run()`.
