@@ -1588,7 +1588,6 @@ function ImportMatchEditor() {
       await loadRoster();
       await loadRecentMatches(activeClanId);
       try { deleteEphemeralValue(IMPORT_DRAFT_KEY); } catch {}
-      if(match.match_scope==='series')throw new Error('Questo è il risultato finale di una serie, non una singola partita. Integra le statistiche delle singole partite separatamente.');
       setEditingMatchId(match.id);
       setSavedMatchId(match.id);
       setSelectedExistingMatchId(match.id);
