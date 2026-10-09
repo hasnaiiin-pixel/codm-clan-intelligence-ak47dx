@@ -27,6 +27,7 @@ const navItems: NavItem[] = [
   { href: '/import/match', label: 'Carica risultato', emoji: '🏆', group: 'Staff / Coach', audience: 'write' },
   { href: '/invite', label: 'Inviti', emoji: '📨', group: 'Staff / Coach', audience: 'write' },
   { href: '/calibration', label: 'Calibrazione OCR', emoji: '🎯', group: 'Staff / Coach', audience: 'write' },
+  { href: '/admin/backup', label: 'Backup dati', emoji: '💾', group: 'Owner', audience: 'owner' },
   { href: '/admin/users', label: 'Gestione utenti', emoji: '🔐', group: 'Owner', audience: 'owner' },
   { href: '/admin/visitors', label: 'Visitatori sito', emoji: '📈', group: 'Owner', audience: 'owner' },
   { href: '/ocr-status', label: 'Stato OCR', emoji: '🤖', group: 'Owner', audience: 'owner' },

@@ -43,6 +43,8 @@ export default function MatchesPage() {
   const [rows, setRows] = useState<ScoreboardRow[]>([]);
   const [selected, setSelected] = useState<Match | null>(null);
   const [message, setMessage] = useState('');
+  const [filterSeason, setFilterSeason] = useState('ACTIVE');
+  const [seasons, setSeasons] = useState<Array<{id: string; name: string; is_active: boolean}>>([]);
   const [filterMode, setFilterMode] = useState<GameMode | 'ALL'>('ALL');
   const [filterType, setFilterType] = useState<MatchType | 'ALL'>('ALL');
   const [filterResult, setFilterResult] = useState<MatchResult | 'ALL'>('ALL');
@@ -57,6 +59,8 @@ export default function MatchesPage() {
   useEffect(() => { load(); }, []);
 
   async function load() {
+    const seasonResult = await supabase.from('codm_seasons').select('id,name,is_active').order('name');
+    if (!seasonResult.error) setSeasons(seasonResult.data || []);
     setMessage('');
     const { data, error } = await supabase.from('matches').select('*').order('match_date', { ascending: false });
     const { data: rowData, error: rowError } = await supabase.from('match_scoreboard_rows').select('*, players(nickname,clan_name)').order('team_rank', { ascending: true });
@@ -80,11 +84,13 @@ export default function MatchesPage() {
     return ['ALL', ...Array.from(set).sort()];
   }, [rows]);
 
+  const selectedSeasonId = filterSeason === 'ACTIVE' ? (seasons.find(s => s.is_active)?.id || 'ALL') : filterSeason;
   const filteredMatches = useMemo(() => {
     const q = filterText.trim().toLowerCase();
     const fromTime = dateFrom ? new Date(`${dateFrom}T00:00:00`).getTime() : null;
     const toTime = dateTo ? new Date(`${dateTo}T23:59:59`).getTime() : null;
     return matches.filter((m) => {
+      if (selectedSeasonId !== 'ALL' && m.season_id !== selectedSeasonId) return false;
       if (filterMode !== 'ALL' && m.mode !== filterMode) return false;
       if (filterType !== 'ALL' && m.match_type !== filterType) return false;
       if (filterResult !== 'ALL' && m.result !== filterResult) return false;
@@ -103,7 +109,7 @@ export default function MatchesPage() {
       const rowText = relatedRows.map((r) => `${r.nickname_resolved || r.nickname_raw || ''} ${r.players?.clan_name || ''} ${r.mvp_type || ''} ${r.team_rank || ''}`).join(' ');
       return `${m.mode} ${m.map_name || ''} ${m.opponent || ''} ${m.notes || ''} ${m.match_notes || ''} ${rowText}`.toLowerCase().includes(q);
     });
-  }, [matches, rows, filterMode, filterType, filterResult, filterText, filterMvp, filterClan, filterRank, filterReview, dateFrom, dateTo]);
+  }, [matches, rows, filterMode, filterType, filterResult, filterText, filterMvp, filterClan, filterRank, filterReview, dateFrom, dateTo, selectedSeasonId]);
 
   const selectedRows = selected ? rows.filter((r) => r.match_id === selected.id).sort((a, b) => (a.team_color === b.team_color ? (a.team_rank || 0) - (b.team_rank || 0) : a.team_color.localeCompare(b.team_color))) : [];
 
@@ -128,6 +134,7 @@ export default function MatchesPage() {
         <div className="grid grid-5 top-gap">
           <div className="field"><label>Da data</label><input className="input" type="date" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} /></div>
           <div className="field"><label>A data</label><input className="input" type="date" value={dateTo} onChange={(e) => setDateTo(e.target.value)} /></div>
+          <div className="field"><label>Stagione</label><select className="select" value={filterSeason} onChange={e => setFilterSeason(e.target.value)}><option value="ACTIVE">Stagione attuale</option><option value="ALL">Carriera · Tutte</option>{seasons.map(s => <option value={s.id} key={s.id}>{s.name}</option>)}</select></div>
           <div className="field"><label>Modalità</label><select className="select" value={filterMode} onChange={(e) => setFilterMode(e.target.value as GameMode | 'ALL')}>{modes.map((m) => <option key={m} value={m}>{m === 'ALL' ? 'Tutte' : m}</option>)}</select></div>
           <div className="field"><label>Tipo</label><select className="select" value={filterType} onChange={(e) => setFilterType(e.target.value as MatchType | 'ALL')}>{types.map((t) => <option key={t} value={t}>{t === 'ALL' ? 'Tutti' : t}</option>)}</select></div>
           <div className="field"><label>Esito</label><select className="select" value={filterResult} onChange={(e) => setFilterResult(e.target.value as MatchResult | 'ALL')}>{results.map((r) => <option key={r} value={r}>{r === 'ALL' ? 'Tutti' : r}</option>)}</select></div>

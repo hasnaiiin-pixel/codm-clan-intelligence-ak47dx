@@ -13,6 +13,7 @@ type StatRow = MatchPlayerStat & {
     result: string;
     map_name: string | null;
     match_date: string;
+    season_id?: string | null;
   } | null;
 };
 
@@ -87,6 +88,8 @@ export default function AnalyticsPage() {
   const [stats, setStats] = useState<StatRow[]>([]);
   const [scoreboardRows, setScoreboardRows] = useState<ScoreboardRow[]>([]);
   const [filterClan, setFilterClan] = useState("ALL");
+  const [filterSeason, setFilterSeason] = useState("ACTIVE");
+  const [seasons, setSeasons] = useState<Array<{ id: string; name: string; is_active: boolean }>>([]);
   const [filterMode, setFilterMode] = useState("ALL");
   const [filterMap, setFilterMap] = useState("ALL");
   const [message, setMessage] = useState("");
@@ -97,6 +100,8 @@ export default function AnalyticsPage() {
   }, []);
 
   async function load() {
+    const seasonResult = await supabase.from("codm_seasons").select("id,name,is_active").order("name");
+    if (!seasonResult.error) setSeasons(seasonResult.data || []);
     const { data: matchData, error: matchError } = await supabase
       .from("matches")
       .select("*")
@@ -108,7 +113,7 @@ export default function AnalyticsPage() {
     const { data: statData } = await supabase
       .from("match_player_stats")
       .select(
-        "*, players(nickname,clan_name), matches(mode,result,map_name,match_date)",
+        "*, players(nickname,clan_name), matches(mode,result,map_name,match_date,season_id)",
       )
       .order("created_at", { ascending: false });
     const { data: boardData } = await supabase
@@ -149,15 +154,17 @@ export default function AnalyticsPage() {
     [matches],
   );
 
+  const selectedSeasonId = filterSeason === "ACTIVE" ? (seasons.find(s => s.is_active)?.id || "ALL") : filterSeason;
+  const isInSeason = (match?: Match | null) => selectedSeasonId === "ALL" || match?.season_id === selectedSeasonId;
   const filteredMatches = useMemo(
     () =>
       matches.filter(
         (m) =>
-          (filterMode === "ALL" || m.mode === filterMode) &&
+          isInSeason(m) && (filterMode === "ALL" || m.mode === filterMode) &&
           (filterMap === "ALL" ||
             (m.map_name || "Mappa non letta") === filterMap),
       ),
-    [matches, filterMode, filterMap],
+    [matches, filterMode, filterMap, selectedSeasonId],
   );
 
   const filteredRows = useMemo(
@@ -166,6 +173,7 @@ export default function AnalyticsPage() {
         const clan = r.players?.clan_name || "Senza clan";
         if (filterClan !== "ALL" && clan !== filterClan) return false;
         const match = matches.find((m) => m.id === r.match_id);
+        if (!isInSeason(match)) return false;
         if (filterMode !== "ALL" && match?.mode !== filterMode) return false;
         if (
           filterMap !== "ALL" &&
@@ -174,13 +182,14 @@ export default function AnalyticsPage() {
           return false;
         return true;
       }),
-    [scoreboardRows, matches, filterClan, filterMode, filterMap],
+    [scoreboardRows, matches, filterClan, filterMode, filterMap, selectedSeasonId],
   );
 
   const filteredStats = useMemo(
     () =>
       stats.filter((s) => {
         const clan = s.players?.clan_name || "Senza clan";
+        if (selectedSeasonId !== "ALL" && s.matches?.season_id !== selectedSeasonId) return false;
         if (filterClan !== "ALL" && clan !== filterClan) return false;
         if (filterMode !== "ALL" && s.matches?.mode !== filterMode)
           return false;
@@ -191,7 +200,7 @@ export default function AnalyticsPage() {
           return false;
         return true;
       }),
-    [stats, filterClan, filterMode, filterMap],
+    [stats, filterClan, filterMode, filterMap, selectedSeasonId],
   );
 
   const summary = useMemo(() => {
@@ -627,6 +636,7 @@ export default function AnalyticsPage() {
     }));
     const matchRows = selectedMatches.map((match) => ({
       DATA: new Date(match.match_date).toLocaleString("it-IT"),
+      STAGIONE: seasons.find(s => s.id === match.season_id)?.name || "",
       TIPO: match.match_type,
       MODALITA: match.mode,
       MAPPA: match.map_name || "",
@@ -644,6 +654,7 @@ export default function AnalyticsPage() {
         MAPPA: match?.map_name || "",
         PLAYER: row.nickname_resolved || row.nickname_raw || row.players?.nickname || "",
         CLAN: row.players?.clan_name || "",
+        TEMPO_OBIETTIVO: (row as any).objective_time_text || (((row as any).objective_time_seconds != null) ? `${Math.floor((row as any).objective_time_seconds / 60).toString().padStart(2, "0")}:${((row as any).objective_time_seconds % 60).toString().padStart(2, "0")}` : ""),
         KILL: row.kills,
         DEATH: row.deaths,
         ASSIST: row.assists,
@@ -655,6 +666,7 @@ export default function AnalyticsPage() {
     const workbook = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(workbook, XLSX.utils.json_to_sheet([{
       FILTRO_CLAN: useAll ? "Tutti" : filterClan,
+      STAGIONE: useAll ? "Carriera" : (seasons.find(s => s.id === selectedSeasonId)?.name || "Carriera"),
       FILTRO_MODALITA: useAll ? "Tutte" : filterMode,
       FILTRO_MAPPA: useAll ? "Tutte" : filterMap,
       PARTITE: selectedMatches.length,
@@ -752,6 +764,7 @@ export default function AnalyticsPage() {
           restano visibili nelle statistiche anche senza profilo registrato.
         </p>
         {message && <div className="notice">{message}</div>}
+        <div className="field top-gap"><label>Stagione statistiche</label><select className="select" value={filterSeason} onChange={e => setFilterSeason(e.target.value)}><option value="ACTIVE">Stagione attuale</option><option value="ALL">Tutte le stagioni · Carriera</option>{seasons.map(season => <option key={season.id} value={season.id}>{season.name}{season.is_active ? " · Attuale" : ""}</option>)}</select></div>
         <div className="grid grid-3 top-gap analytics-filter-grid-v138">
           <div className="field">
             <label>Clan appartenenza</label>

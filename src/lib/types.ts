@@ -67,6 +67,7 @@ export type Match = {
   id: string;
   clan_id: string;
   match_date: string;
+  season_id?: string | null;
   match_type: MatchType;
   mode: GameMode;
   map_name: string | null;
