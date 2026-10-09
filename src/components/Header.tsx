@@ -1,5 +1,6 @@
 const navItems = [
   { href: '/import/match', icon: '⚡', label: 'Import' },
+  { href: '/import/history', icon: '🕘', label: 'Storico' },
   { href: '/matches', icon: '🎞️', label: 'Partite' },
   { href: '/players', icon: '🪖', label: 'Giocatori' },
   { href: '/tournament', icon: '🏆', label: 'Torneo' },

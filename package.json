@@ -1,6 +1,6 @@
 {
   "name": "clan-manager-ak47dx",
-  "version": "14.0.0-pre",
+  "version": "14.1.0-test",
   "private": true,
   "scripts": {
     "dev": "next dev",

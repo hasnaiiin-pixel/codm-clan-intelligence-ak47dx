@@ -64,3 +64,21 @@ export async function GET(request: NextRequest) {
   return new NextResponse(new Uint8Array(bytes),{headers:{'content-type':'application/gzip','content-disposition':`attachment; filename="AK47DX_DATI_${new Date().toISOString().slice(0,10)}.json.gz"`,'cache-control':'no-store'}});
  } catch(e) {return NextResponse.json({error:e instanceof Error?e.message:'Esportazione fallita'},{status:500});}
 }
+
+// Controllo non distruttivo di un backup applicativo prima di un eventuale ripristino.
+// NON esegue SQL, non modifica utenti o Storage e non scrive nel database.
+export async function POST(request:NextRequest){
+ try {
+  const db=await authorized(request);
+  if(!db)return NextResponse.json({error:'Solo amministratore principale.'},{status:403});
+  const bytes=new Uint8Array(await request.arrayBuffer());
+  if(bytes.byteLength>LIMIT_BYTES)return NextResponse.json({error:'Archivio troppo grande'},{status:413});
+  const {gunzipSync}=await import('node:zlib');
+  const uncompressed=gunzipSync(bytes,{maxOutputLength:LIMIT_BYTES});
+  const archive=JSON.parse(uncompressed.toString('utf8')) as Record<string,unknown>;
+  if(archive.format!=='AK47DX-APPLICATION-DATA-V14'||!archive.tables||typeof archive.tables!=='object'||!archive.counts||typeof archive.counts!=='object')return NextResponse.json({error:'Formato backup non compatibile'},{status:400});
+  const tables=archive.tables as Record<string,unknown>;
+  for(const [key,value] of Object.entries(tables))if(!Array.isArray(value)||value.length>100000)return NextResponse.json({error:`Tabella ${key} non valida`},{status:400});
+  return NextResponse.json({valid:true,created_at:archive.created_at,counts:archive.counts,storageInventory:archive.storage_inventory?Object.keys(archive.storage_inventory as Record<string,unknown>):[],warning:'VERIFICA SOLTANTO: questo archivio non include i file fisici Storage, i ruoli PostgreSQL o gli account Auth. Nessun dato è stato ripristinato.'});
+ }catch(e){return NextResponse.json({error:e instanceof Error?e.message:'File backup non valido'},{status:400})}
+}

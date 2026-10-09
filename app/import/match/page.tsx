@@ -15,7 +15,7 @@ import { deleteEphemeralValue, getEphemeralValue, setEphemeralValue } from '@/li
 import type { GameMode, MatchResult, MatchType, Player, TeamSide } from '@/lib/types';
 import * as XLSX from 'xlsx';
 
-const modes: GameMode[] = ['CED', 'TDM', 'PRIMA_LINEA', 'DOMINIO', 'POSTAZIONE', 'KILL_CONFIRMED', 'BR_SOLO', 'BR_DUO', 'BR_SQUAD'];
+const modes: GameMode[] = ['CED', 'TDM', 'PRIMA_LINEA', 'DOMINIO', 'POSTAZIONE', 'CONTROLLO', 'ALTRO', 'KILL_CONFIRMED', 'BR_SOLO', 'BR_DUO', 'BR_SQUAD'];
 const types: MatchType[] = ['scrim', 'ranked', 'private', 'training', 'tournament', 'br'];
 
 const codmMaps = [
@@ -24,6 +24,23 @@ const codmMaps = [
   'Rust', 'Terminal', 'Highrise', 'Hackney Yard', 'Tunisia', 'Coastal', 'Express', 'Dome',
   'Vacant', 'Scrapyard', 'Monastery'
 ];
+
+function parseObjectiveTime(value: unknown): {text:string; seconds:number|null} {
+  if(value === undefined || value === null || String(value).trim() === '') return {text:'',seconds:null};
+  const raw = String(value).trim();
+  if(typeof value==='number' && value>0 && value<1){const n=Math.round(value*86400);return {text:`${String(Math.floor(n/60)).padStart(2,'0')}:${String(n%60).padStart(2,'0')}`,seconds:n};}
+  const m = raw.match(/^(\d{1,3}):(\d{2})$/);
+  if(m && Number(m[2])<60) {const sec=Number(m[1])*60+Number(m[2]);return {text:`${String(Math.floor(sec/60)).padStart(2,'0')}:${String(sec%60).padStart(2,'0')}`,seconds:sec};}
+  // I numeri sono accettati solo se la colonna specifica esplicitamente SECOND(I).
+  return {text:'',seconds:null};
+}
+function objectiveFromExcel(row:Record<string,any>){
+  const keys=['TEMPO_OBIETTIVO','TEMPO_EFFETTIVO','TEMPO_POSTAZIONE','TEMPO_DOMINIO','TEMPO_CONTROLLO','OBJECTIVE_TIME','OBJECTIVE_TIME_MM_SS','HARDPOINT_TIME','DOMINATION_TIME'];
+  for(const key of keys){if(row[key]!==undefined && String(row[key]).trim()!=='') return parseObjectiveTime(row[key]);}
+  const seconds=row.OBJECTIVE_TIME_SECONDS ?? row.TEMPO_OBIETTIVO_SECONDI;
+  if(seconds!==undefined&&String(seconds).trim()!=='' && Number.isInteger(Number(seconds))&&Number(seconds)>=0){const n=Number(seconds);return {text:`${String(Math.floor(n/60)).padStart(2,'0')}:${String(n%60).padStart(2,'0')}`,seconds:n};}
+  return {text:'',seconds:null};
+}
 
 const codmMatchTypes: Array<{ value: MatchType; label: string }> = [
   { value: 'scrim', label: '🎮 Scrim' },
@@ -110,6 +127,9 @@ type BackendOcrRow = {
   kda_raw?: string;
   mvp_label?: 'MVP_WIN' | 'MVP_LOSE' | null;
   confidence?: number;
+  objective_time_text?: string;
+  objective_time_seconds?: number;
+  objectiveTimeText?: string;
 };
 
 type BackendOcrResult = {
@@ -399,6 +419,7 @@ function ImportMatchEditor() {
   const [matchDateText, setMatchDateText] = useState('');
   const [matchDateLocal, setMatchDateLocal] = useState(toLocalDateTimeValue(new Date()));
   const [opponent, setOpponent] = useState('');
+  const [historicalOpponents,setHistoricalOpponents] = useState<string[]>([]);
   const [matchNotes, setMatchNotes] = useState('');
   const [teamScore, setTeamScore] = useState('');
   const [enemyScore, setEnemyScore] = useState('');
@@ -642,7 +663,7 @@ function ImportMatchEditor() {
   }, []);
 
   function normalizeExcelKey(value: string) {
-    return String(value || '').trim().toUpperCase().replace(/\s+/g, '_');
+    return String(value || '').normalize('NFD').replace(/[\u0300-\u036f]/g,'').trim().toUpperCase().replace(/[^A-Z0-9]+/g, '_').replace(/^_|_$/g,'');
   }
 
   function normalizeExcelDate(value: unknown) {
@@ -806,6 +827,8 @@ function ImportMatchEditor() {
         kills: Number(cleanNumber(kill) || 0),
         deaths: Number(cleanNumber(death) || 0),
         assists: Number(cleanNumber(assist) || 0),
+        objectiveTimeText: objectiveFromExcel(row).text,
+        objectiveTimeSeconds: objectiveFromExcel(row).seconds ?? 0,
         mvp: ['SI', 'SÌ', 'YES', 'TRUE', '1', 'MVP'].includes(String(firstValue(row, ['MVP']) || '').toUpperCase()),
         readStatus: matchedPlayer ? 'ok' : 'manual',
         needsReview: !matchedPlayer,
@@ -896,6 +919,8 @@ function ImportMatchEditor() {
       setClanName(clanDisplayName(identity));
       await loadRecentMatches(identity.clanId);
     }
+    const opponentResponse = await supabase.from('matches').select('opponent').not('opponent','is',null).limit(2000);
+    if(!opponentResponse.error)setHistoricalOpponents(Array.from(new Set((opponentResponse.data||[]).map(m=>String(m.opponent||'').trim()).filter(Boolean))).sort());
     const { data } = await supabase.from('players').select('*').order('nickname');
     const players = (data || []) as RosterPlayer[];
     const userIds = Array.from(new Set(players.map((player) => player.user_id).filter(Boolean))) as string[];
@@ -939,6 +964,7 @@ function ImportMatchEditor() {
         .select('*, players(id,nickname,clan_name)')
         .eq('match_id', matchId)
         .order('rank_position', { ascending: true });
+      if(match.match_scope==='series')throw new Error('Questo è il risultato finale di una serie, non una singola partita. Integra le statistiche delle singole partite separatamente.');
       setEditingMatchId(match.id);
       setSavedMatchId(match.id);
       setSaveCompleted(false);
@@ -1130,8 +1156,8 @@ function ImportMatchEditor() {
         score: numeric.score,
         impact: null,
         captures: 0,
-        objectiveTimeText: '',
-        objectiveTimeSeconds: 0,
+        objectiveTimeText: parseObjectiveTime(row.objective_time_text ?? row.objectiveTimeText).text || (row.objective_time_seconds!=null ? parseObjectiveTime(row.objective_time_seconds/86400).text : ''),
+        objectiveTimeSeconds: parseObjectiveTime(row.objective_time_text ?? row.objectiveTimeText).seconds ?? row.objective_time_seconds ?? 0,
         teamSide: 'ALLY' as TeamSide,
         sourceColor: color,
         mvp: !!row.mvp_label || row.rank === 1,
@@ -1413,6 +1439,8 @@ function ImportMatchEditor() {
         setMessage('Prima crea un clan in Onboarding.');
         return;
       }
+      const invalidTime=rows.some(r=>r.objectiveTimeText && parseObjectiveTime(r.objectiveTimeText).seconds===null);
+      if(invalidTime) throw new Error('Tempo obiettivo non valido. Usa mm:ss oppure lascia il campo vuoto.');
       const effectiveResult = computeOurResult(winningTeam, ourTeam);
       const screenshotProof = await uploadScreenshot(activeClanId);
       const screenshotUrl = screenshotProof?.url || null;
@@ -1432,6 +1460,10 @@ function ImportMatchEditor() {
         match_date: matchDateLocal ? new Date(matchDateLocal).toISOString() : (parseBackendMatchDate(matchDateText) || new Date().toISOString()),
         notes: `${matchNotes ? `${matchNotes}\n\n` : ''}${editingMatchId ? 'Aggiornamento' : 'Import'} risultati CLAN MANAGER. Screenshot prova=${screenshotPath || screenshotUrl || proofPhotoName || 'non caricato'}. Template=${useCalibrationTemplate ? `default/${selectedCalibrationTemplate}/${calibrationMode}/frame=${activeFrame.reason}` : 'OFF'}. OurTeam=${ourTeam}. WinningTeam=${winningTeam || '-'}. MatchDateText=${matchDateText || '-'}; MatchDateLocal=${matchDateLocal || '-'}.`
       };
+      // Completamento di un risultato storico: la partita singola esistente diventa completa,
+      // mantenendo lo stesso ID e senza aumentare le vittorie nel database.
+      matchPayload.record_quality='complete';
+      matchPayload.match_scope='single';
       if (screenshotUrl) matchPayload.screenshot_url = screenshotUrl;
       if (screenshotPath) matchPayload.screenshot_storage_path = screenshotPath;
 
@@ -1483,6 +1515,8 @@ function ImportMatchEditor() {
             mvp_type: mvpType,
             rank_medal: row.rankPosition === 1 ? 'gold' : row.rankPosition === 2 ? 'silver' : row.rankPosition === 3 ? 'bronze' : row.rankPosition === 4 ? 'wood' : row.rankPosition === 5 ? 'olympic' : null,
             read_status: row.readStatus || 'manual',
+            objective_time_seconds: parseObjectiveTime(row.objectiveTimeText).seconds,
+            objective_time_text: parseObjectiveTime(row.objectiveTimeText).text || null,
             needs_review: !!row.needsReview
           });
 
@@ -1502,8 +1536,8 @@ function ImportMatchEditor() {
             objective_score: 0,
             captures: row.captures || 0,
             impact: null,
-            objective_time_seconds: null,
-            objective_time_text: null,
+            objective_time_seconds: parseObjectiveTime(row.objectiveTimeText).seconds,
+            objective_time_text: parseObjectiveTime(row.objectiveTimeText).text || null,
             accuracy_percent: null,
             headshot_percent: null,
             kd_ratio: row.deaths ? Number((row.kills / row.deaths).toFixed(2)) : row.kills,
@@ -1518,7 +1552,7 @@ function ImportMatchEditor() {
               objectiveScore: row.score || 0,
               captures: 0,
               impact: 0,
-              objectiveTimeSeconds: 0,
+              objectiveTimeSeconds: parseObjectiveTime(row.objectiveTimeText).seconds ?? 0,
               mvp: isMvp,
               win: teamResult === 'winner'
             })
@@ -1552,6 +1586,7 @@ function ImportMatchEditor() {
       await loadRoster();
       await loadRecentMatches(activeClanId);
       try { deleteEphemeralValue(IMPORT_DRAFT_KEY); } catch {}
+      if(match.match_scope==='series')throw new Error('Questo è il risultato finale di una serie, non una singola partita. Integra le statistiche delle singole partite separatamente.');
       setEditingMatchId(match.id);
       setSavedMatchId(match.id);
       setSelectedExistingMatchId(match.id);
@@ -1577,7 +1612,7 @@ function ImportMatchEditor() {
           <table className="table compact import-table-clean">
             <thead>
               <tr>
-                <th>#</th><th>Medaglia</th><th>Profilo reale / email</th><th>Nome giocatore</th><th>Clan appartenenza</th><th>🗡️ Kill</th><th>💀 Death</th><th>🤝 Assist</th><th>🏆 MVP</th><th>Stato</th>
+                <th>#</th><th>Medaglia</th><th>Profilo reale / email</th><th>Nome giocatore</th><th>Clan appartenenza</th><th>🗡️ Kill</th><th>💀 Death</th><th>🤝 Assist</th><th>⏱ Obiettivo mm:ss</th><th>🏆 MVP</th><th>Stato</th>
               </tr>
             </thead>
             <tbody>
@@ -1597,11 +1632,12 @@ function ImportMatchEditor() {
                   <td><input className="input mini" value={row.kills} onChange={(e) => updateRow(index, 'kills', e.target.value)} /></td>
                   <td><input className="input mini" value={row.deaths} onChange={(e) => updateRow(index, 'deaths', e.target.value)} /></td>
                   <td><input className="input mini" value={row.assists} onChange={(e) => updateRow(index, 'assists', e.target.value)} /></td>
+                  <td><input className="input mini" placeholder="01:35" value={row.objectiveTimeText || ''} onChange={(e)=>updateRow(index,'objectiveTimeText',e.target.value)}/></td>
                   <td><label className="check-line"><input type="checkbox" checked={!!row.mvp || row.rankPosition === 1} onChange={(e) => updateRow(index, 'mvp', e.target.checked)} /> <span>{row.rankPosition === 1 ? 'Top 1' : ''}</span></label></td>
                   <td><span className={row.needsReview ? 'badge warn' : 'badge ok'}>{row.needsReview ? 'Controlla' : (row.readStatus || 'ok')}</span></td>
                 </tr>
               ))}
-              {!indexedRows.length && <tr><td colSpan={10} className="muted">Nessuna riga. Aggiungi player manualmente.</td></tr>}
+              {!indexedRows.length && <tr><td colSpan={11} className="muted">Nessuna riga. Aggiungi player manualmente.</td></tr>}
             </tbody>
           </table>
         </div>
@@ -1614,6 +1650,7 @@ function ImportMatchEditor() {
               </div>
               <label>Profilo reale / email<select className="select" value={row.playerId || ''} onChange={(e) => updateRow(index, 'playerId', e.target.value)}><option value="">Manuale / non registrato</option>{roster.map((player) => <option key={player.id} value={player.id}>{rosterOptionLabel(player)}</option>)}</select></label>
               {row.profileEmail && <div className="profile-linked-note">Profilo collegato: {row.profileEmail}</div>}<label>Nome giocatore<input className="input" value={row.nickname} onChange={(e) => updateRow(index, 'nickname', e.target.value)} /></label>
+              <label>⏱ Tempo obiettivo (mm:ss)<input className="input" placeholder="01:35" value={row.objectiveTimeText || ''} onChange={(e)=>updateRow(index,'objectiveTimeText',e.target.value)} /></label>
               <label>Clan<input className="input" value={row.playerClanName || ''} onChange={(e) => updateRow(index, 'playerClanName', e.target.value)} /></label>
               <div className="ak-score-grid">
                 <label>Kill<input className="input" value={row.kills} onChange={(e) => updateRow(index, 'kills', e.target.value)} /></label>
@@ -1745,7 +1782,7 @@ function ImportMatchEditor() {
         <div className="card">
           <h2>Dati partita</h2>
           <details className="top-gap import-table-entry" open>
-            <summary>📋 Importa risultato da Excel o tabella</summary>
+            <summary>📋 Importa risultato da Excel o tabella</summary><div className="notice top-gap">⏱ V14: colonna TEMPO_OBIETTIVO in formato mm:ss per giocatore (Postazione/Dominio). Per importare soltanto un risultato finale storico, <a href="/import/history">usa l’importatore storico</a>.</div>
             <div className="import-excel-panel">
               <p className="muted">Usa il template Excel ufficiale per caricare risultato partita e K/D/A con numeri precisi. Lo screenshot resta disponibile per prova visiva.</p>
               <div className="cal-buttons">
@@ -1786,7 +1823,7 @@ function ImportMatchEditor() {
               <div className="field"><label>Data/ora partita</label><input className="input" type="datetime-local" value={matchDateLocal} onChange={(e) => setMatchDateLocal(e.target.value)} /><small className="muted">Testo OCR: {matchDateText || 'non letto'} </small></div>
             </div>
             <div className="card subtle-card import-edit-existing-card"><h3>Modifica partita già registrata</h3><div className="grid grid-2"><div className="field"><label>Partite salvate</label><select className="select" value={selectedExistingMatchId} onChange={(e) => setSelectedExistingMatchId(e.target.value)}><option value="">Seleziona partita salvata</option>{recentMatches.map((m) => <option key={m.id} value={m.id}>{m.screenshot_url ? '📸 ' : ''}{new Date(m.match_date || m.created_at || Date.now()).toLocaleString('it-IT')} · {m.map_name || '-'} · {m.opponent || '-'} · {m.team_score ?? '-'}:{m.enemy_score ?? '-'}</option>)}</select></div><div className="field"><label>Azione</label><button className="btn secondary" type="button" disabled={!selectedExistingMatchId || loadingExistingMatch} onClick={() => loadExistingMatchForEdit(selectedExistingMatchId)}>{loadingExistingMatch ? 'Carico...' : '✏️ Carica per modifica'}</button></div></div><small className="muted">Quando carichi una partita, Salva aggiorna quella esistente e non crea doppioni.</small></div>
-            <div className="ak-import-mode-card"><div className="field"><label>Nostro team nello screenshot</label><select className="select" value={ourTeam} onChange={(e) => setOurTeam(e.target.value as 'blue' | 'red')}><option value="blue">Noi siamo BLU / sinistra</option><option value="red">Noi siamo ROSSI / destra</option></select></div><p className="muted">L'OCR importerà solo la squadra scelta. Puoi cambiare BLU/ROSSO anche dopo una lettura e premere di nuovo Importa risultati per ricalcolare.</p></div><div className="grid grid-2"><div className="field"><label>Clan avversario</label><input className="input" value={opponent} onChange={(e) => { setOpponent(e.target.value); setRows((current) => current.map((r) => r.teamSide === 'ENEMY' && (!r.playerClanName || r.playerClanName === 'Avversari') ? { ...r, playerClanName: e.target.value } : r)); }} placeholder="AP / clan avversario" /></div><div className="field"><label>Squadra vincente</label><select className="select" value={winningTeam} onChange={(e) => setWinningTeam(e.target.value as 'blue' | 'red' | 'draw' | '')}><option value="">Da verificare</option><option value="blue">Blu / sinistra</option><option value="red">Rosso / destra</option><option value="draw">Pareggio</option></select></div></div>
+            <div className="ak-import-mode-card"><div className="field"><label>Nostro team nello screenshot</label><select className="select" value={ourTeam} onChange={(e) => setOurTeam(e.target.value as 'blue' | 'red')}><option value="blue">Noi siamo BLU / sinistra</option><option value="red">Noi siamo ROSSI / destra</option></select></div><p className="muted">L'OCR importerà solo la squadra scelta. Puoi cambiare BLU/ROSSO anche dopo una lettura e premere di nuovo Importa risultati per ricalcolare.</p></div><div className="grid grid-2"><div className="field"><label>Clan avversario</label><datalist id="ak47dx-opponent-history">{historicalOpponents.map(n=><option value={n} key={n}/>)}</datalist><input list="ak47dx-opponent-history" className="input" value={opponent} onChange={(e) => { setOpponent(e.target.value); setRows((current) => current.map((r) => r.teamSide === 'ENEMY' && (!r.playerClanName || r.playerClanName === 'Avversari') ? { ...r, playerClanName: e.target.value } : r)); }} placeholder="AP / clan avversario" /></div><div className="field"><label>Squadra vincente</label><select className="select" value={winningTeam} onChange={(e) => setWinningTeam(e.target.value as 'blue' | 'red' | 'draw' | '')}><option value="">Da verificare</option><option value="blue">Blu / sinistra</option><option value="red">Rosso / destra</option><option value="draw">Pareggio</option></select></div></div>
             <div className="grid grid-3 import-result-score-grid"><div className="field"><label>{ourTeam === 'blue' ? 'Risultato BLU / nostro team' : 'Risultato ROSSO / nostro team'}</label><input className="input score-input" inputMode="numeric" value={teamScore} onChange={(e) => setTeamScore(e.target.value.replace(/[^0-9]/g, ''))} placeholder="6" /></div><div className="field"><label>{ourTeam === 'blue' ? 'Risultato ROSSO / avversario' : 'Risultato BLU / avversario'}</label><input className="input score-input" inputMode="numeric" value={enemyScore} onChange={(e) => setEnemyScore(e.target.value.replace(/[^0-9]/g, ''))} placeholder="0" /></div><div className="field"><label>Esito nostro team</label><select className="select" value={result} onChange={(e) => setResult(e.target.value as MatchResult)}><option>WIN</option><option>LOSE</option><option>DRAW</option></select><small className="muted">Se inserisci 6 e 0 l'esito si aggiorna automaticamente.</small></div></div>
             <div className="field"><label>Note partita</label><textarea className="input" rows={4} value={matchNotes} onChange={(e) => setMatchNotes(e.target.value)} placeholder="Note scrim, correzioni OCR, contestazioni, strategia, ecc." /></div>
           </div>

@@ -3049,3 +3049,36 @@ select.pro-select {
     padding: 7px 10px;
   }
 }
+
+/* AK47DX V14 Modern Tactical - gradual non-destructive restyle */
+:root { --v14-accent:#cf4c51; --v14-surface:#18202b; --v14-surface-alt:#202a37; }
+.ak-v14 .gaming-panel,.v14-tournament-board{border:1px solid rgba(204,77,84,.28);background:linear-gradient(145deg,rgba(32,41,55,.94),rgba(13,18,26,.96));}
+.v14-season-list{display:grid;gap:.65rem}.v14-season-row{display:flex;align-items:center;justify-content:space-between;gap:1rem;padding:.9rem;border:1px solid rgba(148,163,184,.18);background:rgba(15,23,42,.55);border-radius:13px}
+.v14-season-row .muted{font-size:.8rem}.v14-pill{display:inline-block;padding:.35rem .7rem;border-radius:999px;font-size:.8rem;font-weight:700}.v14-pill.pass{color:#8df0b7;background:rgba(26,118,82,.22)}
+.v14-history-row{margin:1rem 0;padding:1.15rem;border:1px solid rgba(148,163,184,.24);border-radius:17px;background:rgba(15,23,42,.48)}
+.v14-score-preview{min-height:42px;display:flex;align-items:center;padding:0 .7rem;background:#111923;border-radius:10px;font-weight:800}
+.v14-group-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,310px),1fr));gap:1rem;align-items:start}
+.v14-group-card{padding:1rem;border-radius:17px;background:linear-gradient(160deg,#212a36,#111721);border:1px solid rgba(148,163,184,.25);box-shadow:0 8px 32px rgba(0,0,0,.2)}
+.v14-group-card header{display:flex;justify-content:space-between;align-items:center}.v14-group-card header span{color:#b4becb;font-size:.8rem}.v14-group-card h3{color:#f5f7fb;letter-spacing:.08em}.v14-group-card h4{margin:.8rem 0 .4rem;color:#dce3ec}
+.v14-group-card .table td,.v14-group-card .table th{padding:.5rem .35rem;white-space:nowrap}.v14-group-card .table td:nth-child(2){min-width:90px}
+.v14-group-card tr.v14-qualify{background:rgba(23,126,84,.2);color:#a5efc7}.v14-group-card tr.v14-out{background:rgba(80,84,94,.17);color:#8b96a5}.v14-group-card tr.v14-pending{color:#dde6f1}
+.v14-group-games{display:grid;gap:.45rem}.v14-game{border:1px solid rgba(148,163,184,.22);border-radius:10px;padding:.65rem;color:#f1f5f9;text-align:left;background:#141c27;display:grid;gap:.3rem}.v14-game:hover{border-color:#cf4c51}.v14-game span{display:flex;gap:.5rem;align-items:center;justify-content:space-between}.v14-game small{color:#9daabd}
+.v14-playoff-action{display:flex;justify-content:space-between;align-items:center;gap:1rem;padding:.8rem 1rem;border:1px solid rgba(204,77,84,.25);border-radius:12px}.v14-playoff-action p{margin:0;max-width:720px}
+.v14-bracket .bracket-column{position:relative}.v14-bracket .bracket-column:not(:last-child):after{content:'→';position:absolute;right:-.85rem;top:47%;color:#a4b7ca;font-size:1.1rem;z-index:1}
+.v14-bracket .bracket-match .winner{background:rgba(37,129,82,.3);color:#b4f5ca;text-decoration:none}.v14-bracket .bracket-match .eliminated{background:rgba(85,89,102,.3);color:#8996a5;text-decoration:line-through}
+.v14-manual-participants{padding:1rem;border:1px solid rgba(204,77,84,.24);border-radius:14px;margin-bottom:1rem;background:rgba(99,25,32,.09)}
+.ak-v14 .input,.ak-v14 .select,.ak-v14 .textarea,.v14-tournament-board .select{background-color:#111a25!important;color:#f3f6fa!important;border-color:#435065!important}
+.ak-v14 .select option{background:#17202d;color:#f3f6fa}
+@media(max-width:760px){.v14-season-row{align-items:flex-start;flex-direction:column}.v14-playoff-action{flex-direction:column;align-items:stretch}.v14-history-row{padding:.7rem}.v14-group-grid{grid-template-columns:1fr}}
+.v14-history-stats{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:.75rem;padding:1rem;border:1px solid rgba(204,77,84,.28);border-radius:18px;background:linear-gradient(120deg,#1b2633,#101720)}
+.v14-stat-chip{padding:.75rem;border-radius:12px;background:rgba(255,255,255,.04);display:grid;gap:.3rem}.v14-stat-chip span{color:#c0cad5;font-size:.78rem}.v14-stat-chip strong{color:#edf4fb;font-size:1.35rem}.v14-history-stats p{grid-column:1/-1;margin:0}.v14-history-stats a{grid-column:1/-1;justify-self:start}
+@media(max-width:760px){.v14-history-stats{grid-template-columns:repeat(2,minmax(0,1fr));padding:.6rem}}
+/* Restyling globale conservativo: differenziazione dei pannelli, contrasto e comandi. */
+:root{--bg:#0e1219;--panel:#1b2531;--panel2:#222e3c;--accent:#c74748;--accent2:#8a9db4;--border:rgba(172,184,201,.2);--muted:#b3bfd0}
+.card{border-radius:18px;box-shadow:0 12px 36px rgba(0,0,0,.18);background:linear-gradient(160deg,rgba(30,40,54,.96),rgba(17,23,32,.96))}
+.btn{background:linear-gradient(120deg,#c74748,#a12f3b);transition:transform .16s ease,filter .16s ease}.btn:hover:not(:disabled){transform:translateY(-1px);filter:brightness(1.1)}
+.input,.select,.textarea{background-color:#17212c!important;color:#e7edf6!important;border-color:rgba(164,181,206,.35)}
+.select option{background-color:#17212c;color:#e7edf6}
+.table th{background:rgba(255,255,255,.05)}.table tbody tr:hover{background:rgba(255,255,255,.035)}
+:where(button,a,input,select,textarea):focus-visible{outline:2px solid #f38d92;outline-offset:2px}
+@media(prefers-reduced-motion:reduce){.btn,.card,.bracket-match{transition:none!important;animation:none!important}}

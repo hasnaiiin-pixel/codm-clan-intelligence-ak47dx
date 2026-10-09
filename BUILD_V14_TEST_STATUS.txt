@@ -1,0 +1,6 @@
+AK47DX V14.1 TEST - NON OFFICIAL STABLE
+Sorgente: V13.11.2 + V14 Preview stagioni/backup.
+Nuove pagine: /admin/seasons, /import/history; nuovi endpoint /api/history-results, verifica backup POST.
+SQL: UPDATE_V14_1_HISTORY_SEASONS_NON_DESTRUCTIVE.sql (solo dopo staging, dopo migrazione V14 precedente).
+Verifica sintassi TypeScript: completata; compilazione npm run build: non verificata (dipendenze non disponibili nell'ambiente).
+Il ripristino totale dei backup non è attivato per sicurezza.

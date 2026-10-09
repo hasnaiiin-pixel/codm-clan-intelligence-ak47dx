@@ -156,7 +156,7 @@ export default function AnalyticsPage() {
 
   const selectedSeasonId = filterSeason === "ACTIVE" ? (seasons.find(s => s.is_active)?.id || "ALL") : filterSeason;
   const isInSeason = (match?: Match | null) => selectedSeasonId === "ALL" || match?.season_id === selectedSeasonId;
-  const filteredMatches = useMemo(
+  const scopedMatches = useMemo(
     () =>
       matches.filter(
         (m) =>
@@ -166,6 +166,13 @@ export default function AnalyticsPage() {
       ),
     [matches, filterMode, filterMap, selectedSeasonId],
   );
+  // Le serie (Scrim 3-2) non devono diventare una singola partita nei totali partite.
+  const filteredMatches = useMemo(()=>scopedMatches.filter(m=>m.match_scope!=='series'),[scopedMatches]);
+  const filteredSeries = useMemo(()=>scopedMatches.filter(m=>m.match_scope==='series'),[scopedMatches]);
+  const historicalCount = scopedMatches.filter(m=>m.record_quality==='result_only').length;
+  const seriesWins = filteredSeries.filter(m=>m.result==='WIN').length;
+  const seriesLosses = filteredSeries.filter(m=>m.result==='LOSE').length;
+
 
   const filteredRows = useMemo(
     () =>
@@ -587,7 +594,7 @@ export default function AnalyticsPage() {
   }
 
   function exportExcel(useAll = false) {
-    const selectedMatches = useAll ? matches : filteredMatches;
+    const selectedMatches = useAll ? matches : scopedMatches;
     const selectedRows = useAll ? scoreboardRows : filteredRows;
     const selectedStats = useAll ? stats : filteredStats;
     const matchById = new Map(matches.map((match) => [match.id, match]));
@@ -637,6 +644,8 @@ export default function AnalyticsPage() {
     const matchRows = selectedMatches.map((match) => ({
       DATA: new Date(match.match_date).toLocaleString("it-IT"),
       STAGIONE: seasons.find(s => s.id === match.season_id)?.name || "",
+      LIVELLO: match.match_scope==='series'?'Incontro/serie':'Partita singola',
+      COMPLETEZZA: match.record_quality==='result_only'?'Solo risultato':'Statistiche complete',
       TIPO: match.match_type,
       MODALITA: match.mode,
       MAPPA: match.map_name || "",
@@ -669,7 +678,8 @@ export default function AnalyticsPage() {
       STAGIONE: useAll ? "Carriera" : (seasons.find(s => s.id === selectedSeasonId)?.name || "Carriera"),
       FILTRO_MODALITA: useAll ? "Tutte" : filterMode,
       FILTRO_MAPPA: useAll ? "Tutte" : filterMap,
-      PARTITE: selectedMatches.length,
+      PARTITE: selectedMatches.filter(m=>m.match_scope!=='series').length,
+      SERIE_SCRIM: selectedMatches.filter(m=>m.match_scope==='series').length,
       VITTORIE: selectedMatches.filter((item) => item.result === "WIN").length,
       SCONFITTE: selectedMatches.filter((item) => item.result === "LOSE").length,
       PAREGGI: selectedMatches.filter((item) => item.result === "DRAW").length,
@@ -809,6 +819,7 @@ export default function AnalyticsPage() {
             </select>
           </div>
         </div>
+        <div className="v14-history-stats top-gap"><div className="v14-stat-chip"><span>Risultati storici filtrati</span><strong>{historicalCount}</strong></div><div className="v14-stat-chip"><span>Scrim / serie registrate</span><strong>{filteredSeries.length}</strong></div><div className="v14-stat-chip"><span>Scrim vinte / perse</span><strong>{seriesWins} / {seriesLosses}</strong></div><div className="v14-stat-chip"><span>Win Rate serie</span><strong>{filteredSeries.length?Math.round(100*seriesWins/filteredSeries.length):0}%</strong></div><p className="muted">Le serie hanno un conteggio distinto. Le partite storiche singole entrano nel Win Rate del clan, non nelle metriche individuali senza dati.</p><a className="btn small secondary" href="/import/history">+ Registra risultati storici</a></div>
         <div className="analytics-share-actions-v1311 top-gap">
           <button className="btn" type="button" onClick={() => exportExcel(false)}>📊 Excel filtrato</button>
           <button className="btn secondary" type="button" onClick={() => exportExcel(true)}>📚 Excel completo</button>

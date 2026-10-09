@@ -24,7 +24,7 @@ type TournamentRow = {
 };
 type TeamRow = { id: string; tournament_id: string; name: string; captain?: string | null; status?: string | null; logo_url?: string | null; players?: string[] | null; reserves?: string[] | null };
 type RegistrationRow = { id: string; tournament_id: string; user_id?: string | null; team_id?: string | null; nickname?: string | null; status?: string | null; note?: string | null; created_at?: string };
-type MatchRow = { id: string; tournament_id: string; team_a?: string | null; team_b?: string | null; phase?: string | null; group_name?: string | null; match_time?: string | null; lobby_time?: string | null; map_name?: string | null; mode?: string | null; status?: string | null; score_a?: number | null; score_b?: number | null; winner?: string | null; mvp?: string | null; screenshot_url?: string | null; notes?: string | null };
+type MatchRow = { id: string; tournament_id: string; team_a?: string | null; team_b?: string | null; phase?: string | null; group_name?: string | null; match_time?: string | null; lobby_time?: string | null; map_name?: string | null; mode?: string | null; status?: string | null; score_a?: number | null; score_b?: number | null; winner?: string | null; mvp?: string | null; screenshot_url?: string | null; notes?: string | null; lobby_name?: string | null; referee?: string | null; bracket_order?: number | null; next_match_id?: string | null };
 
 type Participant = { name: string; seed: number; source: 'team' | 'registration' };
 
@@ -82,13 +82,16 @@ export default function TournamentPage() {
   const [selectedId, setSelectedId] = useState('');
   const [teams, setTeams] = useState<TeamRow[]>([]);
   const [registrations, setRegistrations] = useState<RegistrationRow[]>([]);
+  const [rosterOptions,setRosterOptions]=useState<Array<{nickname:string}>>([]);
+  const [manualNick,setManualNick]=useState('');
+  const [editingTeamId,setEditingTeamId]=useState('');
   const [matches, setMatches] = useState<MatchRow[]>([]);
   const [message, setMessage] = useState('');
   const [loading, setLoading] = useState(true);
   const [form, setForm] = useState({ name: '', description: '', coverUrl: '', date: '', start: '', lobby: '', maxTeams: '8', format: 'Da decidere dopo iscrizioni', type: 'Da decidere dopo iscrizioni', status: 'Bozza', allowedPreset: 'Regole CODM competitive', allowedWeapons: '', bans: '', rules: '' });
   const [registrationNote, setRegistrationNote] = useState('');
   const [teamForm, setTeamForm] = useState({ name: '', captain: '', players: '', reserves: '', status: 'Incompleta' });
-  const [matchForm, setMatchForm] = useState({ id: '', teamA: '', teamB: '', phase: 'Girone', group: 'A', date: '', lobby: '', map: 'Standoff', mode: 'CED', scoreA: '', scoreB: '', winner: '', mvp: '', status: 'Da giocare', screenshotUrl: '', notes: '' });
+  const [matchForm, setMatchForm] = useState({ id: '', teamA: '', teamB: '', phase: 'Girone', group: 'A', date: '', lobby: '', map: 'Standoff', mode: 'CED', scoreA: '', scoreB: '', winner: '', mvp: '', status: 'Da giocare', screenshotUrl: '', notes: '', lobbyName: '', referee: '' });
   const [generationMode, setGenerationMode] = useState('auto');
   const [confirmDelete, setConfirmDelete] = useState(false);
 
@@ -102,7 +105,7 @@ export default function TournamentPage() {
   }, [teams, confirmedRegistrations]);
   const recommended = useMemo(() => recommendTournament(participants.length), [participants.length]);
 
-  useEffect(() => { void load(); }, []);
+  useEffect(() => { void load(); void supabase.from('players').select('nickname').order('nickname').then(({data})=>setRosterOptions(data||[])); }, []);
   useEffect(() => { if (selected?.id) void loadDetails(selected.id); }, [selected?.id]);
   useEffect(() => { if (selected) syncFormFromSelected(selected); }, [selected?.id]);
 
@@ -197,6 +200,19 @@ export default function TournamentPage() {
     await loadDetails(selected.id);
   }
 
+  async function addManualRegistration(){
+    if(!selected?.id||!canWrite)return setMessage('Seleziona il torneo ed entra come Staff.');
+    const names=splitLines(manualNick.replace(/;/g,'\n'));
+    if(!names.length)return setMessage('Inserisci almeno un nome.');
+    const existing=new Set(registrations.map(r=>String(r.nickname||'').trim().toLocaleLowerCase()));
+    const toAdd=Array.from(new Set(names.map(n=>n.trim()).filter(Boolean))).filter(n=>!existing.has(n.toLocaleLowerCase()));
+    if(!toAdd.length)return setMessage('Partecipanti già presenti. Nessun duplicato creato.');
+    const {error}=await supabase.from('codm_tournament_registrations').insert(toAdd.map(n=>({tournament_id:selected.id,user_id:null,nickname:n,status:'Confermata',note:'Aggiunto dallo Staff'})));
+    if(error)return setMessage(error.message);
+    setManualNick('');setMessage(`${toAdd.length} partecipanti aggiunti dalla lista.`);await loadDetails(selected.id);
+  }
+  function editTeam(t:TeamRow){setEditingTeamId(t.id);setTeamForm({name:t.name,captain:t.captain||'',players:(t.players||[]).join('\n'),reserves:(t.reserves||[]).join('\n'),status:t.status||'Incompleta'});setActive('teams')}
+
   async function updateRegistrationStatus(id: string, status: string) {
     if (!canWrite) return setMessage('Solo staff può gestire iscrizioni.');
     const { error } = await supabase.from('codm_tournament_registrations').update({ status }).eq('id', id);
@@ -217,10 +233,15 @@ export default function TournamentPage() {
     if (!canWrite) return setMessage('Solo staff può modificare squadre.');
     if (!teamForm.name.trim()) return setMessage('Inserisci nome squadra.');
     const payload = { tournament_id: selected.id, name: teamForm.name.trim(), captain: teamForm.captain.trim() || null, players: splitLines(teamForm.players), reserves: splitLines(teamForm.reserves), status: teamForm.status };
-    const { error } = await supabase.from('codm_tournament_teams').insert(payload);
+    if(teams.some(t=>t.id!==editingTeamId&&t.name.toLowerCase()===teamForm.name.trim().toLowerCase()))return setMessage('Nome squadra già esistente nel torneo.');
+    const selectedPlayers=splitLines(teamForm.players).map(n=>n.toLowerCase());
+    const usedElsewhere=new Set(teams.filter(t=>t.id!==editingTeamId).flatMap(t=>(t.players||[]).map(n=>n.toLowerCase())));
+    if(selectedPlayers.some(n=>usedElsewhere.has(n)))return setMessage('Uno o più giocatori sono già assegnati a un’altra squadra.');
+    if(editingTeamId && teams.find(t=>t.id===editingTeamId)?.name!==teamForm.name.trim() && matches.some(m=>m.team_a===teams.find(t=>t.id===editingTeamId)?.name||m.team_b===teams.find(t=>t.id===editingTeamId)?.name)) return setMessage('Squadra già presente in partite generate: non puoi cambiarne il nome senza riallineare gli incontri. Prima completa o correggi il calendario.');
+    const { error } = editingTeamId ? await supabase.from('codm_tournament_teams').update(payload).eq('id',editingTeamId) : await supabase.from('codm_tournament_teams').insert(payload);
     if (error) return setMessage(error.message);
-    setTeamForm({ name: '', captain: '', players: '', reserves: '', status: 'Incompleta' });
-    setMessage('Squadra salvata. Le squadre vengono create dopo le iscrizioni, come richiesto.');
+    setEditingTeamId('');setTeamForm({ name: '', captain: '', players: '', reserves: '', status: 'Incompleta' });
+    setMessage('Squadra personalizzata salvata.');
     await loadDetails(selected.id);
   }
 
@@ -230,7 +251,7 @@ export default function TournamentPage() {
     const type = generationMode === 'auto' ? String(form.type || selected.type || recommended.title).toLowerCase() : generationMode.toLowerCase();
     const generated: any[] = [];
     if (type.includes('grupp') || type.includes('girone')) {
-      const groupCount = list.length >= 16 ? 4 : list.length >= 8 ? 2 : 1;
+      const groupCount = list.length >= 16 ? 4 : list.length >= 9 ? 3 : list.length >= 6 ? 2 : 1;
       const groups = Array.from({ length: groupCount }, (_, i) => String.fromCharCode(65 + i));
       const buckets = groups.map(() => [] as string[]);
       list.forEach((name, i) => buckets[i % groupCount].push(name));
@@ -266,8 +287,7 @@ export default function TournamentPage() {
     if (!canWrite) return setMessage('Solo staff può generare tabellone.');
     const generated = buildGeneratedMatches();
     if (!generated.length) return setMessage('Servono almeno 2 iscritti confermati o 2 squadre.');
-    if (matches.length && !window.confirm('Sostituire il tabellone/partite esistenti del torneo?')) return;
-    if (matches.length) await supabase.from('codm_tournament_matches').delete().eq('tournament_id', selected.id);
+    if(matches.length)return setMessage('Sono già presenti incontri: per sicurezza non vengono sovrascritti. Modifica i risultati esistenti.');
     const { error } = await supabase.from('codm_tournament_matches').insert(generated);
     if (error) return setMessage(error.message);
     setMessage(`Generate ${generated.length} partite. Clicca una partita per inserire o modificare risultato.`);
@@ -275,8 +295,43 @@ export default function TournamentPage() {
     setActive('bracket');
   }
 
+  async function generatePlayoffs(){
+    if(!canWrite||!selected?.id)return setMessage('Solo Staff può avviare i playoff.');
+    if(!groupTables.length||groupTables.some(g=>!g.finished))return setMessage('Completa tutti gli incontri dei gironi prima di creare i playoff.');
+    if(matches.some(m=>m.phase!=='Girone'))return setMessage('Playoff già creati: nessun duplicato inserito.');
+    const guaranteed=groupTables.flatMap(g=>g.standings.slice(0,2));
+    const others=groupTables.flatMap(g=>g.standings.slice(2));
+    const order=(a:typeof guaranteed[number],b:typeof guaranteed[number])=>b.points-a.points||b.diff-a.diff||a.team.localeCompare(b.team);
+    const eight=[...guaranteed,...others.sort(order).slice(0,Math.max(0,8-guaranteed.length))].sort(order);
+    const names=eight.map(x=>x.team);
+    if(names.length<2)return setMessage('Servono almeno due squadre qualificate.');
+    const size=nextPowerOfTwo(names.length);
+    const first=phaseForSize(size);
+    const phaseSequence=phasesOrder.slice(phasesOrder.indexOf(first),phasesOrder.indexOf('Finale')+1);
+    const generated:Array<Record<string,unknown>>=[];
+    const byPhase:Array<Array<{id:string;order:number}>>=[];
+    phaseSequence.forEach((phase,round)=>{
+      const count=size/(2**(round+1));
+      const list=Array.from({length:count},(_,order)=>({id:crypto.randomUUID(),order}));
+      byPhase.push(list);
+      list.forEach((n)=>{
+        const a=round===0?(names[n.order*2]||'BYE'):`Vincitore ${phaseSequence[round-1]} ${n.order*2+1}`;
+        const b=round===0?(names[n.order*2+1]||'BYE'):`Vincitore ${phaseSequence[round-1]} ${n.order*2+2}`;
+        generated.push({id:n.id,tournament_id:selected.id,team_a:a,team_b:b,phase,group_name:'Playoff',bracket_order:n.order,next_match_id:null,status:'Da giocare'});
+      });
+    });
+    for(let round=0;round<byPhase.length-1;round++)for(const n of byPhase[round]){
+      const record=generated.find(g=>g.id===n.id);
+      if(record)record.next_match_id=byPhase[round+1][Math.floor(n.order/2)].id;
+    }
+    const {error}=await supabase.from('codm_tournament_matches').insert(generated);
+    if(error)return setMessage(error.message);
+    setMessage(`Playoff creati: ${names.length} squadre qualificate, ${generated.length} incontri.`);
+    await loadDetails(selected.id);
+  }
+
   function editMatch(match: MatchRow) {
-    setMatchForm({ id: match.id, teamA: match.team_a || '', teamB: match.team_b || '', phase: match.phase || 'Girone', group: match.group_name || 'A', date: match.match_time ? String(match.match_time).slice(0, 16) : '', lobby: match.lobby_time ? String(match.lobby_time).slice(0, 16) : '', map: match.map_name || 'Standoff', mode: match.mode || 'CED', scoreA: match.score_a == null ? '' : String(match.score_a), scoreB: match.score_b == null ? '' : String(match.score_b), winner: match.winner || '', mvp: match.mvp || '', status: match.status || 'Da giocare', screenshotUrl: match.screenshot_url || '', notes: match.notes || '' });
+    setMatchForm({ id: match.id, teamA: match.team_a || '', teamB: match.team_b || '', phase: match.phase || 'Girone', group: match.group_name || 'A', date: match.match_time ? String(match.match_time).slice(0, 16) : '', lobby: match.lobby_time ? String(match.lobby_time).slice(0, 16) : '', map: match.map_name || 'Standoff', mode: match.mode || 'CED', scoreA: match.score_a == null ? '' : String(match.score_a), scoreB: match.score_b == null ? '' : String(match.score_b), winner: match.winner || '', mvp: match.mvp || '', status: match.status || 'Da giocare', screenshotUrl: match.screenshot_url || '', notes: match.notes || '', lobbyName: match.lobby_name || '', referee: match.referee || '' });
     setActive('matches');
     setMessage(`Modifica partita: ${match.team_a || '-'} vs ${match.team_b || '-'}.`);
   }
@@ -287,7 +342,9 @@ export default function TournamentPage() {
     const scoreA = matchForm.scoreA === '' ? null : Number(matchForm.scoreA);
     const scoreB = matchForm.scoreB === '' ? null : Number(matchForm.scoreB);
     const winner = matchForm.winner || (scoreA !== null && scoreB !== null ? (scoreA > scoreB ? matchForm.teamA : scoreB > scoreA ? matchForm.teamB : 'Pareggio') : null);
-    const payload = { tournament_id: selected.id, team_a: matchForm.teamA, team_b: matchForm.teamB, phase: matchForm.phase, group_name: matchForm.group, match_time: matchForm.date || null, lobby_time: matchForm.lobby || null, map_name: matchForm.map, mode: matchForm.mode, status: scoreA !== null && scoreB !== null ? 'Finita' : matchForm.status, score_a: scoreA, score_b: scoreB, winner, mvp: matchForm.mvp || null, screenshot_url: matchForm.screenshotUrl || null, notes: `${matchForm.notes || ''}\n${rulesSummary()}`.trim() };
+    const conflict=matches.find(m=>m.id!==matchForm.id&&m.match_time===matchForm.date&&!!matchForm.date&&((!!matchForm.lobbyName&&m.lobby_name===matchForm.lobbyName)||[m.team_a,m.team_b].some(t=>t&&[matchForm.teamA,matchForm.teamB].includes(t))));
+    if(conflict)return setMessage('Conflitto orario: squadra o lobby già assegnata alla stessa ora.');
+    const payload = { tournament_id: selected.id, team_a: matchForm.teamA, team_b: matchForm.teamB, phase: matchForm.phase, group_name: matchForm.group, match_time: matchForm.date || null, lobby_time: matchForm.lobby || null, map_name: matchForm.map, mode: matchForm.mode, status: scoreA !== null && scoreB !== null ? 'Finita' : matchForm.status, score_a: scoreA, score_b: scoreB, winner, mvp: matchForm.mvp || null, screenshot_url: matchForm.screenshotUrl || null, lobby_name: matchForm.lobbyName || null, referee: matchForm.referee || null, notes: `${matchForm.notes || ''}\n${rulesSummary()}`.trim() };
     const query = matchForm.id ? supabase.from('codm_tournament_matches').update(payload).eq('id', matchForm.id) : supabase.from('codm_tournament_matches').insert(payload);
     const { error } = await query;
     if (error) return setMessage(error.message);
@@ -297,13 +354,19 @@ export default function TournamentPage() {
     await loadDetails(selected.id);
   }
 
-  async function advanceWinner(current: typeof matchForm, winner: string) {
-    const np = nextPhase(current.phase);
-    if (!np || np === 'Vincitore') return;
-    const nextMatch = matches.find((m) => m.phase === np && (!m.team_a || !m.team_b || String(m.team_a).startsWith('Vincitore') || String(m.team_b).startsWith('Vincitore')));
-    if (!nextMatch) return;
-    const patch = !nextMatch.team_a || String(nextMatch.team_a).startsWith('Vincitore') ? { team_a: winner } : { team_b: winner };
-    await supabase.from('codm_tournament_matches').update(patch).eq('id', nextMatch.id);
+  async function advanceWinner(current: typeof matchForm,winner: string){
+    const existing=matches.find(m=>m.id===current.id);
+    if(!existing?.next_match_id)return;
+    const parent=matches.find(m=>m.id===existing.next_match_id);
+    if(!parent)return;
+    const slot=(existing.bracket_order||0)%2===0?'team_a':'team_b';
+    const previous=slot==='team_a'?parent.team_a:parent.team_b;
+    if(previous && !String(previous).startsWith('Vincitore') && previous!==winner){
+      setMessage('ATTENZIONE: il turno successivo contiene già un risultato. Verifica manualmente il tabellone.');
+      return;
+    }
+    const {error}=await supabase.from('codm_tournament_matches').update({[slot]:winner}).eq('id',parent.id);
+    if(error)setMessage(`Avanzamento non riuscito: ${error.message}`);
   }
 
   const standings = useMemo(() => {
@@ -322,9 +385,35 @@ export default function TournamentPage() {
     return Array.from(map.values()).sort((a,b) => b.points-a.points || b.diff-a.diff || a.team.localeCompare(b.team));
   }, [participants, matches]);
 
+  const groupTables=useMemo(()=>{
+    const groupMatches=matches.filter(m=>m.phase==='Girone');
+    const names=Array.from(new Set(groupMatches.map(m=>m.group_name||'A'))).sort();
+    return names.map(name=>{
+      const games=groupMatches.filter(m=>(m.group_name||'A')===name);
+      const members=Array.from(new Set(games.flatMap(m=>[m.team_a,m.team_b]).filter((n):n is string=>!!n&&n!=='BYE')));
+      const standings=members.map(team=>{
+        const played=games.filter(m=>m.score_a!==null&&m.score_a!==undefined&&m.score_b!==null&&m.score_b!==undefined&&(m.team_a===team||m.team_b===team));
+        let wins=0,draws=0,diff=0;
+        for(const m of played){const own=m.team_a===team?Number(m.score_a):Number(m.score_b),opp=m.team_a===team?Number(m.score_b):Number(m.score_a);diff+=own-opp;if(own>opp)wins++;else if(own===opp)draws++}
+        return {team,played:played.length,wins,draws,losses:played.length-wins-draws,points:wins*3+draws,diff};
+      }).sort((a,b)=>b.points-a.points||b.diff-a.diff||a.team.localeCompare(b.team));
+      const finished=games.length>0&&games.every(m=>m.score_a!=null&&m.score_b!=null);
+      return {name,games,standings,finished,qualifying:Math.min(2,standings.length)};
+    });
+  },[matches]);
+
+  const extraQualifiers=useMemo(()=>{
+    if(groupTables.length<3 || groupTables.some(g=>!g.finished))return new Set<string>();
+    const top=groupTables.reduce((n,g)=>n+Math.min(2,g.standings.length),0);
+    const slots=Math.max(0,nextPowerOfTwo(top)-top);
+    const candidate=groupTables.flatMap(g=>g.standings.slice(2)).sort((a,b)=>b.points-a.points||b.diff-a.diff||a.team.localeCompare(b.team));
+    return new Set(candidate.slice(0,slots).map(t=>t.team));
+  },[groupTables]);
+
   const groupedMatches = useMemo(() => {
     const map = new Map<string, MatchRow[]>();
     for (const m of matches) {
+      if(m.phase==='Girone')continue;
       const key = m.phase || 'Partite';
       map.set(key, [...(map.get(key) || []), m]);
     }
@@ -349,15 +438,17 @@ export default function TournamentPage() {
 
       {active === 'manage' && <section className="card top-gap"><div className="section-title"><div><h2>Crea / modifica torneo</h2><p className="muted">Tipo e formato si possono cambiare anche dopo aver raccolto iscrizioni.</p></div>{selected?.id && <button className="btn danger" onClick={deleteTournament}>🗑️ {confirmDelete ? 'CONFERMA ELIMINA TORNEO' : 'Elimina torneo'}</button>}</div><div className="grid grid-3 top-gap"><div className="field"><label>Nome torneo</label><input className="input" value={form.name} onChange={(e)=>setForm({...form,name:e.target.value})}/></div><div className="field"><label>Data torneo</label><input className="input" type="date" value={form.date} onChange={(e)=>setForm({...form,date:e.target.value})}/></div><div className="field"><label>Stato</label><select className="select pro-select" value={form.status} onChange={(e)=>setForm({...form,status:e.target.value})}>{statuses.map(s=><option key={s}>{s}</option>)}</select></div><div className="field"><label>Orario inizio</label><input className="input" type="time" value={form.start} onChange={(e)=>setForm({...form,start:e.target.value})}/></div><div className="field"><label>Apertura lobby</label><input className="input" type="time" value={form.lobby} onChange={(e)=>setForm({...form,lobby:e.target.value})}/></div><div className="field"><label>Numero previsto</label><input className="input" inputMode="numeric" value={form.maxTeams} onChange={(e)=>setForm({...form,maxTeams:e.target.value})}/></div><div className="field"><label>Formato</label><select className="select pro-select" value={form.format} onChange={(e)=>setForm({...form,format:e.target.value})}>{formats.map(s=><option key={s}>{s}</option>)}</select></div><div className="field"><label>Tipo torneo</label><select className="select pro-select" value={form.type} onChange={(e)=>setForm({...form,type:e.target.value})}>{tournamentTypes.map(s=><option key={s}>{s}</option>)}</select></div><div className="field"><label>Cover torneo/link immagine</label><input className="input" value={form.coverUrl} onChange={(e)=>setForm({...form,coverUrl:e.target.value})}/></div><div className="field grid-span-3"><label>Descrizione breve</label><input className="input" value={form.description} onChange={(e)=>setForm({...form,description:e.target.value})}/></div></div><button className="btn top-gap" onClick={saveTournament}>💾 {selected?.id ? 'Aggiorna torneo selezionato' : 'Crea torneo'}</button></section>}
 
-      {active === 'registrations' && <section className="grid grid-2 top-gap"><div className="card"><h2>Iscrizione dal profilo</h2><p className="muted">Le squadre si creano dopo. Qui il player si iscrive come profilo singolo.</p><div className="notice"><b>Stato tuo profilo:</b> {myRegistration ? registrationBadge(myRegistration.status) : 'Non iscritto'}</div><textarea className="textarea top-gap" value={registrationNote} onChange={(e)=>setRegistrationNote(e.target.value)} placeholder="Note iscrizione: ruolo, orari, preferenze squadra..." /><button className="btn top-gap" onClick={registerMe} disabled={!auth.user || selected?.status !== 'Iscrizioni aperte'}>📝 Iscriviti / conferma iscrizione</button>{selected?.status !== 'Iscrizioni aperte' && <small className="muted">Metti il torneo in “Iscrizioni aperte”.</small>}</div><div className="card"><div className="section-title"><div><h2>Lista iscrizioni</h2><p className="muted">Dopo conferma puoi generare torneo o creare squadre.</p></div>{canWrite && <button className="btn small secondary" type="button" onClick={fillTeamFromRegistrations}>Crea squadra dagli iscritti</button>}</div><div className="tournament-team-list top-gap">{registrations.map((r)=><article key={r.id} className="compact-card"><b>{r.nickname || 'Player'}</b><span>{registrationBadge(r.status)}</span><small>{r.note || '-'}</small>{canWrite && <div className="cal-buttons top-gap"><button className="btn small secondary" onClick={()=>updateRegistrationStatus(r.id,'Confermata')}>Conferma</button><button className="btn small secondary" onClick={()=>updateRegistrationStatus(r.id,'Riserva')}>Riserva</button><button className="btn small secondary" onClick={()=>updateRegistrationStatus(r.id,'Rifiutata')}>Rifiuta</button></div>}</article>)}{!registrations.length && <div className="empty-state">Nessuna iscrizione ancora.</div>}</div></div></section>}
+      {active === 'registrations' && <section className="grid grid-2 top-gap"><div className="card"><h2>Iscrizione dal profilo</h2><p className="muted">Le squadre si creano dopo. Qui il player si iscrive come profilo singolo.</p><div className="notice"><b>Stato tuo profilo:</b> {myRegistration ? registrationBadge(myRegistration.status) : 'Non iscritto'}</div><textarea className="textarea top-gap" value={registrationNote} onChange={(e)=>setRegistrationNote(e.target.value)} placeholder="Note iscrizione: ruolo, orari, preferenze squadra..." /><button className="btn top-gap" onClick={registerMe} disabled={!auth.user || selected?.status !== 'Iscrizioni aperte'}>📝 Iscriviti / conferma iscrizione</button>{selected?.status !== 'Iscrizioni aperte' && <small className="muted">Metti il torneo in “Iscrizioni aperte”.</small>}</div><div className="card"><div className="v14-manual-participants"><h3>➕ Iscrivi partecipanti dalla tua lista</h3><p className="muted">Scegli dal roster o incolla un nome per riga. Giocatori esterni ammessi, nessun account obbligatorio.</p><div className="field"><label>Seleziona dal roster</label><select className="select" defaultValue="" onChange={e=>{if(e.target.value)setManualNick(p=>`${p}${p.trim()?'\n':''}${e.target.value}`);e.target.value=''}}><option value="">Scegli giocatore AK47DX...</option>{rosterOptions.map(p=><option key={p.nickname} value={p.nickname}>{p.nickname}</option>)}</select></div><textarea className="textarea top-gap" rows={5} value={manualNick} onChange={e=>setManualNick(e.target.value)} placeholder="Giocatore 1&#10;Giocatore 2&#10;Ospite esterno"/><button className="btn top-gap" disabled={!canWrite||!selected?.id} onClick={()=>void addManualRegistration()}>+ Aggiungi giocatori e conferma</button></div><div className="section-title"><div><h2>Lista iscrizioni</h2><p className="muted">Dopo conferma puoi generare torneo o creare squadre.</p></div>{canWrite && <button className="btn small secondary" type="button" onClick={fillTeamFromRegistrations}>Crea squadra dagli iscritti</button>}</div><div className="tournament-team-list top-gap">{registrations.map((r)=><article key={r.id} className="compact-card"><b>{r.nickname || 'Player'}</b><span>{registrationBadge(r.status)}</span><small>{r.note || '-'}</small>{canWrite && <div className="cal-buttons top-gap"><button className="btn small secondary" onClick={()=>updateRegistrationStatus(r.id,'Confermata')}>Conferma</button><button className="btn small secondary" onClick={()=>updateRegistrationStatus(r.id,'Riserva')}>Riserva</button><button className="btn small secondary" onClick={()=>updateRegistrationStatus(r.id,'Rifiutata')}>Rifiuta</button></div>}</article>)}{!registrations.length && <div className="empty-state">Nessuna iscrizione ancora.</div>}</div></div></section>}
 
-      {active === 'teams' && <section className="card top-gap"><h2>Squadre dopo iscrizioni</h2><p className="muted">Per 1v1 puoi anche non creare squadre: il tabellone usa gli iscritti confermati. Per 2v2/5v5 crea squadre dagli iscritti.</p><div className="grid grid-3"><div className="field"><label>Nome squadra</label><input className="input" value={teamForm.name} onChange={(e)=>setTeamForm({...teamForm,name:e.target.value})}/></div><div className="field"><label>Capitano</label><input className="input" value={teamForm.captain} onChange={(e)=>setTeamForm({...teamForm,captain:e.target.value})}/></div><div className="field"><label>Stato squadra</label><select className="select pro-select" value={teamForm.status} onChange={(e)=>setTeamForm({...teamForm,status:e.target.value})}>{['Incompleta','Completa','Confermata','Eliminata'].map(s=><option key={s}>{s}</option>)}</select></div><div className="field"><label>Titolari</label><textarea className="textarea" value={teamForm.players} onChange={(e)=>setTeamForm({...teamForm,players:e.target.value})} /></div><div className="field"><label>Riserve</label><textarea className="textarea" value={teamForm.reserves} onChange={(e)=>setTeamForm({...teamForm,reserves:e.target.value})} /></div><div className="field"><label>Azione</label><button className="btn" onClick={saveTeam}>➕ Aggiungi squadra</button></div></div><div className="tournament-team-list top-gap">{teams.map(t=><article key={t.id} className="compact-card"><b>{t.name}</b><span>{teamCompleteness(t, form.format || '5v5')}</span><small>Capitano: {t.captain || '-'} · Titolari: {t.players?.length || 0} · Riserve: {t.reserves?.length || 0}</small></article>)}</div></section>}
+      {active === 'teams' && <section className="card top-gap"><h2>Squadre dopo iscrizioni</h2><p className="muted">Per 1v1 puoi anche non creare squadre: il tabellone usa gli iscritti confermati. Per 2v2/5v5 crea squadre dagli iscritti.</p><div className="grid grid-3"><div className="field"><label>Nome squadra</label><input className="input" value={teamForm.name} onChange={(e)=>setTeamForm({...teamForm,name:e.target.value})}/></div><div className="field"><label>Capitano</label><input className="input" value={teamForm.captain} onChange={(e)=>setTeamForm({...teamForm,captain:e.target.value})}/></div><div className="field"><label>Stato squadra</label><select className="select pro-select" value={teamForm.status} onChange={(e)=>setTeamForm({...teamForm,status:e.target.value})}>{['Incompleta','Completa','Confermata','Eliminata'].map(s=><option key={s}>{s}</option>)}</select></div><div className="field"><label>Aggiungi titolare dalla lista iscritti</label><select className="select" defaultValue="" onChange={e=>{const name=e.target.value;if(name)setTeamForm(f=>({...f,players:[...new Set([...splitLines(f.players),name])].join('\n')}));e.target.value=''}}><option value="">Seleziona partecipante</option>{confirmedRegistrations.map(r=><option key={r.id} value={r.nickname||''}>{r.nickname||'Senza nome'}</option>)}</select></div><div className="field"><label>Titolari</label><textarea className="textarea" value={teamForm.players} onChange={(e)=>setTeamForm({...teamForm,players:e.target.value})} /></div><div className="field"><label>Riserve</label><textarea className="textarea" value={teamForm.reserves} onChange={(e)=>setTeamForm({...teamForm,reserves:e.target.value})} /></div><div className="field"><label>Azione</label><button className="btn" onClick={saveTeam}>{editingTeamId?'💾 Aggiorna squadra':'➕ Aggiungi squadra'}</button></div></div><div className="tournament-team-list top-gap">{teams.map(t=><article key={t.id} className="compact-card"><b>{t.name}</b><span>{teamCompleteness(t, form.format || '5v5')}</span><small>Capitano: {t.captain || '-'} · Titolari: {(t.players||[]).join(', ') || '-'} · Riserve: {t.reserves?.length || 0}</small>{canWrite&&<button className="btn small secondary" onClick={()=>editTeam(t)}>✏️ Modifica squadra / nome</button>}</article>)}</div></section>}
 
       {active === 'rules' && <section className="card top-gap"><h2>Regolamento, armi permesse e ban</h2><div className="grid grid-2"><div className="field"><label>Tipologia armi permesse</label><select className="select pro-select" value={form.allowedPreset} onChange={(e)=>setForm({...form,allowedPreset:e.target.value})}>{allowedWeaponPresets.map((w)=><option key={w}>{w}</option>)}</select><textarea className="textarea top-gap" value={form.allowedWeapons} onChange={(e)=>setForm({...form,allowedWeapons:e.target.value})} placeholder="Esempio: AR, SMG, Sniper, Pistol..." /></div><div className="field"><label>🚫 Armi / oggetti vietati</label><textarea className="textarea" value={form.bans} onChange={(e)=>setForm({...form,bans:e.target.value})} placeholder="NA45, Persistence, Martirio..." /></div><div className="field grid-span-2"><label>Regole generali</label><textarea className="textarea" value={form.rules} onChange={(e)=>setForm({...form,rules:e.target.value})} placeholder="BO3, ritardo massimo, screenshot obbligatorio, MVP..." /></div></div><button className="btn top-gap" onClick={saveTournament}>💾 Salva regolamento</button></section>}
 
-      {active === 'bracket' && <section className="card top-gap"><div className="section-title"><div><h2>Tabellone / Classifica</h2><p className="muted">Partecipanti attuali: {participants.length}. {recommended.title} — {recommended.details}</p></div><div className="cal-buttons"><select className="select pro-select" value={generationMode} onChange={(e)=>setGenerationMode(e.target.value)}><option value="auto">Auto consigliato</option><option value="Eliminazione diretta">Eliminazione diretta</option><option value="A gruppi">Gruppi/Girone</option></select><button className="btn small secondary" type="button" onClick={generateMatches}>⚡ Genera torneo</button></div></div><div className="tournament-bracket-board top-gap">{groupedMatches.map(([phase, rows])=><div className="bracket-column" key={phase}><h3>{phase}</h3>{rows.map((m)=><button key={m.id} className="bracket-match" onClick={()=>editMatch(m)}><span className={resultClass(m, m.team_a)}>{m.team_a || 'Da definire'}</span><b>{m.score_a ?? '-'}</b><span className={resultClass(m, m.team_b)}>{m.team_b || 'Da definire'}</span><b>{m.score_b ?? '-'}</b><small>{m.map_name || '-'} · {m.mode || '-'}</small></button>)}</div>)}{!matches.length && <div className="empty-state">Genera il torneo dopo le iscrizioni per vedere qui il tabellone grafico.</div>}</div><h3 className="top-gap">Classifica gironi/gruppi</h3><div className="table-scroll"><table className="table compact pro-table"><thead><tr><th>Pos.</th><th>Squadra/player</th><th>G</th><th>V</th><th>P</th><th>S</th><th>Pt</th><th>Diff</th><th>Stato</th></tr></thead><tbody>{standings.map((s,i)=><tr key={s.team}><td>{i+1}</td><td>{s.team}</td><td>{s.played}</td><td>{s.wins}</td><td>{s.draws}</td><td>{s.losses}</td><td>{s.points}</td><td>{s.diff}</td><td>{i < 4 ? '🟢 Qualificato' : '🔴 Eliminato'}</td></tr>)}</tbody></table></div></section>}
+      {active === 'bracket' && <section className="card top-gap v14-tournament-board"><div className="section-title"><div><h2>🏆 Gironi e tabellone</h2><p className="muted">Gironi separati sempre visibili. Verde: qualificata; grigio: eliminata. Stati definitivi solo a girone terminato.</p></div><div className="cal-buttons"><select className="select pro-select" value={generationMode} onChange={e=>setGenerationMode(e.target.value)}><option value="auto">Auto</option><option value="Eliminazione diretta">Eliminazione diretta</option><option value="A gruppi">Gironi</option></select><button className="btn small secondary" disabled={!canWrite||!!matches.length} onClick={()=>void generateMatches()}>⚡ Genera incontri</button></div></div>
+      <div className="v14-group-grid top-gap">{groupTables.map(g=><article className="v14-group-card" key={g.name}><header><h3>GIRONE {g.name}</h3><span>{g.finished?'Concluso':'In corso'}</span></header><div className="table-scroll"><table className="table compact"><thead><tr><th>#</th><th>Squadra</th><th>G</th><th>V</th><th>P</th><th>Diff</th><th>Pt</th></tr></thead><tbody>{g.standings.map((t,i)=><tr key={t.team} className={g.finished?(i<g.qualifying||extraQualifiers.has(t.team)?'v14-qualify':'v14-out'):'v14-pending'}><td>{i+1}</td><td><b>{t.team}</b> {g.finished?(i<g.qualifying||extraQualifiers.has(t.team)?'✓':'×'):'·'}</td><td>{t.played}</td><td>{t.wins}</td><td>{t.losses}</td><td>{t.diff}</td><td>{t.points}</td></tr>)}</tbody></table></div><h4>Incontri</h4><div className="v14-group-games">{g.games.map(m=><button key={m.id} className="v14-game" onClick={()=>editMatch(m)}><span>{m.team_a} <b>{m.score_a??'–'} : {m.score_b??'–'}</b> {m.team_b}</span><small>{m.match_time?new Date(m.match_time).toLocaleString('it-IT'):'Da programmare'} · {m.lobby_name||'Lobby da assegnare'}</small></button>)}</div></article>)}</div>
+      <div className="v14-playoff-action top-gap"><p className="muted">Quando tutti i gironi sono conclusi, crea automaticamente i playoff con le migliori qualificate. Per 11 coppie: prime due dei tre gironi + due migliori terze.</p><button className="btn" onClick={()=>void generatePlayoffs()} disabled={!canWrite||!groupTables.length||groupTables.some(g=>!g.finished)||matches.some(m=>m.phase!=='Girone')}>🏆 Genera playoff dalle qualificate</button></div><h3 className="top-gap">Tabellone playoff</h3><div className="tournament-bracket-board v14-bracket top-gap">{groupedMatches.map(([phase,ms])=><div className="bracket-column" key={phase}><h3>{phase}</h3>{ms.map(m=><button key={m.id} className="bracket-match" onClick={()=>editMatch(m)}><span className={resultClass(m,m.team_a)}>{m.team_a||'Da definire'}</span><b>{m.score_a??'–'}</b><span className={resultClass(m,m.team_b)}>{m.team_b||'Da definire'}</span><b>{m.score_b??'–'}</b><small>{m.match_time?new Date(m.match_time).toLocaleString('it-IT'):'Orario da assegnare'} · {m.lobby_name||'Lobby da assegnare'}</small></button>)}</div>)}{!groupedMatches.length&&<div className="empty-state">I playoff saranno visibili dopo la qualificazione. Gli incontri del girone rimangono nelle card in alto.</div>}</div>{!matches.length&&<div className="empty-state">Crea squadre e genera gli incontri per vedere gironi e tabellone.</div>}</section>}
 
-      {active === 'matches' && <section className="card top-gap"><div className="section-title"><div><h2>{matchForm.id ? 'Modifica risultato partita' : 'Partita torneo'}</h2><p className="muted">Clicca una partita dal tabellone oppure crea una partita manuale. Vincitore verde, eliminato rosso.</p></div><button className="btn small secondary" type="button" onClick={() => setActive('bracket')}>Apri tabellone</button></div><div className="grid grid-4"><div className="field"><label>Team A</label><input className="input" value={matchForm.teamA} onChange={(e)=>setMatchForm({...matchForm,teamA:e.target.value})}/></div><div className="field"><label>Team B</label><input className="input" value={matchForm.teamB} onChange={(e)=>setMatchForm({...matchForm,teamB:e.target.value})}/></div><div className="field"><label>Fase</label><select className="select pro-select" value={matchForm.phase} onChange={(e)=>setMatchForm({...matchForm,phase:e.target.value})}>{['Girone', ...phasesOrder].map((p)=><option key={p}>{p}</option>)}</select></div><div className="field"><label>Gruppo/Turno</label><input className="input" value={matchForm.group} onChange={(e)=>setMatchForm({...matchForm,group:e.target.value})}/></div><div className="field"><label>Orario match</label><input className="input" type="datetime-local" value={matchForm.date} onChange={(e)=>setMatchForm({...matchForm,date:e.target.value})}/></div><div className="field"><label>Mappa</label><select className="select pro-select" value={matchForm.map} onChange={(e)=>setMatchForm({...matchForm,map:e.target.value})}>{codmMaps.map(m=><option key={m}>{m}</option>)}</select></div><div className="field"><label>Modalità</label><select className="select pro-select" value={matchForm.mode} onChange={(e)=>setMatchForm({...matchForm,mode:e.target.value})}>{codmModes.map(m=><option key={m}>{m}</option>)}</select></div><div className="field"><label>Risultato</label><div className="score-inline"><input className="input" value={matchForm.scoreA} onChange={(e)=>setMatchForm({...matchForm,scoreA:e.target.value.replace(/[^0-9]/g,'')})}/><span>:</span><input className="input" value={matchForm.scoreB} onChange={(e)=>setMatchForm({...matchForm,scoreB:e.target.value.replace(/[^0-9]/g,'')})}/></div></div><div className="field"><label>MVP</label><input className="input" value={matchForm.mvp} onChange={(e)=>setMatchForm({...matchForm,mvp:e.target.value})}/></div><div className="field"><label>Screenshot prova/link</label><input className="input" value={matchForm.screenshotUrl} onChange={(e)=>setMatchForm({...matchForm,screenshotUrl:e.target.value})}/></div><div className="field grid-span-2"><label>Note</label><input className="input" value={matchForm.notes} onChange={(e)=>setMatchForm({...matchForm,notes:e.target.value})}/></div></div><div className="notice top-gap"><b>Regole partita:</b> {rulesSummary()}</div><button className="btn top-gap" onClick={saveMatch}>💾 {matchForm.id ? 'Aggiorna risultato partita' : 'Salva partita torneo'}</button><div className="tournament-team-list top-gap">{matches.map(m=><article key={m.id} className="compact-card clickable-card" onClick={()=>editMatch(m)}><b>{m.team_a || '-'} vs {m.team_b || '-'}</b><span>{m.status || 'Da giocare'} · {m.score_a ?? '-'}:{m.score_b ?? '-'}</span><small>{m.phase} · {m.group_name} · {m.map_name} · {m.mode} · MVP {m.mvp || '-'}</small></article>)}</div></section>}
+      {active === 'matches' && <section className="card top-gap"><div className="section-title"><div><h2>{matchForm.id ? 'Modifica risultato partita' : 'Partita torneo'}</h2><p className="muted">Clicca una partita dal tabellone oppure crea una partita manuale. Vincitore verde, eliminato rosso.</p></div><button className="btn small secondary" type="button" onClick={() => setActive('bracket')}>Apri tabellone</button></div><div className="grid grid-4"><div className="field"><label>Team A</label><input className="input" value={matchForm.teamA} onChange={(e)=>setMatchForm({...matchForm,teamA:e.target.value})}/></div><div className="field"><label>Team B</label><input className="input" value={matchForm.teamB} onChange={(e)=>setMatchForm({...matchForm,teamB:e.target.value})}/></div><div className="field"><label>Fase</label><select className="select pro-select" value={matchForm.phase} onChange={(e)=>setMatchForm({...matchForm,phase:e.target.value})}>{['Girone', ...phasesOrder].map((p)=><option key={p}>{p}</option>)}</select></div><div className="field"><label>Gruppo/Turno</label><input className="input" value={matchForm.group} onChange={(e)=>setMatchForm({...matchForm,group:e.target.value})}/></div><div className="field"><label>Orario match</label><input className="input" type="datetime-local" value={matchForm.date} onChange={(e)=>setMatchForm({...matchForm,date:e.target.value})}/></div><div className="field"><label>Orario apertura lobby</label><input className="input" type="datetime-local" value={matchForm.lobby} onChange={e=>setMatchForm({...matchForm,lobby:e.target.value})}/></div><div className="field"><label>Mappa</label><select className="select pro-select" value={matchForm.map} onChange={(e)=>setMatchForm({...matchForm,map:e.target.value})}>{codmMaps.map(m=><option key={m}>{m}</option>)}</select></div><div className="field"><label>Modalità</label><select className="select pro-select" value={matchForm.mode} onChange={(e)=>setMatchForm({...matchForm,mode:e.target.value})}>{codmModes.map(m=><option key={m}>{m}</option>)}</select></div><div className="field"><label>Risultato</label><div className="score-inline"><input className="input" value={matchForm.scoreA} onChange={(e)=>setMatchForm({...matchForm,scoreA:e.target.value.replace(/[^0-9]/g,'')})}/><span>:</span><input className="input" value={matchForm.scoreB} onChange={(e)=>setMatchForm({...matchForm,scoreB:e.target.value.replace(/[^0-9]/g,'')})}/></div></div><div className="field"><label>Lobby / Stanza</label><input className="input" value={matchForm.lobbyName} onChange={e=>setMatchForm({...matchForm,lobbyName:e.target.value})} placeholder="Lobby 1"/></div><div className="field"><label>Arbitro / Staff</label><input className="input" value={matchForm.referee} onChange={e=>setMatchForm({...matchForm,referee:e.target.value})}/></div><div className="field"><label>MVP</label><input className="input" value={matchForm.mvp} onChange={(e)=>setMatchForm({...matchForm,mvp:e.target.value})}/></div><div className="field"><label>Screenshot prova/link</label><input className="input" value={matchForm.screenshotUrl} onChange={(e)=>setMatchForm({...matchForm,screenshotUrl:e.target.value})}/></div><div className="field grid-span-2"><label>Note</label><input className="input" value={matchForm.notes} onChange={(e)=>setMatchForm({...matchForm,notes:e.target.value})}/></div></div><div className="notice top-gap"><b>Regole partita:</b> {rulesSummary()}</div><button className="btn top-gap" onClick={saveMatch}>💾 {matchForm.id ? 'Aggiorna risultato partita' : 'Salva partita torneo'}</button><div className="tournament-team-list top-gap">{matches.map(m=><article key={m.id} className="compact-card clickable-card" onClick={()=>editMatch(m)}><b>{m.team_a || '-'} vs {m.team_b || '-'}</b><span>{m.status || 'Da giocare'} · {m.score_a ?? '-'}:{m.score_b ?? '-'}</span><small>{m.phase} · {m.group_name} · {m.map_name} · {m.mode} · MVP {m.mvp || '-'}</small></article>)}</div></section>}
 
       {active === 'archive' && <section className="card top-gap"><h2>Archivio tornei</h2><div className="tournament-team-list">{tournaments.filter(t=>['Finito','Archiviato'].includes(String(t.status))).map(t=><article key={t.id} className="compact-card"><b>{t.name}</b><span>{t.status}</span><small>Vincitore: {t.winner || 'da definire'} · statistiche finali sempre nella pagina Torneo.</small></article>)}</div></section>}
     </main>

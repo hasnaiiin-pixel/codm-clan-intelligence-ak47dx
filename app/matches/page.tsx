@@ -5,7 +5,7 @@ import { supabase } from '@/lib/supabaseClient';
 import { useCodmAuth } from '@/lib/authRoles';
 import type { GameMode, Match, MatchResult, MatchType } from '@/lib/types';
 
-const modes: Array<GameMode | 'ALL'> = ['ALL', 'CED', 'TDM', 'PRIMA_LINEA', 'DOMINIO', 'POSTAZIONE', 'KILL_CONFIRMED', 'BR_SOLO', 'BR_DUO', 'BR_SQUAD'];
+const modes: Array<GameMode | 'ALL'> = ['ALL', 'CED', 'TDM', 'PRIMA_LINEA', 'DOMINIO', 'POSTAZIONE', 'CONTROLLO', 'ALTRO', 'KILL_CONFIRMED', 'BR_SOLO', 'BR_DUO', 'BR_SQUAD'];
 const types: Array<MatchType | 'ALL'> = ['ALL', 'scrim', 'ranked', 'private', 'training', 'tournament', 'br'];
 const results: Array<MatchResult | 'ALL'> = ['ALL', 'WIN', 'LOSE', 'DRAW'];
 
@@ -114,10 +114,11 @@ export default function MatchesPage() {
   const selectedRows = selected ? rows.filter((r) => r.match_id === selected.id).sort((a, b) => (a.team_color === b.team_color ? (a.team_rank || 0) - (b.team_rank || 0) : a.team_color.localeCompare(b.team_color))) : [];
 
   const summary = useMemo(() => {
-    const wins = filteredMatches.filter((m) => m.result === 'WIN').length;
-    const losses = filteredMatches.filter((m) => m.result === 'LOSE').length;
-    const draw = filteredMatches.filter((m) => m.result === 'DRAW').length;
-    return { total: filteredMatches.length, wins, losses, draw, winPct: filteredMatches.length ? Math.round((wins / filteredMatches.length) * 100) : 0 };
+    const single = filteredMatches.filter(m=>m.match_scope!=='series');
+    const wins = single.filter((m) => m.result === 'WIN').length;
+    const losses = single.filter((m) => m.result === 'LOSE').length;
+    const draw = single.filter((m) => m.result === 'DRAW').length;
+    return { total: single.length, series:filteredMatches.length-single.length, wins, losses, draw, winPct: single.length ? Math.round((wins / single.length) * 100) : 0 };
   }, [filteredMatches]);
 
   function resetFilters() {
@@ -128,7 +129,7 @@ export default function MatchesPage() {
     <main className="container wide">
       <section className="card gaming-panel">
         <p className="eyebrow">🎞️ Archivio partite 2.0</p>
-        <h1>Storico partite + Action Panel</h1>
+        <h1>Storico partite + Action Panel</h1><div className="cal-buttons top-gap"><a className="btn small secondary" href="/import/history">🕘 Importa risultati storici</a><a className="btn small secondary" href="/admin/seasons">📅 Gestione stagioni</a></div>
         <p className="muted">Apri una partita dall'elenco: lo screenshot prova rimane visibile nel pannello azione, insieme a note, MVP, ranking Oro/Argento/Bronzo/Legno/Olimpico, classifica 1–5 e Kill / Death / Assist.</p>
         {message && <div className="notice">{message}</div>}
         <div className="grid grid-5 top-gap">
@@ -154,16 +155,18 @@ export default function MatchesPage() {
         <div className="kpi kpi-glow"><span>Win rate</span><strong>{summary.winPct}%</strong></div>
       </section>
 
+      <div className="notice top-gap">Oltre alle singole partite, sono presenti <b>{summary.series} incontri/serie</b> con punteggio finale. Sono mostrati nello storico ma NON conteggiati come una sola partita nei KPI. <a href="/import/history">Aggiungi storico</a></div>
       <section className="grid grid-2 top-gap archive-layout">
         <div className="card">
           <h2>Elenco partite</h2>
           <div className="table-scroll">
             <table className="table compact">
-              <thead><tr><th>Data</th><th>Mode</th><th>Mappa</th><th>Avversario</th><th>Score</th><th>Esito</th><th>Azioni</th></tr></thead>
+              <thead><tr><th>Data</th><th>Dati</th><th>Mode</th><th>Mappa</th><th>Avversario</th><th>Score</th><th>Esito</th><th>Azioni</th></tr></thead>
               <tbody>
                 {filteredMatches.map((m) => (
                   <tr key={m.id} className={selected?.id === m.id ? 'selected-row' : ''}>
                     <td>{new Date(m.match_date).toLocaleString('it-IT')}</td>
+                    <td>{m.record_quality==='result_only'?'Solo risultato':'Completi'}{m.match_scope==='series'?' · Serie':''}</td>
                     <td>{m.mode}</td>
                     <td>{m.map_name || '-'}</td>
                     <td>{m.opponent || '-'}</td>
@@ -172,7 +175,7 @@ export default function MatchesPage() {
                     <td><button className="btn small secondary" onClick={() => setSelected(m)}>Apri</button> {canWrite && <button className="btn small danger" onClick={() => deleteMatch(m)}>Cancella</button>}</td>
                   </tr>
                 ))}
-                {!filteredMatches.length && <tr><td colSpan={7} className="muted">Nessuna partita trovata.</td></tr>}
+                {!filteredMatches.length && <tr><td colSpan={8} className="muted">Nessuna partita trovata.</td></tr>}
               </tbody>
             </table>
           </div>

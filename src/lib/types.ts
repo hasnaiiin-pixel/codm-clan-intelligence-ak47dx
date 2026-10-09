@@ -8,6 +8,8 @@ export type GameMode =
   | 'PRIMA_LINEA'
   | 'DOMINIO'
   | 'POSTAZIONE'
+  | 'CONTROLLO'
+  | 'ALTRO'
   | 'KILL_CONFIRMED'
   | 'BR_SOLO'
   | 'BR_DUO'
@@ -68,6 +70,8 @@ export type Match = {
   clan_id: string;
   match_date: string;
   season_id?: string | null;
+  record_quality?: 'complete' | 'result_only';
+  match_scope?: 'single' | 'series';
   match_type: MatchType;
   mode: GameMode;
   map_name: string | null;
