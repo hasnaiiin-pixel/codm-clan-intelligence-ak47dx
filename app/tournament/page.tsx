@@ -132,8 +132,14 @@ export default function TournamentPage() {
         const query = supabase.from(table).select(columns).order('id').range(offset, offset + 999);
         const { data, error } = await query;
         if (error) { errors.push(`${table}: ${error.message}`); break; }
-        for (const row of data || []) { if (!allyOnly || String(row.team_side || '').toUpperCase() !== 'ENEMY') read(row); }
-        if (!data || data.length < 1000) break;
+        // La selezione delle colonne è dinamica: Supabase non può inferire il tipo
+        // della riga e genera GenericStringError a compile-time. Validiamo che
+        // il risultato sia un array e leggiamo team_side come campo opzionale.
+        const rows = Array.isArray(data) ? (data as unknown as Array<Record<string, unknown>>) : [];
+        for (const row of rows) {
+          if (!allyOnly || String(row['team_side'] ?? '').toUpperCase() !== 'ENEMY') read(row);
+        }
+        if (rows.length < 1000) break;
       }
     }
     try {
