@@ -3132,3 +3132,75 @@ select.pro-select {
 .v1425-opponent-detail > summary:hover { background:rgba(120,135,160,.16); }
 .v1425-opponent-detail .table-scroll { padding:8px; }
 @media(max-width:640px) { .v1425-compact-table th, .v1425-compact-table td { padding:6px 4px; font-size:.73rem; } .v1425-opponent-detail > summary { font-size:.85rem; } }
+
+/* V14.2 FIX16 — panoramica ordinata: Scrim storiche + gruppi da 24h */
+.v1426-overview { display:grid; gap:14px; }
+.v1426-kpis { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:12px; }
+.v1426-kpi { padding:19px 18px; background:linear-gradient(145deg,rgba(25,34,47,.96),rgba(30,39,52,.92)); border:1px solid rgba(150,164,183,.20); border-radius:16px; display:flex; flex-direction:column; gap:8px; min-width:0; }
+.v1426-kpi-primary { border-color:rgba(193,72,76,.55); background:linear-gradient(140deg,rgba(103,37,48,.35),rgba(25,34,47,.98)); }
+.v1426-kpi>span { font-size:.83rem; font-weight:700; color:var(--muted,#a9b3c3); }
+.v1426-kpi>strong { color:var(--text,#f0f4fa); font-size:clamp(1.55rem,2.5vw,2.3rem); line-height:1.1; font-variant-numeric:tabular-nums; letter-spacing:-.035em; }
+.v1426-kpi small { color:var(--muted,#a9b3c3); font-size:.77rem; }
+.v1426-graphs { display:grid; grid-template-columns:1fr 1fr; gap:12px; }
+.v1426-chart { margin:0; min-width:0; }
+.v1426-chart h2 { font-size:1.07rem; margin-bottom:5px; }
+.v1426-chart .muted { font-size:.83rem; }
+.v1426-results-bar { height:19px; display:flex; overflow:hidden; border-radius:8px; background:rgba(142,153,167,.16); margin:24px 0 12px; }
+.v1426-segment { min-width:0; }
+.v1426-segment.win,.v1426-result-legend i.win { background:#58bc89; }
+.v1426-segment.loss,.v1426-result-legend i.loss { background:#cb6269; }
+.v1426-segment.draw,.v1426-result-legend i.draw { background:#b5a5c9; }
+.v1426-result-legend { display:flex; flex-wrap:wrap; gap:12px; font-size:.82rem; }
+.v1426-result-legend span { display:flex; gap:6px; align-items:center; }
+.v1426-result-legend i { display:inline-block; width:8px; height:8px; border-radius:50%; }
+.v1426-result-legend b { font-variant-numeric:tabular-nums; }
+.v1426-source-count { display:flex; justify-content:space-between; flex-wrap:wrap; gap:8px; margin-top:24px; padding-top:12px; border-top:1px solid rgba(150,164,183,.17); font-size:.81rem; }
+.v1426-season-bars { margin-top:16px; display:grid; gap:11px; }
+.v1426-season-bar { display:grid; grid-template-columns:minmax(76px,140px) 1fr 30px; gap:12px; align-items:center; border:0; color:inherit; background:transparent; cursor:pointer; text-align:left; font:inherit; font-size:.82rem; padding:4px 0; }
+.v1426-season-bar:hover>span { text-decoration:underline; }
+.v1426-season-bar>span { white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.v1426-season-bar>b { text-align:right; font-variant-numeric:tabular-nums; }
+.v1426-track { height:10px; background:rgba(150,164,183,.14); overflow:hidden; border-radius:6px; }
+.v1426-track>i { display:block; height:100%; background:#bc6068; border-radius:6px; min-width:2px; }
+.v1426-table-card .section-title { margin-bottom:12px; }
+.v1426-table th,.v1426-table td { padding:10px 9px; white-space:nowrap; font-size:.83rem; font-variant-numeric:tabular-nums; }
+.v1426-table td:first-child { max-width:220px; overflow:hidden; text-overflow:ellipsis; }
+.v1426-table tbody tr:hover { background:rgba(146,157,177,.07); }
+.v1426-filter-more,.v1426-clan-details,.v1426-advanced { border:1px solid rgba(156,170,190,.19); border-radius:12px; padding:12px 14px; }
+.v1426-filter-more>summary,.v1426-clan-details>summary,.v1426-advanced>summary { cursor:pointer; font-weight:700; font-size:.88rem; }
+.v1426-clan-details { margin-top:13px; }
+.v1426-clan-details .v1425-opponent-detail { margin-top:9px; }
+.v1426-advanced>summary { font-size:.98rem; }
+.v1426-share-card { padding-top:12px; padding-bottom:12px; }
+.v1426-share-card .eyebrow { font-size:.64rem; }
+.v1426-share-card h2 { font-size:1rem; }
+@media(max-width:900px) { .v1426-kpis { grid-template-columns:repeat(2,minmax(0,1fr)); } .v1426-graphs { grid-template-columns:1fr; } }
+@media(max-width:500px) { .v1426-kpi { padding:13px 11px; } .v1426-kpis { gap:8px; } .v1426-kpi>strong { font-size:1.65rem; } .v1426-kpi small { font-size:.7rem; } .v1426-table th,.v1426-table td { padding:7px 5px; font-size:.72rem; } .v1426-chart { padding:13px; } .v1426-season-bar { grid-template-columns:minmax(70px,105px) 1fr 24px; gap:7px; } }
+.v1426-match-list>summary { cursor:pointer; white-space:nowrap; font-size:.78rem; }
+.v1426-match-list-content { display:grid; gap:4px; padding:7px 0; font-size:.76rem; font-variant-numeric:tabular-nums; }
+
+/* AK47DX V14.2 FIX17: Winners / Losers / BO3; mobile-friendly. */
+.ak-bracket64{--ak64-blue:#3578d6;--ak64-orange:#c66a3a;--ak64-gold:#d3b15d}
+.ak64-metrics{display:flex;flex-wrap:wrap;gap:9px;margin:14px 0}
+.ak64-metrics>span{display:inline-flex;gap:7px;align-items:center;background:rgba(120,140,166,.11);border:1px solid rgba(145,162,185,.18);padding:9px 12px;border-radius:10px;font-size:.86rem}
+.ak64-metrics b{font-size:1.14rem}
+.ak64-filter-line{display:flex;flex-wrap:wrap;gap:7px;margin:14px 0}
+.ak64-filter-line label,.ak64-map-scroll label{display:flex;gap:7px;align-items:center;padding:8px 11px;border:1px solid rgba(150,165,190,.23);border-radius:8px;font-size:.83rem}
+.ak64-map-scroll{max-height:195px;overflow-y:auto;display:grid;grid-template-columns:repeat(auto-fill,minmax(162px,1fr));gap:5px;margin:12px 0;padding:10px;border:1px solid rgba(145,162,185,.23);border-radius:12px;background:rgba(15,23,42,.17)}
+.ak64-filter-line input,.ak64-map-scroll input{accent-color:#c74748}
+.ak64-add{display:flex;gap:8px;margin:12px 0;align-items:center}.ak64-add .input{flex:1;min-width:0}
+.ak64-switch{display:flex;flex-wrap:wrap;gap:8px;align-items:center}.ak64-switch>label{display:inline-flex;align-items:center;gap:8px;margin-left:auto;font-size:.8rem}.ak64-switch .select{width:auto}
+.ak64-board{overflow-x:auto;overflow-y:visible;max-width:100%;border:1px solid rgba(140,160,185,.28);border-radius:14px;margin:12px 0;background:rgba(10,17,29,.3)}
+.ak64-board-inner{display:flex;gap:25px;min-width:max-content;padding:18px;align-items:flex-start}
+.ak64-column{width:235px;display:flex;flex-direction:column;gap:12px}.ak64-column h3{text-align:center;font-size:.9em;margin:0 0 8px}
+.ak64-match{position:relative;width:100%;text-align:left;padding:10px;border:1px solid rgba(130,160,210,.5);border-left:4px solid var(--ak64-blue);border-radius:10px;color:inherit;background:rgba(40,65,98,.28);cursor:pointer;display:flex;flex-direction:column;gap:4px;line-height:1.3;white-space:normal}
+.ak64-match::after{content:"";position:absolute;left:100%;top:50%;width:26px;height:1px;background:rgba(152,176,206,.6)}
+.ak64-column:last-child .ak64-match::after{display:none}
+.ak64-match.selected{outline:2px solid rgba(220,229,242,.75)}.ak64-match>div{display:flex;justify-content:space-between;gap:6px;padding:3px 5px;border-radius:5px;font-size:.9em;overflow-wrap:anywhere}
+.ak64-match small{font-size:.72em;opacity:.85;overflow-wrap:anywhere}.ak64-match .ak64-winning{background:rgba(42,139,95,.31);color:#83e3b1;font-weight:700}.ak64-match .ak64-losing{opacity:.6}
+.ak64-board.lane-l .ak64-match{border-left-color:var(--ak64-orange);background:rgba(100,52,33,.24)}.ak64-board.lane-gf .ak64-match{border-left-color:var(--ak64-gold);background:rgba(94,81,30,.28)}
+.ak64-destination{border-top:1px solid rgba(150,165,190,.16);margin-top:4px;padding-top:5px}
+.ak64-editor{border:1px solid rgba(150,165,190,.25);background:rgba(100,110,140,.07);padding:16px;border-radius:12px;margin-top:18px}.ak64-editor .grid{margin:12px 0}
+@media(max-width:620px){.ak64-column{width:215px}.ak64-map-scroll{grid-template-columns:repeat(2,minmax(0,1fr));max-height:220px}.ak64-map-scroll label{font-size:.72rem;overflow-wrap:anywhere;padding:7px}.ak64-add{flex-wrap:wrap}.ak64-switch>label{margin-left:0}}
+
+.ak64-champion{display:flex;flex-wrap:wrap;justify-content:space-between;align-items:center;gap:12px;border:1px solid #d3b15d;border-radius:12px;background:rgba(146,117,33,.15);padding:14px;margin:15px 0}.ak64-champion b{font-size:1.1rem}.ak64-champion span{font-size:.8rem;opacity:.8}

@@ -1,10 +1,11 @@
 {
   "name": "clan-manager-ak47dx",
-  "version": "14.1.0-test",
+  "version": "14.2.0-test",
   "private": true,
   "scripts": {
     "dev": "next dev",
     "build": "next build",
+    "test:bracket64": "node tests/v14_2_fix17_advanced_bracket.cjs",
     "start": "next start",
     "lint": "next lint"
   },
