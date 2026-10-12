@@ -8,7 +8,8 @@
     "test:bracket64": "node tests/v14_2_fix17_advanced_bracket.cjs",
     "start": "next start",
     "lint": "next lint",
-    "test:fix18": "node tests/v14_2_fix18_features.cjs"
+    "test:fix18": "node tests/v14_2_fix18_features.cjs",
+    "test:fix19": "node tests/v14_2_fix19_scrim_groups.cjs && node tests/v14_2_fix19_integration.cjs"
   },
   "engines": {
     "node": ">=22.0.0 <25"

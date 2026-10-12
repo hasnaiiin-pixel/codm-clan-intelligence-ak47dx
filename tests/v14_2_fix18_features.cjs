@@ -19,5 +19,5 @@ assert.match(analytics,/value="ALL">📚 Tutte le stagioni/);
 assert.match(analytics,/Σ TOTALE TUTTE LE STAGIONI/);
 assert.match(analytics,/scrimSummary\.historical/);
 assert.match(analytics,/scrimSummary\.newScrims/);
-assert.match(txt('app/version/page.tsx'),/AK47DX_V14_2_FIX18_MAPPE_ARMI_STATISTICHE_RIGENERA/);
+assert.match(txt('app/version/page.tsx'),/AK47DX_V14_2_FIX1[89]_/);
 console.log(`OK FIX18: ${CODM_MULTIPLAYER_MAPS.length} mappe unificate, ${Object.keys(CODM_WEAPONS).length} categorie armi, rigenerazione da iscritti, stagione ALL e marker Vercel`);

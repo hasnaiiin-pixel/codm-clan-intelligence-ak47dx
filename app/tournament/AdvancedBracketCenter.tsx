@@ -14,6 +14,29 @@ const defaultModes=['CED','POSTAZIONE','DOMINIO','CONTROL'];
 const DEFAULT_LIMITS:Record<string,number>={CED:7,POSTAZIONE:250,DOMINIO:150,CONTROL:3,TDM:50,PRIMA_LINEA:50,KILL_CONFIRMED:40};
 const defaultConfig=():BracketConfig=>({capacityMode:'auto',manualCapacity:16,seedMode:'ranking',modes:[...defaultModes],mapModePool:Object.fromEntries(Object.keys(MODES).map(mode=>[mode,[]])),weapons:{},customMaps:[],customWeapons:{}});
 function uniqueness<T>(xs:T[]):T[]{return Array.from(new Set(xs));}
+// Le regole della pagina principale e quelle del motore 64 condividono la stessa origine.
+function configFromRules(rules:Record<string,any>):BracketConfig {
+  const saved=rules?.advanced_bracket_config_v2;
+  if(saved && typeof saved==='object' && saved.mapModePool && saved.weapons) return {...defaultConfig(),...saved};
+  const base=defaultConfig();
+  const modes=Array.isArray(rules?.allowed_modes)&&rules.allowed_modes.length ? rules.allowed_modes.filter((m:string)=>Boolean(MODES[m])):base.modes;
+  const maps=Array.isArray(rules?.allowed_maps)?rules.allowed_maps.filter((m:unknown)=>typeof m==='string'):[];
+  const weaponNames=Array.isArray(rules?.allowed_weapons)?rules.allowed_weapons:[];
+  const weapons:Record<string,string[]>={};
+  for(const [category,all] of Object.entries(CODM_WEAPONS)) weapons[category]=all.filter(w=>weaponNames.includes(w));
+  return {...base,modes,mapModePool:Object.fromEntries(Object.keys(MODES).map(mode=>[mode,maps])),weapons};
+}
+function databaseMessage(error:unknown):string {
+  if(error instanceof Error)return error.message;
+  if(error&&typeof error==='object') {
+    const e=error as Record<string,unknown>;
+    const fields=[e.code&&`[${e.code}]`,e.message,e.details,e.hint].filter(Boolean);
+    if(fields.length)return fields.join(' — ');
+    return JSON.stringify(e);
+  }
+  return String(error);
+}
+
 function dateDisplay(iso?:string){if(!iso)return 'Da programmare';const d=new Date(iso);return Number.isFinite(d.getTime())?d.toLocaleString('it-IT',{dateStyle:'short',timeStyle:'short'}):'Da programmare';}
 function dateInput(iso?:string){if(!iso)return '';const d=new Date(iso);if(!Number.isFinite(d.getTime()))return '';const pad=(n:number)=>String(n).padStart(2,'0');return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;}
 function matchCount(n:number){return {w:n-1,l:n-3,total:2*n-3};}
@@ -53,7 +76,7 @@ function validateAssignment(a:Assignment,m:BracketMatch,config:BracketConfig){
 }
 export default function AdvancedBracketCenter({tournamentId,participants,canWrite,rules,legacyMatchCount,eligible,teamLabel,onSaved}:Props){
   const saved=(rules?.advanced_bracket_v2?.version===2?rules.advanced_bracket_v2:null) as SavedBracket|null;
-  const [config,setConfig]=useState<BracketConfig>(()=>saved?.config||defaultConfig());
+  const [config,setConfig]=useState<BracketConfig>(()=>saved?.config||configFromRules(rules));
   const [plan,setPlan]=useState<BracketPlan|null>(saved?.plan||null);
   const [results,setResults]=useState<Record<string,BracketResult>>(saved?.results||{});
   const [assignments,setAssignments]=useState<Record<string,Assignment>>(saved?.assignments||{});
@@ -71,7 +94,7 @@ export default function AdvancedBracketCenter({tournamentId,participants,canWrit
   useEffect(()=>{
     const snap=rules?.advanced_bracket_v2 as SavedBracket|undefined;
     setPlan(snap?.version===2?snap.plan:null);setResults(snap?.version===2?snap.results||{}:{});
-    setAssignments(snap?.version===2?snap.assignments||{}:{});setConfig(snap?.version===2?snap.config:defaultConfig());
+    setAssignments(snap?.version===2?snap.assignments||{}:{});setConfig(snap?.version===2?snap.config:configFromRules(rules));
     setSelectedKey('');setEntryScores({a:'',b:''});setNotice('');
   },[tournamentId]);
   const count=participants.length;
@@ -92,6 +115,25 @@ export default function AdvancedBracketCenter({tournamentId,participants,canWrit
 
   function setModeMaps(mode:string,maps:string[]){setConfig(c=>({...c,mapModePool:{...c.mapModePool,[mode]:uniqueness(maps)}}));}
   function assignMatch(patch:Partial<Assignment>){if(!selected)return;setAssignments(a=>({...a,[selected.key]:{...a[selected.key],...patch}}));}
+  async function saveConfiguration() {
+    if(!canWrite||busy||!tournamentId||plan)return;
+    setBusy(true);
+    try {
+      if(!config.modes.length)throw new Error('Seleziona almeno una modalità.');
+      if(!config.modes.some(m=>(config.mapModePool[m]||[]).length))throw new Error('Seleziona almeno una mappa nelle modalità abilitate.');
+      if(!eligibleWeapons(config.weapons).length)throw new Error('Seleziona almeno una arma nella categoria desiderata.');
+      const {data,error:readError}=await supabase.from('codm_tournaments').select('rules').eq('id',tournamentId).single();
+      if(readError)throw readError;
+      const rulesOnServer=(data?.rules&&typeof data.rules==='object'?data.rules:{}) as Record<string,any>;
+      const next={...rulesOnServer,advanced_bracket_config_v2:config,
+        allowed_modes:[...config.modes],allowed_maps:uniqueness(Object.values(config.mapModePool).flat()),
+        allowed_weapons:uniqueness(Object.values(config.weapons).flat())};
+      const {data:updated,error}=await supabase.from('codm_tournaments').update({rules:next}).eq('id',tournamentId).select('id,rules').single();
+      if(error||!updated)throw error||new Error('Supabase non ha confermato il salvataggio (controlla permessi RLS).');
+      onSaved(next);
+      setNotice('✓ Regole tabellone salvate su Supabase. Le ritroverai quando riapri il torneo.');
+    }catch(e){setNotice(`Impostazioni non salvate: ${databaseMessage(e)}`);}finally{setBusy(false);}
+  }
   function generate(){
     try{
       if(!canWrite)throw new Error('Solo lo staff può generare il tabellone.');
@@ -128,13 +170,15 @@ export default function AdvancedBracketCenter({tournamentId,participants,canWrit
       const expected=Number(saved?.revision||0);
       if(revision!==expected)throw new Error('Il tabellone è stato modificato da un altro dispositivo. Ricarica la pagina prima di salvare.');
       const snapshot:SavedBracket={version:2,revision:revision+1,plan,results:updatedResults,assignments:updatedAssignments,config};
-      const next={...freshRules,advanced_bracket_v2:snapshot};
-      const {error}=await supabase.from('codm_tournaments').update({rules:next}).eq('id',tournamentId);
-      if(error)throw error;
+      const next={...freshRules,advanced_bracket_v2:snapshot,advanced_bracket_config_v2:config,
+        allowed_modes:[...config.modes],allowed_maps:uniqueness(Object.values(config.mapModePool).flat()),
+        allowed_weapons:uniqueness(Object.values(config.weapons).flat())};
+      const {data:confirmed,error}=await supabase.from('codm_tournaments').update({rules:next}).eq('id',tournamentId).select('id').single();
+      if(error||!confirmed)throw error||new Error('Salvataggio non confermato da Supabase: verifica i permessi.');
       onSaved(next);
       setNotice('Tabellone salvato su Supabase. Nessuna partita dei tornei precedenti è stata modificata.');
       return true;
-    }catch(e:any){setNotice(`Salvataggio non riuscito: ${e?.message||String(e)}`);return false;}finally{setBusy(false);}
+    }catch(e:any){setNotice(`Salvataggio non riuscito: ${databaseMessage(e)}`);return false;}finally{setBusy(false);}
   }
   async function saveScore(){
     if(!plan||!selected)return;
@@ -189,6 +233,7 @@ export default function AdvancedBracketCenter({tournamentId,participants,canWrit
     <div className="ak64-map-scroll">{(allWeapons[expandedWeaponCat]||[]).map(w=><label key={w}><input type="checkbox" checked={(config.weapons[expandedWeaponCat]||[]).includes(w)} onChange={()=>setConfig(c=>({...c,weapons:{...c.weapons,[expandedWeaponCat]:(c.weapons[expandedWeaponCat]||[]).includes(w)?c.weapons[expandedWeaponCat].filter(x=>x!==w):[...(c.weapons[expandedWeaponCat]||[]),w]}}))}/>{w}</label>)}</div>
     <div className="ak64-add"><input className="input" placeholder="Nuova arma in questa categoria" value={newWeapon} onChange={(e:{target:{value:string}})=>setNewWeapon(e.target.value)}/><button className="btn small secondary" type="button" onClick={()=>{const w=newWeapon.trim();if(!w)return;setConfig(c=>({...c,customWeapons:{...c.customWeapons,[expandedWeaponCat]:uniqueness([...(c.customWeapons[expandedWeaponCat]||[]),w])},weapons:{...c.weapons,[expandedWeaponCat]:uniqueness([...(c.weapons[expandedWeaponCat]||[]),w])}}));setNewWeapon('');}}>+ Arma</button></div>
     {saved&&<p className="notice">Per rigenerare il torneo da zero mantenendo gli iscritti, apri <b>Crea / Gestisci → Rigenera torneo da iscritti</b>. I risultati originali rimangono nell’edizione precedente.</p>}
+    {!plan&&<div className="cal-buttons top-gap"><button className="btn small secondary" type="button" disabled={!canWrite||busy} onClick={()=>void saveConfiguration()}>💾 Salva scelte mappe / armi / formato</button></div>}
     {!plan&&<div className="cal-buttons top-gap"><button className="btn" disabled={!canWrite||!eligible||count<5||count>64||legacyMatchCount>0||invalidTeamCount} onClick={generate}>⚡ Genera anteprima Winners + Losers + BO3</button>{legacyMatchCount>0&&<p className="muted">Per proteggere gli incontri esistenti, crea un nuovo torneo per utilizzare questo formato.</p>}</div>}
     {plan&&<>
       <div className="ak64-metrics top-gap"><span><b>{plan.teams.length}</b> squadre</span><span><b>{roundName(plan.capacity)}</b> inizio</span><span><b>{plan.byes}</b> BYE</span><span><b>{plan.matches.length}</b> serie effettive</span><span><b>1</b> Grand Final BO3</span></div>

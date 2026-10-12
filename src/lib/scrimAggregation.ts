@@ -30,7 +30,7 @@ function resultOf(wins:number,losses:number):Scrim['result'] {
 function outcome(m:ScrimSourceMatch){return {wins:Number(m.result==='WIN'),losses:Number(m.result==='LOSE'),draws:Number(m.result==='DRAW')};}
 function sortTime(m:ScrimSourceMatch){return asDate(m.match_date)??Number.MAX_SAFE_INTEGER;}
 /**
- * Storico (solo risultato, serie esplicita o stagione archiviata storica): un record = una Scrim.
+ * Storico di solo risultato oppure serie esplicita: un record = una Scrim.
  * Nuove partite: gruppo con medesimo clan, stagione, avversario e entro 24h dalla PRIMA partita.
  * Dati senza avversario/data valida NON vengono accorpati per evitare Scrim fittizie.
  * Non trasforma un 3-2 storico in cinque partite di dettaglio.
@@ -44,7 +44,9 @@ export function groupScrims(matches:readonly ScrimSourceMatch[],historicalSeason
     const opponentKey=normalizeOpponent(m.opponent);
     const seasonId=m.season_id||null;
     const clanId=String(m.clan_id||'__AK47DX__');
-    const old=m.record_quality==='result_only'||m.match_scope==='series'||Boolean(seasonId&&historicalSeasonIds.has(seasonId));
+    // Non usare is_historical per trattare TUTTE le partite dettagliate come Scrim.
+    // Anche una stagione storica puo contenere cinque screenshot di una sola Scrim.
+    const old=m.record_quality==='result_only'||m.match_scope==='series';
     const o=outcome(m),at=asDate(m.match_date);
     const key=`${clanId}|${seasonId||'__NONE__'}|${opponentKey}`;
     if(old||!opponentKey||at===null){

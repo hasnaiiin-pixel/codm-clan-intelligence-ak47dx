@@ -3223,3 +3223,8 @@ select.pro-select {
 .ak18-grand-total{background:rgba(74,114,169,.22);border-top:2px solid rgba(130,174,234,.55)}
 .ak18-grand-total td{font-weight:700}
 @media (max-width:600px){.ak18-weapon-picker{grid-template-columns:repeat(2,minmax(0,1fr))}.ak18-analytics-toolbar .btn{flex:1}}
+
+/* FIX19: tabellone unico con impostazioni persistenti */
+.ak19-integrated-bracket{margin-top:24px;padding-top:10px;border-top:1px solid rgba(140,160,210,.26)}
+.ak19-integrated-bracket>.ak-bracket64{margin-top:14px;background:rgba(28,39,59,.34)}
+.ak19-integrated-bracket>.notice{margin:0 0 16px}

@@ -1,0 +1,11 @@
+const fs=require('fs'),assert=require('assert'),path=require('path');
+const root=path.join(__dirname,'..');const page=fs.readFileSync(path.join(root,'app/tournament/page.tsx'),'utf8');const adv=fs.readFileSync(path.join(root,'app/tournament/AdvancedBracketCenter.tsx'),'utf8');const scrim=fs.readFileSync(path.join(root,'src/lib/scrimAggregation.ts'),'utf8');const ver=fs.readFileSync(path.join(root,'app/version/page.tsx'),'utf8');
+assert(!page.includes("['advanced', '🏆 Tabelloni 64']"),'no separated tab');
+assert(page.includes('ak19-integrated-bracket')&&page.includes('<AdvancedBracketCenter'),'advanced bracket inside main tab');
+assert(page.includes('readableDbError(error)'),'readable Supabase error');
+assert(page.includes('Salva mappe, armi e regolamento su Supabase'),'save main rules visible');
+assert(adv.includes('saveConfiguration()')&&adv.includes('advanced_bracket_config_v2'),'pre-generation save');
+assert(adv.includes(".select('id,rules').single()"),'RLS confirmation on update');
+assert(!scrim.includes("Boolean(seasonId&&historicalSeasonIds.has(seasonId))"),'no old-season per-game splitting');
+assert(ver.includes('FIX19'),'deployment marker');
+console.log('FIX19 UI OK: tabellone unico, salvataggio verificato, errori SQL e marker.');
