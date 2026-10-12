@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { supabase } from '@/lib/supabaseClient';
 import { useCodmAuth } from '@/lib/authRoles';
+import { makeRepechageBuckets, roundRobinPairs } from '@/lib/tournamentRepechage';
 
 type TournamentStatus = 'Bozza' | 'Iscrizioni aperte' | 'Iscrizioni chiuse' | 'In corso' | 'Finito' | 'Archiviato';
 type TournamentRow = {
@@ -24,7 +25,7 @@ type TournamentRow = {
 };
 type TeamRow = { id: string; tournament_id: string; name: string; captain?: string | null; status?: string | null; logo_url?: string | null; players?: string[] | null; reserves?: string[] | null };
 type RegistrationRow = { id: string; tournament_id: string; user_id?: string | null; team_id?: string | null; nickname?: string | null; status?: string | null; note?: string | null; created_at?: string };
-type MatchRow = { id: string; tournament_id: string; team_a?: string | null; team_b?: string | null; phase?: string | null; group_name?: string | null; match_time?: string | null; lobby_time?: string | null; map_name?: string | null; mode?: string | null; status?: string | null; score_a?: number | null; score_b?: number | null; winner?: string | null; mvp?: string | null; screenshot_url?: string | null; notes?: string | null; lobby_name?: string | null; referee?: string | null; bracket_order?: number | null; next_match_id?: string | null };
+type MatchRow = { id: string; tournament_id: string; team_a?: string | null; team_b?: string | null; phase?: string | null; group_name?: string | null; match_time?: string | null; lobby_time?: string | null; map_name?: string | null; mode?: string | null; status?: string | null; score_a?: number | null; score_b?: number | null; winner?: string | null; mvp?: string | null; screenshot_url?: string | null; notes?: string | null; lobby_name?: string | null; referee?: string | null; bracket_order?: number | null; score_limit?: number | null; next_match_id?: string | null };
 
 type Participant = { name: string; seed: number; source: 'team' | 'registration' };
 
@@ -33,6 +34,12 @@ const tournamentTypes = ['Da decidere dopo iscrizioni', 'Eliminazione diretta', 
 const formats = ['Da decidere dopo iscrizioni', '1v1', '2v2', '3v3', '4v4', '5v5', 'Custom'];
 const codmMaps = ['Standoff', 'Raid', 'Firing Range', 'Summit', 'Slums', 'Hacienda', 'Takeoff', 'Meltdown', 'Crash', 'Crossfire', 'Nuketown', 'Nuketown Russia', 'Hijacked', 'Shoot House', 'Shipment', 'Rust', 'Terminal', 'Highrise', 'Hackney Yard', 'Tunisia', 'Coastal', 'Express', 'Dome', 'Vacant', 'Scrapyard', 'Monastery'];
 const codmModes = ['CED', 'POSTAZIONE', 'DOMINIO', 'CONTROL', 'TDM', 'PRIMA_LINEA', 'KILL_CONFIRMED'];
+const defaultScoreLimits:Record<string,number> = { CED:7, POSTAZIONE:250, DOMINIO:150, CONTROL:3, TDM:50, PRIMA_LINEA:50, KILL_CONFIRMED:40 };
+const tournamentModeLabel=(m:string)=>m==='CONTROL'?'Controllo':m==='CED'?'CED / Cerca e Distruggi':m;
+function dateLabel(value?:string|null){if(!value)return 'Data e ora da assegnare';const d=new Date(value);return Number.isNaN(d.valueOf())?'Data e ora da assegnare':d.toLocaleString('it-IT',{day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit'})}
+function datetimeInput(value?:string|null){if(!value)return '';const d=new Date(value);if(!Number.isFinite(d.getTime()))return '';return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}T${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`}
+
+
 const allowedWeaponPresets = ['Regole CODM competitive', 'AR / SMG / Sniper consentiti', 'Solo armi standard CODM', 'No shotgun / no launcher', 'Regole CDL-like', 'Custom'];
 const phasesOrder = ['Sedicesimi', 'Ottavi', 'Quarti', 'Semifinale', 'Finale', 'Vincitore'];
 
@@ -94,8 +101,21 @@ export default function TournamentPage() {
   const [form, setForm] = useState({ name: '', description: '', coverUrl: '', date: '', start: '', lobby: '', maxTeams: '8', format: 'Da decidere dopo iscrizioni', type: 'Da decidere dopo iscrizioni', status: 'Bozza', allowedPreset: 'Regole CODM competitive', allowedWeapons: '', bans: '', rules: '' });
   const [registrationNote, setRegistrationNote] = useState('');
   const [teamForm, setTeamForm] = useState({ name: '', captain: '', players: '', reserves: '', status: 'Incompleta' });
-  const [matchForm, setMatchForm] = useState({ id: '', teamA: '', teamB: '', phase: 'Girone', group: 'A', date: '', lobby: '', map: 'Standoff', mode: 'CED', scoreA: '', scoreB: '', winner: '', mvp: '', status: 'Da giocare', screenshotUrl: '', notes: '', lobbyName: '', referee: '' });
+  const [matchForm, setMatchForm] = useState({ id: '', teamA: '', teamB: '', phase: 'Girone', group: 'A', date: '', lobby: '', map: 'Standoff', mode: 'CED', scoreLimit:'7', scoreA: '', scoreB: '', winner: '', mvp: '', status: 'Da giocare', screenshotUrl: '', notes: '', lobbyName: '', referee: '' });
   const [generationMode, setGenerationMode] = useState('auto');
+  const [groupCount,setGroupCount]=useState(3);
+  const [qualifiersPerGroup,setQualifiersPerGroup]=useState(2);
+  const [secondChance,setSecondChance]=useState(false);
+  const [secondChancePending,setSecondChancePending]=useState(false);
+  const [secondChanceFormat,setSecondChanceFormat]=useState<'groups'|'knockout'>('knockout');
+  const [secondChanceSlots,setSecondChanceSlots]=useState(1);
+  const [tournamentBusy,setTournamentBusy]=useState(false);
+  const [selectedModes,setSelectedModes]=useState<string[]>(['CED','POSTAZIONE','DOMINIO','CONTROL']);
+  const [selectedMaps,setSelectedMaps]=useState<string[]>(['Standoff','Raid','Firing Range','Tunisia','Crash']);
+  const [scoreLimits,setScoreLimits]=useState<Record<string,number>>({...defaultScoreLimits});
+  const [lobbyCount,setLobbyCount]=useState(2);
+  const [slotMinutes,setSlotMinutes]=useState(30);
+
   const [confirmDelete, setConfirmDelete] = useState(false);
 
   const selected = tournaments.find((t) => t.id === selectedId) || tournaments[0] || null;
@@ -107,6 +127,14 @@ export default function TournamentPage() {
     return confirmedRegistrations.map((registration, index) => ({ name: registration.nickname || `Player ${index + 1}`, seed: index + 1, source: 'registration' as const }));
   }, [teams, confirmedRegistrations]);
   const recommended = useMemo(() => recommendTournament(participants.length), [participants.length]);
+  const teamLabel=(name?:string|null)=>{
+    if(!name)return 'Da definire';
+    const team=teams.find(t=>t.name===name);
+    if(team?.players?.length)return `${name} (${team.players.join(', ')})`;
+    return name;
+  };
+  function toggleChoice(value:string,current:string[],setter:(next:string[])=>void){setter(current.includes(value)?current.filter(x=>x!==value):[...current,value]);}
+
   const filteredRosterOptions = useMemo(() => rosterOptions.filter(p=>p.nickname.toLocaleLowerCase('it-IT').includes(rosterSearch.trim().toLocaleLowerCase('it-IT'))).slice(0, 200), [rosterOptions,rosterSearch]);
 
   useEffect(() => { void load(); }, []);
@@ -166,6 +194,18 @@ export default function TournamentPage() {
       format: t.format || 'Da decidere dopo iscrizioni', type: t.type || 'Da decidere dopo iscrizioni', status: String(t.status || 'Bozza'),
       allowedPreset: rules.allowed_preset || 'Regole CODM competitive', allowedWeapons: listText(rules.allowed_weapons), bans: listText(bans.weapons || bans.items || bans.text), rules: rules.text || ''
     });
+    setSelectedModes(Array.isArray(rules.allowed_modes)&&rules.allowed_modes.length?rules.allowed_modes.filter((x:string)=>codmModes.includes(x)):['CED','POSTAZIONE','DOMINIO','CONTROL']);
+    setSelectedMaps(Array.isArray(rules.allowed_maps)&&rules.allowed_maps.length?rules.allowed_maps.filter((x:string)=>codmMaps.includes(x)):['Standoff','Raid','Firing Range','Tunisia','Crash']);
+    setScoreLimits({...defaultScoreLimits,...(rules.score_limits&&typeof rules.score_limits==='object'?rules.score_limits:{})});
+    setLobbyCount(Math.min(4,Math.max(1,Number(rules.lobby_count)||2)));
+    setSlotMinutes(Math.min(180,Math.max(10,Number(rules.slot_minutes)||30)));
+    setGenerationMode(['auto','A gruppi','Eliminazione diretta'].includes(String(rules.generation_mode))?String(rules.generation_mode):'auto');
+    setGroupCount(Math.min(16,Math.max(1,Number(rules.group_count)||3)));
+    setQualifiersPerGroup(Math.min(16,Math.max(1,Number(rules.qualifiers_per_group)||2)));
+    setSecondChance(Boolean(rules.second_chance));
+    setSecondChancePending(Boolean(rules.second_chance_pending));
+    setSecondChanceFormat(rules.second_chance_format==='groups'?'groups':'knockout');
+    setSecondChanceSlots(Math.min(2,Math.max(1,Number(rules.second_chance_slots)||1)));
   }
 
   function recommendTournament(count: number) {
@@ -207,7 +247,7 @@ export default function TournamentPage() {
       name: form.name.trim(), cover_url: form.coverUrl.trim() || null, description: form.description.trim() || null, tournament_date: form.date || null,
       start_time: form.start || null, lobby_time: form.lobby || null, max_teams: Number(form.maxTeams) || Math.max(8, participants.length || 8),
       format: form.format, type: form.type, status: form.status,
-      rules: { text: form.rules, bo: 'BO3', screenshot_required: true, mvp_required: true, allowed_preset: form.allowedPreset, allowed_weapons: splitLines(form.allowedWeapons) },
+      rules: { text: form.rules, bo: 'BO3', screenshot_required: true, mvp_required: true, allowed_preset: form.allowedPreset, allowed_weapons: splitLines(form.allowedWeapons), allowed_modes:selectedModes, allowed_maps:selectedMaps, score_limits:scoreLimits, lobby_count:lobbyCount, slot_minutes:slotMinutes, group_count:groupCount, qualifiers_per_group:qualifiersPerGroup, second_chance:secondChance, second_chance_pending:secondChancePending, second_chance_format:secondChanceFormat, second_chance_slots:secondChanceSlots, generation_mode:generationMode },
       bans: { text: form.bans, weapons: splitLines(form.bans) }
     };
     const query = selected?.id
@@ -293,16 +333,145 @@ export default function TournamentPage() {
     await loadDetails(selected.id);
   }
 
+  // Programma automaticamente data, ora e lobby; una squadra non può essere assegnata due volte allo stesso slot.
+  function scheduleMatches<T extends Record<string,any>>(generated:T[], phaseStart?:string):T[]{
+    const date=form.date||selected?.tournament_date||'';
+    const time=form.start||String(selected?.start_time||'').slice(0,5);
+    if(!date||!time)return generated;
+    let origin=new Date(`${date}T${time}:00`);
+    if(Number.isNaN(origin.valueOf()))return generated;
+    if(phaseStart){const last=matches.filter(m=>m.match_time).map(m=>new Date(String(m.match_time)).getTime()).filter(Number.isFinite);if(last.length)origin=new Date(Math.max(origin.getTime(),Math.max(...last)+slotMinutes*60000));}
+    const slots=new Map<number,Set<string>>();
+    return generated.map((m,index)=>{
+      const a=String(m.team_a||''),b=String(m.team_b||'');
+      let slot=0;
+      for(;slot<2000;slot++){
+        const used=slots.get(slot)||new Set<string>();
+        if(used.size/2>=lobbyCount||used.has(a)||used.has(b))continue;
+        used.add(a);used.add(b);slots.set(slot,used);break;
+      }
+      const scheduled=new Date(origin.getTime()+slot*slotMinutes*60000);
+      const n=slots.get(slot)?.size||2;
+      return {...m, match_time:scheduled.toISOString(),lobby_time:new Date(scheduled.getTime()-10*60000).toISOString(),lobby_name:`Lobby ${Math.min(lobbyCount,Math.ceil(n/2))}`};
+    });
+  }
+
+  // La configurazione dei gironi è nel JSON rules esistente: nessuna migrazione SQL.
+  async function persistGroupSettings(){
+    if(!selected?.id)return false;
+    if(matches.some(m=>m.phase!=='Girone')){setMessage('Formato bloccato dopo la creazione di ripescaggi o playoff.');return false;}
+    const previous=selected.rules&&typeof selected.rules==='object'?selected.rules:{};
+    const effectiveCount=Math.max(1,Math.min(groupCount,Math.floor(participants.length/2)));
+    const rules={...previous,group_count:effectiveCount,qualifiers_per_group:qualifiersPerGroup,second_chance:secondChance,second_chance_pending:secondChancePending,second_chance_format:secondChanceFormat,second_chance_slots:secondChanceSlots,generation_mode:generationMode};
+    const {error}=await supabase.from('codm_tournaments').update({rules}).eq('id',selected.id);
+    if(error){setMessage(`Configurazione gironi non salvata: ${error.message}`);return false;}
+    setTournaments(prev=>prev.map(t=>t.id===selected.id?{...t,rules}:t));
+    return true;
+  }
+
+  function drawParticipants(list:string[]){
+    const shuffled=[...list];
+    for(let i=shuffled.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[shuffled[i],shuffled[j]]=[shuffled[j],shuffled[i]];}
+    return shuffled;
+  }
+
+  // Crea un bracket completo con link tra gli incontri e gestisce i BYE del primo turno.
+  // 'prefix' distingue il playoff principale dal ripescaggio; i risultati restano salvati nel database.
+  function buildKnockout(names:string[],prefix:'Playoff'|'Ripescaggio',pathName:string){
+    if(names.length<2)return [] as Array<Record<string,any>>;
+    const size=nextPowerOfTwo(names.length),byes=size-names.length;
+    const opening:string[]=[];
+    for(let i=0;i<byes;i++)opening.push(names[i],'BYE');
+    opening.push(...names.slice(byes));
+    const first=phaseForSize(size);
+    const rounds=phasesOrder.slice(phasesOrder.indexOf(first),phasesOrder.indexOf('Finale')+1);
+    const all:Array<Record<string,any>>=[];
+    const levels:Array<Array<Record<string,any>>>=[];
+    rounds.forEach((round,roundIndex)=>{
+      const count=size/(2**(roundIndex+1));
+      const records=Array.from({length:count},(_,order)=>{
+        const a=roundIndex===0?opening[order*2]:`Vincitore ${pathName} turno ${roundIndex} (${order*2+1})`;
+        const b=roundIndex===0?opening[order*2+1]:`Vincitore ${pathName} turno ${roundIndex} (${order*2+2})`;
+        const phase=prefix==='Ripescaggio'?`${pathName} - ${round}`:round;
+        const base=matchPayload(a,b,phase,pathName,order);
+        const winner=a==='BYE'?b:b==='BYE'?a:null;
+        return {...base,id:crypto.randomUUID(),bracket_order:order,next_match_id:null,winner,status:winner?'Finita':'Da giocare',notes:`${rulesSummary()}${winner?'\nPassaggio diretto (BYE).':''}`};
+      });
+      levels.push(records);all.push(...records);
+    });
+    for(let i=0;i<levels.length-1;i++)for(const child of levels[i]){
+      const parent=levels[i+1][Math.floor(child.bracket_order/2)];
+      child.next_match_id=parent.id;
+      if(child.winner)parent[child.bracket_order%2===0?'team_a':'team_b']=child.winner;
+    }
+    return all;
+  }
+
+  async function clearGroups(){
+    if(!selected?.id||!canWrite||tournamentBusy)return;
+    const groupMatches=matches.filter(m=>m.phase==='Girone');
+    if(!groupMatches.length)return setMessage('Nessun girone da cancellare.');
+    if(matches.some(m=>m.phase!=='Girone'))return setMessage('Non puoi cancellare i gironi dopo aver generato ripescaggi o playoff. Conserva lo storico del torneo.');
+    const played=groupMatches.filter(m=>m.score_a!=null||m.score_b!=null||m.screenshot_url||m.winner);
+    if(played.length){
+      const confirmation=window.prompt(`ATTENZIONE: ${played.length} incontri contengono risultati o prove. Per cancellare definitivamente i gironi e questi risultati, scrivi ELIMINA GIRONI:`);
+      if(confirmation!=='ELIMINA GIRONI')return setMessage('Cancellazione annullata: risultati conservati.');
+    }else if(!window.confirm(`Eliminare ${groupMatches.length} incontri dei gironi? Le squadre e le iscrizioni restano salvate.`))return;
+    setTournamentBusy(true);
+    try{
+      const {error}=await supabase.from('codm_tournament_matches').delete().eq('tournament_id',selected.id).eq('phase','Girone');
+      if(error)throw error;
+      setMatchForm(v=>({...v,id:''}));
+      await loadDetails(selected.id);
+      setMessage('Gironi cancellati. Squadre e iscrizioni conservate: scegli il numero di gironi e premi Genera.');
+    }catch(error){setMessage(`Cancellazione non riuscita: ${error instanceof Error?error.message:String(error)}`);}
+    finally{setTournamentBusy(false);}
+  }
+
+  async function regenerateGroups(){
+    if(tournamentBusy||!selected?.id||!canWrite)return;
+    if(matches.some(m=>m.phase!=='Girone'))return setMessage('Per proteggere playoff/ripescaggi già creati, non puoi rigenerare questo torneo.');
+    const played=matches.some(m=>m.score_a!=null||m.score_b!=null||m.winner||m.screenshot_url);
+    if(played)return setMessage('Sono presenti risultati: usa Cancella gironi con conferma esplicita prima di rigenerare.');
+    if(matches.length&&!window.confirm('Rigenerare il sorteggio? Gli incontri e gli orari non giocati saranno sostituiti; squadre e iscrizioni resteranno.'))return;
+    if(!selectedModes.length||!selectedMaps.length)return setMessage('Seleziona almeno una mappa e una modalità nelle Regole.');
+    if(!bracketIsGroupMode)return setMessage('Seleziona Gironi + playoff prima di rigenerare i gironi.');
+    const generated=buildGeneratedMatches();
+    if(!generated.length)return setMessage('Servono almeno due squadre e una configurazione di gironi valida.');
+    setTournamentBusy(true);
+    try{
+      if(!await persistGroupSettings())return;
+      // Inseriamo prima il nuovo sorteggio e rimuoviamo il precedente soltanto
+      // dopo conferma Supabase. Se la cancellazione fallisce, tentiamo il rollback
+      // delle sole nuove righe, senza toccare gli incontri originali.
+      const {data:newRows,error:insertError}=await supabase.from('codm_tournament_matches').insert(generated).select('id');
+      if(insertError)throw insertError;
+      const insertedIds=(newRows||[]).map(r=>r.id);
+      const oldIds=matches.filter(m=>m.phase==='Girone').map(m=>m.id);
+      if(oldIds.length){
+        const {error:deleteError}=await supabase.from('codm_tournament_matches').delete().eq('tournament_id',selected.id).in('id',oldIds);
+        if(deleteError){
+          const {error:rollbackError}=await supabase.from('codm_tournament_matches').delete().eq('tournament_id',selected.id).in('id',insertedIds);
+          throw new Error(`${deleteError.message}${rollbackError?` · ATTENZIONE: rollback non riuscito (${rollbackError.message}), controlla gli incontri prima di ripetere.`:''}`);
+        }
+      }
+      await loadDetails(selected.id);
+      setMessage(`Nuovo sorteggio creato: ${Math.max(1,Math.min(groupCount,Math.floor(participants.length/2)))} gironi, ${generated.length} incontri. Squadre e iscrizioni conservate.`);
+    }catch(error){await loadDetails(selected.id);setMessage(`Rigenerazione non completata: ${error instanceof Error?error.message:String(error)}. Verifica gli incontri prima di riprovare.`);}
+    finally{setTournamentBusy(false);}
+  }
+
   function buildGeneratedMatches() {
-    const list = participants.map((p) => p.name).filter(Boolean);
+    const list = drawParticipants(participants.map((p) => p.name).filter(Boolean));
     if (list.length < 2 || !selected?.id) return [] as any[];
     const type = generationMode === 'auto' ? String(form.type || selected.type || recommended.title).toLowerCase() : generationMode.toLowerCase();
     const generated: any[] = [];
     if (type.includes('grupp') || type.includes('girone')) {
-      const groupCount = list.length >= 16 ? 4 : list.length >= 9 ? 3 : list.length >= 6 ? 2 : 1;
-      const groups = Array.from({ length: groupCount }, (_, i) => String.fromCharCode(65 + i));
+      if(groupCount<1)return [];
+      const effectiveGroupCount=Math.min(groupCount,Math.floor(list.length/2));
+      const groups=Array.from({length:effectiveGroupCount},(_,i)=>String.fromCharCode(65+i));
       const buckets = groups.map(() => [] as string[]);
-      list.forEach((name, i) => buckets[i % groupCount].push(name));
+      list.forEach((name, i) => buckets[i % effectiveGroupCount].push(name));
       for (let g = 0; g < buckets.length; g += 1) {
         for (let i = 0; i < buckets[g].length; i += 1) {
           for (let j = i + 1; j < buckets[g].length; j += 1) {
@@ -310,20 +479,15 @@ export default function TournamentPage() {
           }
         }
       }
-      return generated;
+      return scheduleMatches(generated);
     }
-    const size = nextPowerOfTwo(list.length);
-    const phase = phaseForSize(size);
-    const padded = [...list, ...Array.from({ length: size - list.length }, () => 'BYE')];
-    for (let i = 0; i < padded.length; i += 2) {
-      const a = padded[i]; const b = padded[i + 1];
-      generated.push({ ...matchPayload(a, b, phase, 'Bracket', generated.length), status: a === 'BYE' || b === 'BYE' ? 'Finita' : 'Da giocare', winner: a === 'BYE' ? b : b === 'BYE' ? a : null, notes: `${rulesSummary()}${a === 'BYE' || b === 'BYE' ? '\nBye automatico.' : ''}` });
-    }
-    return generated;
+    return scheduleMatches(buildKnockout(list,'Playoff','Bracket'));
   }
 
   function matchPayload(teamA: string, teamB: string, phase: string, group: string, index: number) {
-    return { tournament_id: selected?.id, team_a: teamA, team_b: teamB, phase, group_name: group, map_name: codmMaps[index % codmMaps.length], mode: codmModes[index % codmModes.length], status: 'Da giocare', notes: rulesSummary() };
+    const mode=selectedModes[Math.floor(Math.random()*selectedModes.length)]||'CED';
+    const map=selectedMaps[Math.floor(Math.random()*selectedMaps.length)]||'Standoff';
+    return { tournament_id:selected?.id,team_a:teamA,team_b:teamB,phase,group_name:group,map_name:map,mode,score_limit:scoreLimits[mode]||defaultScoreLimits[mode],status:'Da giocare',notes:rulesSummary() };
   }
 
   function rulesSummary() {
@@ -331,55 +495,92 @@ export default function TournamentPage() {
   }
 
   async function generateMatches() {
+    if(tournamentBusy)return;
     if (!selected?.id) return setMessage('Seleziona un torneo.');
     if (!canWrite) return setMessage('Solo staff può generare tabellone.');
+    if(!selectedModes.length||!selectedMaps.length)return setMessage('Seleziona almeno una modalità e una mappa nelle Regole torneo.');
     const generated = buildGeneratedMatches();
     if (!generated.length) return setMessage('Servono almeno 2 iscritti confermati o 2 squadre.');
-    if(matches.length)return setMessage('Sono già presenti incontri: per sicurezza non vengono sovrascritti. Modifica i risultati esistenti.');
-    const { error } = await supabase.from('codm_tournament_matches').insert(generated);
-    if (error) return setMessage(error.message);
-    setMessage(`Generate ${generated.length} partite. Clicca una partita per inserire o modificare risultato.`);
-    await loadDetails(selected.id);
-    setActive('bracket');
+    if(matches.length)return setMessage('Sono già presenti incontri: usa Rigenera gironi (prima dei risultati) oppure modifica i risultati esistenti.');
+    setTournamentBusy(true);
+    try{
+      if(!await persistGroupSettings())return;
+      const {error}=await supabase.from('codm_tournament_matches').insert(generated);
+      if(error)throw error;
+      await loadDetails(selected.id);
+      setMessage(`Generate ${generated.length} partite. Clicca un incontro per assegnare orario o risultato.`);
+      setActive('bracket');
+    }catch(error){setMessage(`Generazione non riuscita: ${error instanceof Error?error.message:String(error)}`);}
+    finally{setTournamentBusy(false);}
+  }
+
+  // Seconda possibilità: TUTTE le non qualificate dai gironi principali.
+  // Modalità a gironi: gironi dedicati, classifica separata e una vincente per gruppo.
+  // Modalità knockout: ogni esclusa entra in un tabellone a eliminazione diretta.
+  async function generateRepechage(){
+    if(!canWrite||!selected?.id||tournamentBusy)return setMessage('Solo Staff può avviare il ripescaggio.');
+    if(!groupTables.length)return setMessage('Il ripescaggio delle non qualificate richiede prima una fase a gironi.');
+    if(secondChancePending)return setMessage('Prima scegli il tipo di ripescaggio oppure Nessun ripescaggio.');
+    if(!secondChance)return setMessage('Seleziona un formato di ripescaggio prima di generare gli incontri.');
+    if(!groupTables.length||groupTables.some(g=>!g.finished))return setMessage('Completa prima tutti gli incontri dei gironi principali.');
+    if(matches.some(m=>m.phase!=='Girone'))return setMessage('Ripescaggio o playoff già creato; nessun duplicato inserito.');
+    const eliminated=drawParticipants(groupTables.flatMap(g=>g.standings.slice(g.qualifying).map(t=>t.team)));
+    if(eliminated.length<2)return setMessage('Per il ripescaggio servono almeno due squadre non qualificate.');
+    const buckets=makeRepechageBuckets(eliminated,secondChanceSlots);
+    const paths=buckets.length;
+    const generated=secondChanceFormat==='groups'
+      ? buckets.flatMap((names,i)=>{
+          const groupName=`Ripescaggio ${String.fromCharCode(65+i)}`;
+          const games:Array<Record<string,any>>=[];
+          for(const [teamA,teamB] of roundRobinPairs(names)){
+            games.push(matchPayload(teamA,teamB,'Ripescaggio Girone',groupName,games.length));
+          }
+          return games;
+        })
+      : buckets.flatMap((names,i)=>buildKnockout(names,'Ripescaggio',`Ripescaggio ${String.fromCharCode(65+i)}`));
+    if(!generated.length)return setMessage('Impossibile creare il ripescaggio con i partecipanti attuali.');
+    setTournamentBusy(true);
+    try{
+      if(!await persistGroupSettings())return;
+      const {error}=await supabase.from('codm_tournament_matches').insert(scheduleMatches(generated,'ripescaggio'));
+      if(error)throw error;
+      await loadDetails(selected.id);
+      setMessage(`Ripescaggio ${secondChanceFormat==='groups'?'a gironi':'a eliminazione diretta'}: ${eliminated.length} squadre non qualificate, ${paths} posti in palio. Risultati principali conservati.`);
+    }catch(error){setMessage(`Ripescaggio non creato: ${error instanceof Error?error.message:String(error)}`);}
+    finally{setTournamentBusy(false);}
   }
 
   async function generatePlayoffs(){
-    if(!canWrite||!selected?.id)return setMessage('Solo Staff può avviare i playoff.');
+    if(!canWrite||!selected?.id||tournamentBusy)return setMessage('Solo Staff può avviare i playoff.');
     if(!groupTables.length||groupTables.some(g=>!g.finished))return setMessage('Completa tutti gli incontri dei gironi prima di creare i playoff.');
-    if(matches.some(m=>m.phase!=='Girone'))return setMessage('Playoff già creati: nessun duplicato inserito.');
-    const guaranteed=groupTables.flatMap(g=>g.standings.slice(0,2));
-    const others=groupTables.flatMap(g=>g.standings.slice(2));
+    if(secondChancePending)return setMessage('Ripescaggio ancora da decidere: scegli Nessuno, Gironi oppure Eliminazione diretta prima di generare i playoff.');
+    if(matches.some(m=>m.phase!=='Girone'&&!String(m.phase).startsWith('Ripescaggio ')))return setMessage('Playoff già creati: nessun duplicato inserito.');
+    const guaranteed=groupTables.flatMap(g=>g.standings.slice(0,g.qualifying));
     const order=(a:typeof guaranteed[number],b:typeof guaranteed[number])=>b.points-a.points||b.diff-a.diff||a.team.localeCompare(b.team);
-    const eight=[...guaranteed,...others.sort(order).slice(0,Math.max(0,8-guaranteed.length))].sort(order);
-    const names=eight.map(x=>x.team);
-    if(names.length<2)return setMessage('Servono almeno due squadre qualificate.');
-    const size=nextPowerOfTwo(names.length);
-    const first=phaseForSize(size);
-    const phaseSequence=phasesOrder.slice(phasesOrder.indexOf(first),phasesOrder.indexOf('Finale')+1);
-    const generated:Array<Record<string,unknown>>=[];
-    const byPhase:Array<Array<{id:string;order:number}>>=[];
-    phaseSequence.forEach((phase,round)=>{
-      const count=size/(2**(round+1));
-      const list=Array.from({length:count},(_,order)=>({id:crypto.randomUUID(),order}));
-      byPhase.push(list);
-      list.forEach((n)=>{
-        const a=round===0?(names[n.order*2]||'BYE'):`Vincitore ${phaseSequence[round-1]} ${n.order*2+1}`;
-        const b=round===0?(names[n.order*2+1]||'BYE'):`Vincitore ${phaseSequence[round-1]} ${n.order*2+2}`;
-        generated.push({id:n.id,tournament_id:selected.id,team_a:a,team_b:b,phase,group_name:'Playoff',bracket_order:n.order,next_match_id:null,status:'Da giocare'});
-      });
-    });
-    for(let round=0;round<byPhase.length-1;round++)for(const n of byPhase[round]){
-      const record=generated.find(g=>g.id===n.id);
-      if(record)record.next_match_id=byPhase[round+1][Math.floor(n.order/2)].id;
+    let names=guaranteed.sort(order).map(t=>t.team);
+    if(secondChance){
+      if(!repechageFinished)return setMessage('Completa prima tutti gli incontri del ripescaggio, poi genera i playoff.');
+      if(!repechageWinners.size)return setMessage('Nessuna squadra ripescata: controlla risultati e classifiche del ripescaggio.');
+      names.push(...Array.from(repechageWinners));
     }
-    const {error}=await supabase.from('codm_tournament_matches').insert(generated);
-    if(error)return setMessage(error.message);
-    setMessage(`Playoff creati: ${names.length} squadre qualificate, ${generated.length} incontri.`);
-    await loadDetails(selected.id);
+    // Nessun ripescaggio = nessuna squadra esclusa passa di nascosto:
+    // il bracket gestisce eventuali posti liberi tramite BYE automatici.
+    names=Array.from(new Set(names));
+    if(names.length<2)return setMessage('Servono almeno due squadre qualificate.');
+    const generated=buildKnockout(names,'Playoff','Playoff');
+    if(!generated.length)return setMessage('Impossibile creare il tabellone.');
+    setTournamentBusy(true);
+    try{
+      const {error}=await supabase.from('codm_tournament_matches').insert(scheduleMatches(generated,'playoff'));
+      if(error)throw error;
+      await loadDetails(selected.id);
+      setMessage(`Playoff creati: ${names.length} squadre, ${generated.length} incontri; ${secondChance?'inclusi i ripescati':'qualificate secondo classifica'}.`);
+    }catch(error){setMessage(`Playoff non creati: ${error instanceof Error?error.message:String(error)}`);}
+    finally{setTournamentBusy(false);}
   }
 
   function editMatch(match: MatchRow) {
-    setMatchForm({ id: match.id, teamA: match.team_a || '', teamB: match.team_b || '', phase: match.phase || 'Girone', group: match.group_name || 'A', date: match.match_time ? String(match.match_time).slice(0, 16) : '', lobby: match.lobby_time ? String(match.lobby_time).slice(0, 16) : '', map: match.map_name || 'Standoff', mode: match.mode || 'CED', scoreA: match.score_a == null ? '' : String(match.score_a), scoreB: match.score_b == null ? '' : String(match.score_b), winner: match.winner || '', mvp: match.mvp || '', status: match.status || 'Da giocare', screenshotUrl: match.screenshot_url || '', notes: match.notes || '', lobbyName: match.lobby_name || '', referee: match.referee || '' });
+    setMatchForm({ id: match.id, teamA: match.team_a || '', teamB: match.team_b || '', phase: match.phase || 'Girone', group: match.group_name || 'A', date:datetimeInput(match.match_time), lobby:datetimeInput(match.lobby_time), map: match.map_name || 'Standoff', mode: match.mode || 'CED', scoreLimit: String(match.score_limit || scoreLimits[match.mode||'CED'] || ''), scoreA: match.score_a == null ? '' : String(match.score_a), scoreB: match.score_b == null ? '' : String(match.score_b), winner: match.winner || '', mvp: match.mvp || '', status: match.status || 'Da giocare', screenshotUrl: match.screenshot_url || '', notes: match.notes || '', lobbyName: match.lobby_name || '', referee: match.referee || '' });
     setActive('matches');
     setMessage(`Modifica partita: ${match.team_a || '-'} vs ${match.team_b || '-'}.`);
   }
@@ -389,10 +590,15 @@ export default function TournamentPage() {
     if (!canWrite) return setMessage('Solo staff può salvare partite torneo.');
     const scoreA = matchForm.scoreA === '' ? null : Number(matchForm.scoreA);
     const scoreB = matchForm.scoreB === '' ? null : Number(matchForm.scoreB);
-    const winner = matchForm.winner || (scoreA !== null && scoreB !== null ? (scoreA > scoreB ? matchForm.teamA : scoreB > scoreA ? matchForm.teamB : 'Pareggio') : null);
-    const conflict=matches.find(m=>m.id!==matchForm.id&&m.match_time===matchForm.date&&!!matchForm.date&&((!!matchForm.lobbyName&&m.lobby_name===matchForm.lobbyName)||[m.team_a,m.team_b].some(t=>t&&[matchForm.teamA,matchForm.teamB].includes(t))));
+    const limit=Number(matchForm.scoreLimit||scoreLimits[matchForm.mode]||0);
+    if(!Number.isInteger(limit)||limit<1||limit>9999)return setMessage('Limite punteggio non valido: inserisci un intero maggiore di zero.');
+    if((scoreA!==null&&scoreA>limit)||(scoreB!==null&&scoreB>limit))return setMessage(`Risultato superiore al limite ${limit} per ${tournamentModeLabel(matchForm.mode)}. Correggi il limite o il punteggio.`);
+    if(!['Girone','Ripescaggio Girone'].includes(matchForm.phase)&&scoreA!==null&&scoreB!==null&&scoreA===scoreB)return setMessage('Nei turni a eliminazione diretta serve un vincitore: non è ammesso il pareggio.');
+    if(!['Girone','Ripescaggio Girone'].includes(matchForm.phase)&&scoreA!==null&&scoreB!==null&&[matchForm.teamA,matchForm.teamB].some(x=>x==='BYE'||x.startsWith('Vincitore ')))return setMessage('Prima completa gli incontri precedenti: le squadre del prossimo turno non sono ancora definite.');
+    const winner=scoreA!==null&&scoreB!==null?(scoreA>scoreB?matchForm.teamA:scoreB>scoreA?matchForm.teamB:'Pareggio'):matchForm.teamA==='BYE'?matchForm.teamB:matchForm.teamB==='BYE'?matchForm.teamA:null;
+    const conflict=matches.find(m=>m.id!==matchForm.id&&!!matchForm.date&&m.match_time===new Date(matchForm.date).toISOString()&&((!!matchForm.lobbyName&&m.lobby_name===matchForm.lobbyName)||[m.team_a,m.team_b].some(t=>t&&[matchForm.teamA,matchForm.teamB].includes(t))));
     if(conflict)return setMessage('Conflitto orario: squadra o lobby già assegnata alla stessa ora.');
-    const payload = { tournament_id: selected.id, team_a: matchForm.teamA, team_b: matchForm.teamB, phase: matchForm.phase, group_name: matchForm.group, match_time: matchForm.date || null, lobby_time: matchForm.lobby || null, map_name: matchForm.map, mode: matchForm.mode, status: scoreA !== null && scoreB !== null ? 'Finita' : matchForm.status, score_a: scoreA, score_b: scoreB, winner, mvp: matchForm.mvp || null, screenshot_url: matchForm.screenshotUrl || null, lobby_name: matchForm.lobbyName || null, referee: matchForm.referee || null, notes: `${matchForm.notes || ''}\n${rulesSummary()}`.trim() };
+    const payload = { tournament_id: selected.id, team_a: matchForm.teamA, team_b: matchForm.teamB, phase: matchForm.phase, group_name: matchForm.group, match_time: matchForm.date ? new Date(matchForm.date).toISOString() : null, lobby_time: matchForm.lobby ? new Date(matchForm.lobby).toISOString() : null, map_name: matchForm.map, mode: matchForm.mode, score_limit:limit, status: scoreA !== null && scoreB !== null ? 'Finita' : matchForm.status, score_a: scoreA, score_b: scoreB, winner, mvp: matchForm.mvp || null, screenshot_url: matchForm.screenshotUrl || null, lobby_name: matchForm.lobbyName || null, referee: matchForm.referee || null, notes: `${matchForm.notes || ''}\n${rulesSummary()}`.trim() };
     const query = matchForm.id ? supabase.from('codm_tournament_matches').update(payload).eq('id', matchForm.id) : supabase.from('codm_tournament_matches').insert(payload);
     const { error } = await query;
     if (error) return setMessage(error.message);
@@ -446,31 +652,54 @@ export default function TournamentPage() {
         return {team,played:played.length,wins,draws,losses:played.length-wins-draws,points:wins*3+draws,diff};
       }).sort((a,b)=>b.points-a.points||b.diff-a.diff||a.team.localeCompare(b.team));
       const finished=games.length>0&&games.every(m=>m.score_a!=null&&m.score_b!=null);
-      return {name,games,standings,finished,qualifying:Math.min(2,standings.length)};
+      return {name,games,standings,finished,qualifying:Math.min(qualifiersPerGroup,Math.max(1,standings.length-1))};
     });
-  },[matches]);
+  },[matches,qualifiersPerGroup]);
 
-  const extraQualifiers=useMemo(()=>{
-    if(groupTables.length<3 || groupTables.some(g=>!g.finished))return new Set<string>();
-    const top=groupTables.reduce((n,g)=>n+Math.min(2,g.standings.length),0);
-    const slots=Math.max(0,nextPowerOfTwo(top)-top);
-    const candidate=groupTables.flatMap(g=>g.standings.slice(2)).sort((a,b)=>b.points-a.points||b.diff-a.diff||a.team.localeCompare(b.team));
-    return new Set(candidate.slice(0,slots).map(t=>t.team));
-  },[groupTables]);
+  // Tutte le squadre escluse restano tali salvo ripescaggio effettivamente vinto.
+  const extraQualifiers=useMemo(()=>new Set<string>(),[]);
 
   const groupedMatches = useMemo(() => {
     const map = new Map<string, MatchRow[]>();
     for (const m of matches) {
-      if(m.phase==='Girone')continue;
+      if(m.phase==='Girone'||String(m.phase||'').startsWith('Ripescaggio '))continue;
       const key = m.phase || 'Partite';
       map.set(key, [...(map.get(key) || []), m]);
     }
     return Array.from(map.entries()).sort((a,b) => phasesOrder.indexOf(a[0]) - phasesOrder.indexOf(b[0]));
   }, [matches]);
 
+  const repechageMatches=useMemo(()=>matches.filter(m=>String(m.phase||'').startsWith('Ripescaggio ')),[matches]);
+  const repechageGroupMatches=useMemo(()=>repechageMatches.filter(m=>m.phase==='Ripescaggio Girone'),[repechageMatches]);
+  const repechageKnockoutMatches=useMemo(()=>repechageMatches.filter(m=>m.phase!=='Ripescaggio Girone'),[repechageMatches]);
+  const repechageFinals=useMemo(()=>repechageKnockoutMatches.filter(m=>!m.next_match_id),[repechageKnockoutMatches]);
+  const repechageGroupTables=useMemo(()=>{
+    const names=Array.from(new Set(repechageGroupMatches.map(m=>m.group_name||'Ripescaggio A'))).sort();
+    return names.map(name=>{
+      const games=repechageGroupMatches.filter(m=>(m.group_name||'Ripescaggio A')===name);
+      const members=Array.from(new Set(games.flatMap(m=>[m.team_a,m.team_b]).filter((n):n is string=>!!n&&n!=='BYE')));
+      const ranking=members.map(team=>{
+        const played=games.filter(m=>m.score_a!=null&&m.score_b!=null&&(m.team_a===team||m.team_b===team));
+        let wins=0,draws=0,diff=0;
+        for(const m of played){const own=m.team_a===team?Number(m.score_a):Number(m.score_b),opp=m.team_a===team?Number(m.score_b):Number(m.score_a);diff+=own-opp;if(own>opp)wins++;else if(own===opp)draws++;}
+        return {team,played:played.length,wins,draws,points:wins*3+draws,diff};
+      }).sort((a,b)=>b.points-a.points||b.diff-a.diff||a.team.localeCompare(b.team));
+      return {name,games,ranking,finished:games.length>0&&games.every(m=>m.score_a!=null&&m.score_b!=null)};
+    });
+  },[repechageGroupMatches]);
+  const repechageFinished=repechageMatches.length>0&&(repechageGroupMatches.length>0
+    ? repechageGroupTables.length>0&&repechageGroupTables.every(g=>g.finished)
+    : repechageFinals.length>0&&repechageFinals.every(m=>!!m.winner&&m.winner!=='Pareggio'&&m.winner!=='BYE'));
+  const repechageWinners=useMemo(()=>new Set<string>(repechageGroupMatches.length>0
+    ? repechageGroupTables.filter(g=>g.finished).map(g=>g.ranking[0]?.team).filter((x):x is string=>!!x)
+    : repechageFinals.map(m=>String(m.winner||'')).filter(x=>!!x&&x!=='Pareggio'&&x!=='BYE')),
+    [repechageGroupMatches,repechageGroupTables,repechageFinals]);
+  const allGroupsFinished=groupTables.length>0&&groupTables.every(g=>g.finished);
+  const bracketIsGroupMode=groupTables.length>0||(generationMode==='auto'?String(form.type||selected?.type||'').toLowerCase():generationMode.toLowerCase()).includes('grupp')||(generationMode==='auto'?String(form.type||selected?.type||'').toLowerCase():generationMode.toLowerCase()).includes('girone');
+
   const tournamentStats = useMemo(() => ({ played: matches.filter((m) => m.score_a != null && m.score_b != null).length, pending: matches.filter((m) => m.score_a == null || m.score_b == null).length, registrations: registrations.length, confirmed: confirmedRegistrations.length, participants: participants.length }), [matches, registrations, confirmedRegistrations, participants]);
 
-  const tabs = [['dashboard', '📌 Dashboard'], ['manage', '🛠️ Crea / Gestisci'], ['registrations', '📝 Iscrizioni'], ['teams', '👥 Squadre dopo iscrizioni'], ['rules', '📜 Regole / Armi'], ['bracket', '📊 Tabellone'], ['matches', '🎮 Partita / Risultato'], ['archive', '🗂️ Archivio']];
+  const tabs = [['dashboard', '📌 Dashboard'], ['manage', '🛠️ Crea / Gestisci'], ['registrations', '📝 Iscrizioni'], ['teams', '👥 Squadre dopo iscrizioni'], ['rules', '📜 Regole / Armi'], ['bracket', '📊 Tabellone'], ['calendar', '📅 Calendario'], ['matches', '🎮 Partita / Risultato'], ['archive', '🗂️ Archivio']];
 
   return (
     <main className="container wide tournament-page tournament-pro-page tournament-v11-page">
@@ -490,13 +719,43 @@ export default function TournamentPage() {
 
       {active === 'teams' && <section className="card top-gap"><h2>Squadre dopo iscrizioni</h2><p className="muted">Per 1v1 puoi anche non creare squadre: il tabellone usa gli iscritti confermati. Per 2v2/5v5 crea squadre dagli iscritti.</p><div className="grid grid-3"><div className="field"><label>Nome squadra</label><input className="input" value={teamForm.name} onChange={(e)=>setTeamForm({...teamForm,name:e.target.value})}/></div><div className="field"><label>Capitano</label><input className="input" value={teamForm.captain} onChange={(e)=>setTeamForm({...teamForm,captain:e.target.value})}/></div><div className="field"><label>Stato squadra</label><select className="select pro-select" value={teamForm.status} onChange={(e)=>setTeamForm({...teamForm,status:e.target.value})}>{['Incompleta','Completa','Confermata','Eliminata'].map(s=><option key={s}>{s}</option>)}</select></div><div className="field"><label>Aggiungi titolare dalla lista iscritti</label><select className="select" defaultValue="" onChange={e=>{const name=e.target.value;if(name)setTeamForm(f=>({...f,players:[...new Set([...splitLines(f.players),name])].join('\n')}));e.target.value=''}}><option value="">Seleziona partecipante</option>{Array.from(new Set([...confirmedRegistrations.map(r=>r.nickname||''),...rosterOptions.map(r=>r.nickname)])).filter(Boolean).sort((a,b)=>a.localeCompare(b,'it')).map(n=><option key={n} value={n}>{n}</option>)}</select></div><div className="field"><label>Titolari</label><textarea className="textarea" value={teamForm.players} onChange={(e)=>setTeamForm({...teamForm,players:e.target.value})} /></div><div className="field"><label>Riserve</label><textarea className="textarea" value={teamForm.reserves} onChange={(e)=>setTeamForm({...teamForm,reserves:e.target.value})} /></div><div className="field"><label>Azione</label><button className="btn" onClick={saveTeam}>{editingTeamId?'💾 Aggiorna squadra':'➕ Aggiungi squadra'}</button></div></div><div className="tournament-team-list top-gap">{teams.map(t=><article key={t.id} className="compact-card"><b>{t.name}</b><span>{teamCompleteness(t, form.format || '5v5')}</span><small>Capitano: {t.captain || '-'} · Titolari: {(t.players||[]).join(', ') || '-'} · Riserve: {t.reserves?.length || 0}</small>{canWrite&&<button className="btn small secondary" onClick={()=>editTeam(t)}>✏️ Modifica squadra / nome</button>}</article>)}</div></section>}
 
-      {active === 'rules' && <section className="card top-gap"><h2>Regolamento, armi permesse e ban</h2><div className="grid grid-2"><div className="field"><label>Tipologia armi permesse</label><select className="select pro-select" value={form.allowedPreset} onChange={(e)=>setForm({...form,allowedPreset:e.target.value})}>{allowedWeaponPresets.map((w)=><option key={w}>{w}</option>)}</select><textarea className="textarea top-gap" value={form.allowedWeapons} onChange={(e)=>setForm({...form,allowedWeapons:e.target.value})} placeholder="Esempio: AR, SMG, Sniper, Pistol..." /></div><div className="field"><label>🚫 Armi / oggetti vietati</label><textarea className="textarea" value={form.bans} onChange={(e)=>setForm({...form,bans:e.target.value})} placeholder="NA45, Persistence, Martirio..." /></div><div className="field grid-span-2"><label>Regole generali</label><textarea className="textarea" value={form.rules} onChange={(e)=>setForm({...form,rules:e.target.value})} placeholder="BO3, ritardo massimo, screenshot obbligatorio, MVP..." /></div></div><button className="btn top-gap" onClick={saveTournament}>💾 Salva regolamento</button></section>}
+      {active === 'rules' && <section className="card top-gap"><h2>Regolamento, mappe e modalità</h2><p className="muted">Scegli modalità e mappe ammesse: il sorteggio userà soltanto queste. Il limite è modificabile per ogni modalità e su ogni incontro. Salva prima di generare le partite.</p>
+      <div className="v142-rules-grid"><div><h3>Modalità ammesse</h3>{codmModes.map(mode=><label className="v142-choice" key={mode}><input type="checkbox" checked={selectedModes.includes(mode)} onChange={()=>toggleChoice(mode,selectedModes,setSelectedModes)}/><span>{tournamentModeLabel(mode)}</span><small>Limite</small><input className="input" type="number" min="1" max="9999" value={scoreLimits[mode]??''} onChange={e=>setScoreLimits(p=>({...p,[mode]:Number(e.target.value)||0}))}/></label>)}</div>
+      <div><h3>Mappe sorteggiabili</h3><div className="v142-map-grid">{codmMaps.map(map=><label className="v142-map-choice" key={map}><input type="checkbox" checked={selectedMaps.includes(map)} onChange={()=>toggleChoice(map,selectedMaps,setSelectedMaps)}/>{map}</label>)}</div></div></div>
+      <div className="grid grid-2 top-gap"><div className="field"><label>Lobby contemporanee</label><select className="select" value={lobbyCount} onChange={e=>setLobbyCount(Number(e.target.value))}>{[1,2,3,4].map(n=><option value={n} key={n}>{n} lobby</option>)}</select></div><div className="field"><label>Minuti per slot del calendario</label><input className="input" type="number" min="10" max="180" value={slotMinutes} onChange={e=>setSlotMinutes(Math.min(180,Math.max(10,Number(e.target.value)||30)))}/></div></div>
+      <div className="grid grid-2"><div className="field"><label>Tipologia armi permesse</label><select className="select pro-select" value={form.allowedPreset} onChange={(e)=>setForm({...form,allowedPreset:e.target.value})}>{allowedWeaponPresets.map((w)=><option key={w}>{w}</option>)}</select><textarea className="textarea top-gap" value={form.allowedWeapons} onChange={(e)=>setForm({...form,allowedWeapons:e.target.value})} placeholder="Esempio: AR, SMG, Sniper, Pistol..." /></div><div className="field"><label>🚫 Armi / oggetti vietati</label><textarea className="textarea" value={form.bans} onChange={(e)=>setForm({...form,bans:e.target.value})} placeholder="NA45, Persistence, Martirio..." /></div><div className="field grid-span-2"><label>Regole generali</label><textarea className="textarea" value={form.rules} onChange={(e)=>setForm({...form,rules:e.target.value})} placeholder="BO3, ritardo massimo, screenshot obbligatorio, MVP..." /></div></div><button className="btn top-gap" onClick={saveTournament}>💾 Salva regolamento</button></section>}
 
-      {active === 'bracket' && <section className="card top-gap v14-tournament-board"><div className="section-title"><div><h2>🏆 Gironi e tabellone</h2><p className="muted">Gironi separati sempre visibili. Verde: qualificata; grigio: eliminata. Stati definitivi solo a girone terminato.</p></div><div className="cal-buttons"><select className="select pro-select" value={generationMode} onChange={e=>setGenerationMode(e.target.value)}><option value="auto">Auto</option><option value="Eliminazione diretta">Eliminazione diretta</option><option value="A gruppi">Gironi</option></select><button className="btn small secondary" disabled={!canWrite||!!matches.length} onClick={()=>void generateMatches()}>⚡ Genera incontri</button></div></div>
-      <div className="v14-group-grid top-gap">{groupTables.map(g=><article className="v14-group-card" key={g.name}><header><h3>GIRONE {g.name}</h3><span>{g.finished?'Concluso':'In corso'}</span></header><div className="table-scroll"><table className="table compact"><thead><tr><th>#</th><th>Squadra</th><th>G</th><th>V</th><th>P</th><th>Diff</th><th>Pt</th></tr></thead><tbody>{g.standings.map((t,i)=><tr key={t.team} className={g.finished?(i<g.qualifying||extraQualifiers.has(t.team)?'v14-qualify':'v14-out'):'v14-pending'}><td>{i+1}</td><td><b>{t.team}</b> {g.finished?(i<g.qualifying||extraQualifiers.has(t.team)?'✓':'×'):'·'}</td><td>{t.played}</td><td>{t.wins}</td><td>{t.losses}</td><td>{t.diff}</td><td>{t.points}</td></tr>)}</tbody></table></div><h4>Incontri</h4><div className="v14-group-games">{g.games.map(m=><button key={m.id} className="v14-game" onClick={()=>editMatch(m)}><span>{m.team_a} <b>{m.score_a??'–'} : {m.score_b??'–'}</b> {m.team_b}</span><small>{m.match_time?new Date(m.match_time).toLocaleString('it-IT'):'Da programmare'} · {m.lobby_name||'Lobby da assegnare'}</small></button>)}</div></article>)}</div>
-      <div className="v14-playoff-action top-gap"><p className="muted">Quando tutti i gironi sono conclusi, crea automaticamente i playoff con le migliori qualificate. Per 11 coppie: prime due dei tre gironi + due migliori terze.</p><button className="btn" onClick={()=>void generatePlayoffs()} disabled={!canWrite||!groupTables.length||groupTables.some(g=>!g.finished)||matches.some(m=>m.phase!=='Girone')}>🏆 Genera playoff dalle qualificate</button></div><h3 className="top-gap">Tabellone playoff</h3><div className="tournament-bracket-board v14-bracket top-gap">{groupedMatches.map(([phase,ms])=><div className="bracket-column" key={phase}><h3>{phase}</h3>{ms.map(m=><button key={m.id} className="bracket-match" onClick={()=>editMatch(m)}><span className={resultClass(m,m.team_a)}>{m.team_a||'Da definire'}</span><b>{m.score_a??'–'}</b><span className={resultClass(m,m.team_b)}>{m.team_b||'Da definire'}</span><b>{m.score_b??'–'}</b><small>{m.match_time?new Date(m.match_time).toLocaleString('it-IT'):'Orario da assegnare'} · {m.lobby_name||'Lobby da assegnare'}</small></button>)}</div>)}{!groupedMatches.length&&<div className="empty-state">I playoff saranno visibili dopo la qualificazione. Gli incontri del girone rimangono nelle card in alto.</div>}</div>{!matches.length&&<div className="empty-state">Crea squadre e genera gli incontri per vedere gironi e tabellone.</div>}</section>}
+      {active === 'bracket' && <section className="card top-gap v14-tournament-board"><div className="section-title"><div><h2>🏆 Gironi e tabellone</h2><p className="muted">Numero gironi personalizzabile, sorteggio rigenerabile e ripescaggio opzionale a gironi o eliminazione diretta. Verde: qualificata; ambra: ripescaggio; grigio: eliminata.</p></div></div>
+      <div className="v143-controls top-gap">
+        <div className="field"><label>Formato fase iniziale</label><select className="select pro-select" value={generationMode} disabled={matches.some(m=>m.phase!=='Girone')} onChange={e=>setGenerationMode(e.target.value)}><option value="auto">Usa formato del torneo</option><option value="Eliminazione diretta">Solo eliminazione diretta</option><option value="A gruppi">Gironi + playoff</option></select></div>
+        <div className="field"><label>Numero di gironi</label><select className="select" value={Math.min(groupCount,Math.max(1,Math.floor(participants.length/2)))} disabled={!bracketIsGroupMode||matches.some(m=>m.phase!=='Girone')} onChange={e=>setGroupCount(Number(e.target.value))}>{Array.from({length:Math.max(1,Math.min(16,Math.floor(participants.length/2)))},(_,i)=>i+1).map(n=><option key={n} value={n}>{n} {n===1?'girone':'gironi'}</option>)}</select></div>
+        <div className="field"><label>Qualificate per girone</label><select className="select" value={qualifiersPerGroup} disabled={!bracketIsGroupMode||matches.some(m=>m.phase!=='Girone')} onChange={e=>setQualifiersPerGroup(Number(e.target.value))}>{[1,2,3,4,5].map(n=><option key={n} value={n}>Prime {n}</option>)}</select></div>
+        <div className="field"><label>Ripescaggio per le non qualificate</label><select className="select" disabled={!bracketIsGroupMode||matches.some(m=>m.phase!=='Girone')} value={secondChancePending?'later':secondChance?secondChanceFormat:'none'} onChange={e=>{const v=e.target.value;setSecondChancePending(v==='later');setSecondChance(v==='groups'||v==='knockout');if(v==='groups'||v==='knockout')setSecondChanceFormat(v);}}><option value="later">Da decidere dopo i gironi</option><option value="none">Nessun ripescaggio</option><option value="groups">Tutte le eliminate → nuovi gironi</option><option value="knockout">Tutte le eliminate → eliminazione diretta</option></select></div>
+        {secondChance&&bracketIsGroupMode&&<div className="field"><label>Posti ripescaggio nei playoff (1 o 2)</label><select className="select" value={secondChanceSlots} disabled={matches.some(m=>m.phase!=='Girone')} onChange={e=>setSecondChanceSlots(Number(e.target.value))}><option value={1}>1 posto</option><option value={2}>2 posti</option></select></div>}
+      </div>
+      <p className="muted top-gap">{participants.length} squadre/partecipanti · {bracketIsGroupMode?`${Math.min(groupCount,Math.max(1,Math.floor(participants.length/2)))} gironi, ${qualifiersPerGroup} qualificate per girone`:'Eliminazione diretta'}. Ogni girone lascia almeno una squadra non qualificata. Puoi lasciare il ripescaggio da decidere fino al termine dei gironi; prima di creare i playoff dovrai scegliere un'opzione definitiva. Per modificare le regole di qualificazione dopo avere giocato incontri, occorre un nuovo torneo.</p>
+      {canWrite&&<div className="cal-buttons v143-actions top-gap"><button className="btn small secondary" disabled={tournamentBusy||!selected?.id||matches.some(m=>m.phase!=='Girone')} onClick={()=>void persistGroupSettings().then(ok=>{if(ok)setMessage('Formato gironi salvato nel torneo.');})}>💾 Salva formato</button><button className="btn small" disabled={tournamentBusy||!!matches.length||!canWrite} onClick={()=>void generateMatches()}>⚡ Genera incontri</button><button className="btn small secondary" disabled={tournamentBusy||!matches.length||matches.some(m=>m.phase!=='Girone')||!canWrite} onClick={()=>void regenerateGroups()}>🔀 Rigenera gironi</button><button className="btn small danger" disabled={tournamentBusy||!matches.some(m=>m.phase==='Girone')||matches.some(m=>m.phase!=='Girone')||!canWrite} onClick={()=>void clearGroups()}>🗑️ Cancella gironi</button></div>}
+      {matches.some(m=>m.phase!=='Girone')&&<p className="notice top-gap">Sorteggio bloccato: ripescaggi o playoff già creati. I risultati dei gironi sono protetti.</p>}
+      {!matches.some(m=>m.phase!=='Girone')&&matches.some(m=>m.phase==='Girone'&&(m.score_a!=null||m.score_b!=null))&&<p className="notice top-gap">Ci sono risultati registrati: per rifare i gironi devi usare Cancella gironi e confermare esplicitamente la perdita dei risultati.</p>}
+      <div className="v14-group-grid top-gap">{groupTables.map(g=><article className="v14-group-card" key={g.name}><header><h3>GIRONE {g.name}</h3><span>{g.finished?'Concluso':'In corso'}</span></header><div className="table-scroll"><table className="table compact"><thead><tr><th>#</th><th>Squadra</th><th>G</th><th>V</th><th>N</th><th>Diff</th><th>Pt</th></tr></thead><tbody>{g.standings.map((t,i)=><tr key={t.team} className={g.finished?(i<g.qualifying||extraQualifiers.has(t.team)||repechageWinners.has(t.team)?'v14-qualify':secondChance&&!repechageFinished?'v143-repechage':'v14-out'):'v14-pending'}><td>{i+1}</td><td title={teamLabel(t.team)}><b>{t.team}</b> {g.finished?(i<g.qualifying||extraQualifiers.has(t.team)||repechageWinners.has(t.team)?'✓':secondChance&&!repechageFinished?'↻':'×'):'·'}</td><td>{t.played}</td><td>{t.wins}</td><td>{t.draws}</td><td>{t.diff}</td><td>{t.points}</td></tr>)}</tbody></table></div><h4>Incontri</h4><div className="v14-group-games">{g.games.map(m=><button key={m.id} className="v14-game" onClick={()=>editMatch(m)}><span><span className="v142-game-team">{teamLabel(m.team_a)}</span><b>{m.score_a??'–'} : {m.score_b??'–'}</b><span className="v142-game-team">{teamLabel(m.team_b)}</span></span><small>{dateLabel(m.match_time)} · {m.lobby_name||'Lobby da assegnare'} · {tournamentModeLabel(m.mode||'')} / {m.map_name||'Mappa da assegnare'} · Limite {m.score_limit||'–'}</small></button>)}</div></article>)}</div>
+      {groupTables.length>0&&<div className="v14-playoff-action top-gap"><div><h3>Fase finale e ripescaggio</h3><p className="muted">Le migliori dei gironi passano ai playoff a eliminazione diretta. {secondChancePending?'La scelta del ripescaggio è rinviata: decidi dopo i gironi, prima di creare i playoff.':secondChance?`Tutte le non qualificate disputano un ripescaggio ${secondChanceFormat==='groups'?'a gironi':'a eliminazione diretta'} per gli altri posti nei playoff.`:'Senza ripescaggio, soltanto le qualificate passano ai playoff. Gli slot liberi diventano passaggi diretti (BYE).'}</p></div><div className="v143-actions">{secondChance&&<button className="btn small secondary" onClick={()=>void generateRepechage()} disabled={!canWrite||tournamentBusy||!allGroupsFinished||matches.some(m=>m.phase!=='Girone')}>♻️ Genera ripescaggio</button>}<button className="btn small" onClick={()=>void generatePlayoffs()} disabled={!canWrite||tournamentBusy||!allGroupsFinished||matches.some(m=>m.phase!=='Girone'&&!String(m.phase).startsWith('Ripescaggio '))||secondChancePending||secondChance&&!repechageFinished}>🏆 Genera playoff</button></div></div>}
+      {repechageMatches.length>0&&<><h3 className="top-gap">♻️ Ripescaggio — seconda possibilità</h3>
+        <p className="muted">{repechageGroupMatches.length>0?'Tutte le non qualificate competono nei nuovi gironi di ripescaggio. La prima di ogni girone entra nei playoff.':'Tutte le non qualificate competono in eliminazione diretta. Le vincenti delle finali entrano nei playoff.'} Nessun risultato dei gironi principali viene cancellato.</p>
+        {repechageGroupTables.length>0&&<div className="v14-group-grid top-gap">{repechageGroupTables.map(g=><article className="v14-group-card" key={g.name}><header><h3>{g.name.toUpperCase()}</h3><span>{g.finished?'Concluso':'In corso'}</span></header><div className="table-scroll"><table className="table compact"><thead><tr><th>#</th><th>Squadra</th><th>G</th><th>V</th><th>N</th><th>Diff</th><th>Pt</th></tr></thead><tbody>{g.ranking.map((t,i)=><tr key={t.team} className={g.finished?(i===0?'v14-qualify':'v14-out'):'v14-pending'}><td>{i+1}</td><td title={teamLabel(t.team)}><b>{teamLabel(t.team)}</b> {g.finished?(i===0?'✓':'×'):'·'}</td><td>{t.played}</td><td>{t.wins}</td><td>{t.draws}</td><td>{t.diff}</td><td>{t.points}</td></tr>)}</tbody></table></div><h4>Partite di ripescaggio</h4><div className="v14-group-games">{g.games.map(m=><button key={m.id} className="v14-game" onClick={()=>editMatch(m)}><span><span className="v142-game-team">{teamLabel(m.team_a)}</span><b>{m.score_a??'–'} : {m.score_b??'–'}</b><span className="v142-game-team">{teamLabel(m.team_b)}</span></span><small>{dateLabel(m.match_time)} · {tournamentModeLabel(m.mode||'')} / {m.map_name||'—'}</small></button>)}</div></article>)}</div>}
+        {repechageKnockoutMatches.length>0&&<div className="tournament-bracket-board v14-bracket top-gap">{Array.from(new Set(repechageKnockoutMatches.map(m=>m.phase||'Ripescaggio'))).map(phase=><div className="bracket-column" key={phase}><h3>{phase}</h3>{repechageKnockoutMatches.filter(m=>m.phase===phase).map(m=><button className="bracket-match" key={m.id} onClick={()=>editMatch(m)}><span className={resultClass(m,m.team_a)}>{teamLabel(m.team_a)}</span><b>{m.score_a??'–'}</b><span className={resultClass(m,m.team_b)}>{teamLabel(m.team_b)}</span><b>{m.score_b??'–'}</b><small>{dateLabel(m.match_time)} · {m.lobby_name||'Lobby da assegnare'}</small></button>)}</div>)}</div>}
+        <p className="notice top-gap">{repechageFinished?`Qualificate tramite ripescaggio: ${Array.from(repechageWinners).join(', ')}`:'Ripescaggio in corso: le ripescate saranno definite al termine di tutti gli incontri.'}</p>
+      </>}
+      <h3 className="top-gap">Tabellone playoff</h3><div className="tournament-bracket-board v14-bracket top-gap">{groupedMatches.map(([phase,ms])=><div className="bracket-column" key={phase}><h3>{phase}</h3>{ms.map(m=><button key={m.id} className="bracket-match" onClick={()=>editMatch(m)}><span className={resultClass(m,m.team_a)}>{teamLabel(m.team_a)}</span><b>{m.score_a??'–'}</b><span className={resultClass(m,m.team_b)}>{teamLabel(m.team_b)}</span><b>{m.score_b??'–'}</b><small>{dateLabel(m.match_time)} · {m.mode||'—'} / {m.map_name||'—'} · {m.lobby_name||'Lobby da assegnare'}</small></button>)}</div>)}{!groupedMatches.length&&<div className="empty-state">I playoff saranno visibili dopo la qualificazione. Gli incontri del girone rimangono nelle card in alto.</div>}</div>
+      <h3 className="top-gap">Qualificazione al prossimo turno</h3>
+      {groupTables.length>0&&<div className="table-scroll"><table className="table compact v142-advancement-table"><thead><tr><th>Girone</th><th>Squadra (giocatori)</th><th>G</th><th>V</th><th>N</th><th>Diff</th><th>Pt</th><th>Esito</th></tr></thead><tbody>{groupTables.flatMap(g=>g.standings.map((t,i)=>({g,t,qualifies:g.finished&&(i<g.qualifying||extraQualifiers.has(t.team)||repechageWinners.has(t.team)),mayRepeat:secondChance&&i>=g.qualifying}))).map(({g,t,qualifies,mayRepeat})=><tr key={g.name+t.team} className={g.finished?(qualifies?'v14-qualify':mayRepeat&&!repechageFinished?'v143-repechage':'v14-out'):'v14-pending'}><td>{g.name}</td><td>{teamLabel(t.team)}</td><td>{t.played}</td><td>{t.wins}</td><td>{t.draws}</td><td>{t.diff}</td><td>{t.points}</td><td>{!g.finished?'In attesa':qualifies?(repechageWinners.has(t.team)?'✓ Ripescata':'✓ Qualificata'):mayRepeat&&!repechageFinished?'♻️ Ripescaggio':'× Eliminata'}</td></tr>)}</tbody></table></div>}
+      <h3 className="top-gap">Eliminazione diretta — avanzamenti</h3>
+      <div className="table-scroll"><table className="table compact v142-advancement-table"><thead><tr><th>Turno</th><th>Incontro / giocatori</th><th>Risultato</th><th>Passa</th><th>Eliminata</th><th>Prossimo turno</th></tr></thead><tbody>{matches.filter(m=>m.phase!=='Girone'&&m.phase!=='Ripescaggio Girone').map(m=><tr key={m.id}><td>{m.phase}</td><td>{teamLabel(m.team_a)} — {teamLabel(m.team_b)}</td><td>{m.score_a??'–'} : {m.score_b??'–'}</td><td className="v142-winning">{m.winner&&m.winner!=='Pareggio'?teamLabel(m.winner):'Da definire'}</td><td className="v142-losing">{m.winner&&m.winner!=='Pareggio'?(m.winner===m.team_a?teamLabel(m.team_b):teamLabel(m.team_a)):'—'}</td><td>{m.next_match_id?'Turno successivo':String(m.phase).startsWith('Ripescaggio ')?'Playoff (ripescata)':'Campione'}</td></tr>)}</tbody></table>{!matches.some(m=>m.phase!=='Girone')&&<p className="muted">Il prospetto verrà compilato quando si genera il tabellone playoff.</p>}</div>
+      {!matches.length&&<div className="empty-state">Crea squadre e genera gli incontri per vedere gironi e tabellone.</div>}</section>}
 
-      {active === 'matches' && <section className="card top-gap"><div className="section-title"><div><h2>{matchForm.id ? 'Modifica risultato partita' : 'Partita torneo'}</h2><p className="muted">Clicca una partita dal tabellone oppure crea una partita manuale. Vincitore verde, eliminato rosso.</p></div><button className="btn small secondary" type="button" onClick={() => setActive('bracket')}>Apri tabellone</button></div><div className="grid grid-4"><div className="field"><label>Team A</label><input className="input" value={matchForm.teamA} onChange={(e)=>setMatchForm({...matchForm,teamA:e.target.value})}/></div><div className="field"><label>Team B</label><input className="input" value={matchForm.teamB} onChange={(e)=>setMatchForm({...matchForm,teamB:e.target.value})}/></div><div className="field"><label>Fase</label><select className="select pro-select" value={matchForm.phase} onChange={(e)=>setMatchForm({...matchForm,phase:e.target.value})}>{['Girone', ...phasesOrder].map((p)=><option key={p}>{p}</option>)}</select></div><div className="field"><label>Gruppo/Turno</label><input className="input" value={matchForm.group} onChange={(e)=>setMatchForm({...matchForm,group:e.target.value})}/></div><div className="field"><label>Orario match</label><input className="input" type="datetime-local" value={matchForm.date} onChange={(e)=>setMatchForm({...matchForm,date:e.target.value})}/></div><div className="field"><label>Orario apertura lobby</label><input className="input" type="datetime-local" value={matchForm.lobby} onChange={e=>setMatchForm({...matchForm,lobby:e.target.value})}/></div><div className="field"><label>Mappa</label><select className="select pro-select" value={matchForm.map} onChange={(e)=>setMatchForm({...matchForm,map:e.target.value})}>{codmMaps.map(m=><option key={m}>{m}</option>)}</select></div><div className="field"><label>Modalità</label><select className="select pro-select" value={matchForm.mode} onChange={(e)=>setMatchForm({...matchForm,mode:e.target.value})}>{codmModes.map(m=><option key={m}>{m}</option>)}</select></div><div className="field"><label>Risultato</label><div className="score-inline"><input className="input" value={matchForm.scoreA} onChange={(e)=>setMatchForm({...matchForm,scoreA:e.target.value.replace(/[^0-9]/g,'')})}/><span>:</span><input className="input" value={matchForm.scoreB} onChange={(e)=>setMatchForm({...matchForm,scoreB:e.target.value.replace(/[^0-9]/g,'')})}/></div></div><div className="field"><label>Lobby / Stanza</label><input className="input" value={matchForm.lobbyName} onChange={e=>setMatchForm({...matchForm,lobbyName:e.target.value})} placeholder="Lobby 1"/></div><div className="field"><label>Arbitro / Staff</label><input className="input" value={matchForm.referee} onChange={e=>setMatchForm({...matchForm,referee:e.target.value})}/></div><div className="field"><label>MVP</label><input className="input" value={matchForm.mvp} onChange={(e)=>setMatchForm({...matchForm,mvp:e.target.value})}/></div><div className="field"><label>Screenshot prova/link</label><input className="input" value={matchForm.screenshotUrl} onChange={(e)=>setMatchForm({...matchForm,screenshotUrl:e.target.value})}/></div><div className="field grid-span-2"><label>Note</label><input className="input" value={matchForm.notes} onChange={(e)=>setMatchForm({...matchForm,notes:e.target.value})}/></div></div><div className="notice top-gap"><b>Regole partita:</b> {rulesSummary()}</div><button className="btn top-gap" onClick={saveMatch}>💾 {matchForm.id ? 'Aggiorna risultato partita' : 'Salva partita torneo'}</button><div className="tournament-team-list top-gap">{matches.map(m=><article key={m.id} className="compact-card clickable-card" onClick={()=>editMatch(m)}><b>{m.team_a || '-'} vs {m.team_b || '-'}</b><span>{m.status || 'Da giocare'} · {m.score_a ?? '-'}:{m.score_b ?? '-'}</span><small>{m.phase} · {m.group_name} · {m.map_name} · {m.mode} · MVP {m.mvp || '-'}</small></article>)}</div></section>}
+      {active === 'calendar' && <section className="card top-gap v142-calendar"><div className="section-title"><div><h2>📅 Calendario delle partite</h2><p className="muted">Data, ora, squadre con giocatori, modalità, mappa e lobby. Clicca una partita per modificarla.</p></div><button className="btn small secondary" onClick={()=>setActive('bracket')}>Apri tabellone</button></div>
+        <div className="v142-calendar-list">{[...matches].sort((a,b)=>String(a.match_time||'9999').localeCompare(String(b.match_time||'9999'))).map(m=><button key={m.id} className="v142-calendar-item" onClick={()=>editMatch(m)}><strong>{dateLabel(m.match_time)}</strong><span>{teamLabel(m.team_a)} <b>VS</b> {teamLabel(m.team_b)}</span><small>{m.phase} {m.group_name||''} · {tournamentModeLabel(m.mode||'')} · {m.map_name||'Mappa da assegnare'} · Limite {m.score_limit||'–'} · {m.lobby_name||'Lobby da assegnare'}</small><small>Risultato: {m.score_a??'–'} : {m.score_b??'–'} · {m.status||'Da giocare'}</small></button>)}{!matches.length&&<p className="muted">Nessuna partita programmata. Genera gli incontri dal tabellone.</p>}</div></section>}
+
+      {active === 'matches' && <section className="card top-gap"><div className="section-title"><div><h2>{matchForm.id ? 'Modifica risultato partita' : 'Partita torneo'}</h2><p className="muted">Clicca una partita dal tabellone oppure crea una partita manuale. Vincitore verde, eliminato rosso.</p></div><button className="btn small secondary" type="button" onClick={() => setActive('bracket')}>Apri tabellone</button></div><div className="grid grid-4"><div className="field"><label>Team A</label><input className="input" value={matchForm.teamA} onChange={(e)=>setMatchForm({...matchForm,teamA:e.target.value})}/></div><div className="field"><label>Team B</label><input className="input" value={matchForm.teamB} onChange={(e)=>setMatchForm({...matchForm,teamB:e.target.value})}/></div><div className="field"><label>Fase</label><select className="select pro-select" value={matchForm.phase} onChange={(e)=>setMatchForm({...matchForm,phase:e.target.value})}>{Array.from(new Set(['Girone','Ripescaggio Girone',...phasesOrder,matchForm.phase])).map((p)=><option key={p}>{p}</option>)}</select></div><div className="field"><label>Gruppo/Turno</label><input className="input" value={matchForm.group} onChange={(e)=>setMatchForm({...matchForm,group:e.target.value})}/></div><div className="field"><label>Orario match</label><input className="input" type="datetime-local" value={matchForm.date} onChange={(e)=>setMatchForm({...matchForm,date:e.target.value})}/></div><div className="field"><label>Orario apertura lobby</label><input className="input" type="datetime-local" value={matchForm.lobby} onChange={e=>setMatchForm({...matchForm,lobby:e.target.value})}/></div><div className="field"><label>Mappa</label><select className="select pro-select" value={matchForm.map} onChange={(e)=>setMatchForm({...matchForm,map:e.target.value})}>{Array.from(new Set([...selectedMaps,matchForm.map])).map(m=><option key={m}>{m}</option>)}</select></div><div className="field"><label>Modalità</label><select className="select pro-select" value={matchForm.mode} onChange={(e)=>setMatchForm({...matchForm,mode:e.target.value,scoreLimit:String(scoreLimits[e.target.value]||defaultScoreLimits[e.target.value]||0)})}>{Array.from(new Set([...selectedModes,matchForm.mode])).map(m=><option key={m}>{m}</option>)}</select></div><div className="field"><label>Limite punteggio (modalità)</label><input className="input" type="number" min="1" value={matchForm.scoreLimit} onChange={e=>setMatchForm({...matchForm,scoreLimit:e.target.value})}/></div><div className="field"><label>Risultato</label><div className="score-inline"><input className="input" value={matchForm.scoreA} onChange={(e)=>setMatchForm({...matchForm,scoreA:e.target.value.replace(/[^0-9]/g,'')})}/><span>:</span><input className="input" value={matchForm.scoreB} onChange={(e)=>setMatchForm({...matchForm,scoreB:e.target.value.replace(/[^0-9]/g,'')})}/></div></div><div className="field"><label>Lobby / Stanza</label><input className="input" value={matchForm.lobbyName} onChange={e=>setMatchForm({...matchForm,lobbyName:e.target.value})} placeholder="Lobby 1"/></div><div className="field"><label>Arbitro / Staff</label><input className="input" value={matchForm.referee} onChange={e=>setMatchForm({...matchForm,referee:e.target.value})}/></div><div className="field"><label>MVP</label><input className="input" value={matchForm.mvp} onChange={(e)=>setMatchForm({...matchForm,mvp:e.target.value})}/></div><div className="field"><label>Screenshot prova/link</label><input className="input" value={matchForm.screenshotUrl} onChange={(e)=>setMatchForm({...matchForm,screenshotUrl:e.target.value})}/></div><div className="field grid-span-2"><label>Note</label><input className="input" value={matchForm.notes} onChange={(e)=>setMatchForm({...matchForm,notes:e.target.value})}/></div></div><div className="notice top-gap"><b>Regole partita:</b> {rulesSummary()}</div><button className="btn top-gap" onClick={saveMatch}>💾 {matchForm.id ? 'Aggiorna risultato partita' : 'Salva partita torneo'}</button><div className="tournament-team-list top-gap">{matches.map(m=><article key={m.id} className="compact-card clickable-card" onClick={()=>editMatch(m)}><b>{teamLabel(m.team_a)} vs {teamLabel(m.team_b)}</b><small>📅 {dateLabel(m.match_time)} · {m.lobby_name||'Lobby da assegnare'}</small><span>{m.status || 'Da giocare'} · {m.score_a ?? '-'}:{m.score_b ?? '-'}</span><small>{m.phase} · {m.group_name} · {m.map_name} · {m.mode} · MVP {m.mvp || '-'}</small></article>)}</div></section>}
 
       {active === 'archive' && <section className="card top-gap"><h2>Archivio tornei</h2><div className="tournament-team-list">{tournaments.filter(t=>['Finito','Archiviato'].includes(String(t.status))).map(t=><article key={t.id} className="compact-card"><b>{t.name}</b><span>{t.status}</span><small>Vincitore: {t.winner || 'da definire'} · statistiche finali sempre nella pagina Torneo.</small></article>)}</div></section>}
     </main>
