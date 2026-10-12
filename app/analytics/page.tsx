@@ -5,7 +5,8 @@ import * as XLSX from "xlsx";
 import { supabase } from "@/lib/supabaseClient";
 import { kdRatio, winRate, normalizeGameMode, modeLabel } from "@/lib/statistics";
 import type { Match, MatchPlayerStat, Player } from "@/lib/types";
-import { countResults, normalizeOpponent, summarizeOpponents, summarizeSeasons } from "@/lib/seasonOpponentStats";
+import { countResults, normalizeOpponent } from "@/lib/seasonOpponentStats";
+import { groupScrims, summarizeScrims } from "@/lib/scrimAggregation";
 
 type StatRow = MatchPlayerStat & {
   players?: { nickname: string; clan_name?: string | null } | null;
@@ -250,18 +251,38 @@ export default function AnalyticsPage() {
       ),
     [matches, filterMode, filterMap, filterOpponent, selectedSeasonId, knownSeasonIds],
   );
-  // Le serie (Scrim 3-2) non devono diventare una singola partita nei totali partite.
-  const filteredMatches = useMemo(()=>scopedMatches.filter(m=>m.match_scope!=='series'),[scopedMatches]);
-  const filteredSeries = useMemo(()=>scopedMatches.filter(m=>m.match_scope==='series'),[scopedMatches]);
-  const historicalCount = scopedMatches.filter(m=>m.record_quality==='result_only').length;
-  const combinedResults = useMemo(() => countResults(scopedMatches), [scopedMatches]);
-  const seasonResults = useMemo(() => summarizeSeasons(scopedMatches,
-    selectedSeasonId === "ALL" ? seasons : seasons.filter(s => s.id === selectedSeasonId)
-  ), [scopedMatches, seasons, selectedSeasonId]);
-  const opponentResults = useMemo(() => summarizeOpponents(scopedMatches), [scopedMatches]);
+  // Le Scrim sono calcolate sul filtro stagione+avversario PRIMA di filtrare mappe/modalita':
+  // una Scrim multi-mappa non deve diventare piu' Scrim se cambia il filtro mappa.
+  const scrimSourceMatches = useMemo(() => matches.filter(m => isInSeason(m) &&
+    (filterOpponent === "ALL" || normalizeOpponent(m.opponent) === filterOpponent)
+  ), [matches, selectedSeasonId, knownSeasonIds, filterOpponent]);
+  const historicalSeasonIds = useMemo(() => new Set(seasons.filter(s=>s.is_historical || (!s.is_active && /^stagione\s*1$/i.test(s.name.trim()))).map(s=>s.id)), [seasons]);
+  const scrims = useMemo(() => groupScrims(scrimSourceMatches, historicalSeasonIds), [scrimSourceMatches, historicalSeasonIds]);
+  const scrimSummary = useMemo(() => summarizeScrims(scrims), [scrims]);
+  const filteredMatches = useMemo(() => scopedMatches.filter(m=>m.match_scope!=='series' && m.record_quality!=='result_only'),[scopedMatches]);
+  const seasonResults = useMemo(() => {
+    const names = new Map(seasons.map(s=>[s.id,s]));
+    const ids = selectedSeasonId === 'ALL' ? [...seasons.map(s=>s.id)] : selectedSeasonId === '__UNASSIGNED__' ? [] : [selectedSeasonId];
+    if (scrims.some(s=>!s.seasonId || !names.has(s.seasonId))) ids.push('__UNASSIGNED__');
+    return ids.filter((id,i)=>ids.indexOf(id)===i).map(id=>{
+      const isUnassigned=id==='__UNASSIGNED__';
+      const group = scrims.filter(s=>isUnassigned?(!s.seasonId||!names.has(s.seasonId)):s.seasonId===id);
+      const seasonMatches = scrimSourceMatches.filter(m=>isUnassigned?(!m.season_id||!names.has(m.season_id)):m.season_id===id);
+      return {id,name:isUnassigned?'Senza stagione':names.get(id)?.name||'Senza stagione',isActive:Boolean(names.get(id)?.is_active),isHistorical:Boolean(names.get(id)?.is_historical),scrim:summarizeScrims(group),matches:seasonMatches.filter(m=>m.match_scope!=='series' && m.record_quality!=='result_only').length};
+    });
+  }, [scrims, seasons, selectedSeasonId, scrimSourceMatches]);
+  const opponentResults = useMemo(() => {
+    const map=new Map<string, typeof scrims>();
+    for(const sc of scrims){const k=sc.opponentKey||`__UNKNOWN_${sc.id}`;map.set(k,[...(map.get(k)||[]),sc]);}
+    return [...map.entries()].map(([key,items])=>({key,name:items[0].opponent,scrims:items,summary:summarizeScrims(items)}))
+      .sort((a,b)=>b.summary.played-a.summary.played||a.name.localeCompare(b.name,'it'));
+  },[scrims]);
+  const scrimResultSlices = useMemo(()=>[
+    {label:'Vinte',value:scrimSummary.wins,percent:scrimSummary.played?100*scrimSummary.wins/scrimSummary.played:0},
+    {label:'Perse',value:scrimSummary.losses,percent:scrimSummary.played?100*scrimSummary.losses/scrimSummary.played:0},
+    {label:'Pareggiate',value:scrimSummary.draws,percent:scrimSummary.played?100*scrimSummary.draws/scrimSummary.played:0},
+  ],[scrimSummary]);
   const scopedMatchIds = useMemo(() => new Set(scopedMatches.map(m => m.id)), [scopedMatches]);
-  const seriesWins = filteredSeries.filter(m=>m.result==='WIN').length;
-  const seriesLosses = filteredSeries.filter(m=>m.result==='LOSE').length;
 
 
   const filteredRows = useMemo(
@@ -734,7 +755,7 @@ export default function AnalyticsPage() {
     const matchRows = selectedMatches.map((match) => ({
       DATA: new Date(match.match_date).toLocaleString("it-IT"),
       STAGIONE: seasons.find(s => s.id === match.season_id)?.name || "",
-      LIVELLO: match.match_scope==='series'?'Incontro/serie':'Partita singola',
+      LIVELLO: match.match_scope==='series'||match.record_quality==='result_only'?'Scrim storica':'Partita singola',
       COMPLETEZZA: match.record_quality==='result_only'?'Solo risultato':'Statistiche complete',
       TIPO: match.match_type,
       MODALITA: match.mode,
@@ -764,26 +785,27 @@ export default function AnalyticsPage() {
     });
     const workbook = XLSX.utils.book_new();
     const results = countResults(selectedMatches);
-    const seasonBreakdown = summarizeSeasons(selectedMatches, seasons).map(row => ({
-      STAGIONE: row.name,
-      TIPO: row.isHistorical ? "Storica" : row.isActive ? "Attiva" : "Archiviata",
-      PARTITE: row.singles.played, V_PARTITE: row.singles.wins, P_PARTITE: row.singles.losses,
-      N_PARTITE: row.singles.draws, WR_PARTITE: row.singles.wr,
-      SCRIM_SERIE: row.series.played, V_SCRIM: row.series.wins, P_SCRIM: row.series.losses,
-      N_SCRIM: row.series.draws, WR_SCRIM: row.series.wr, SOLO_RISULTATO: row.resultOnly,
-    }));
-    const opponentBreakdown = summarizeOpponents(selectedMatches).map(row => ({
-      CLAN_AVVERSARIO: row.name, SCRIM: row.series.played, V_SCRIM: row.series.wins,
-      P_SCRIM: row.series.losses, N_SCRIM: row.series.draws, WR_SCRIM: row.series.wr,
-      PARTITE: row.singles.played, V_PARTITE: row.singles.wins, P_PARTITE: row.singles.losses,
-      N_PARTITE: row.singles.draws, WR_PARTITE: row.singles.wr,
-    }));
-    const scrimDetails = selectedMatches.filter(m=>m.match_scope==='series').map(m=>({
-      DATA: new Date(m.match_date).toLocaleString('it-IT'),
-      STAGIONE: seasons.find(s=>s.id===m.season_id)?.name || 'Senza stagione',
-      CLAN_AVVERSARIO: m.opponent || 'Non specificato', MODALITA: modeLabel(m.mode),
-      AK47DX: m.team_score ?? '', AVVERSARIO: m.enemy_score ?? '', ESITO: m.result,
-      LIVELLO: 'Scrim / Serie',
+    const selectedScrims = groupScrims(useAll ? matches : scrimSourceMatches, historicalSeasonIds);
+    const selectedScrimStats = summarizeScrims(selectedScrims);
+    const seasonKeys = (useAll ? seasons.map(s=>({id:s.id,name:s.name})) : seasonResults.map(s=>({id:s.id,name:s.name})));
+    if (selectedScrims.some(sc=>!sc.seasonId || !seasons.some(s=>s.id===sc.seasonId)) && !seasonKeys.some(s=>s.id==='__UNASSIGNED__'))
+      seasonKeys.push({id:'__UNASSIGNED__',name:'Senza stagione'});
+    const seasonBreakdown = seasonKeys.map(row => {
+      const id=row.id;
+      const group=selectedScrims.filter(sc=>id==='__UNASSIGNED__'?(!sc.seasonId||!seasons.some(s=>s.id===sc.seasonId)):sc.seasonId===id);
+      const summary=summarizeScrims(group);
+      return { STAGIONE:row.name, SCRIM:summary.played, V_SCRIM:summary.wins,P_SCRIM:summary.losses,N_SCRIM:summary.draws,WR_SCRIM:summary.wr,SCRIM_STORICHE:summary.historical,SCRIM_NUOVE:summary.newScrims };
+    });
+    const opponentMap=new Map<string, typeof selectedScrims>();
+    for(const sc of selectedScrims){const k=sc.opponentKey||`__UNKNOWN_${sc.id}`;opponentMap.set(k,[...(opponentMap.get(k)||[]),sc]);}
+    const opponentBreakdown=[...opponentMap.values()].map(rows=>{const st=summarizeScrims(rows);return {
+      CLAN_AVVERSARIO:rows[0].opponent,SCRIM:st.played,V_SCRIM:st.wins,P_SCRIM:st.losses,N_SCRIM:st.draws,WR_SCRIM:st.wr,SCRIM_STORICHE:st.historical,SCRIM_NUOVE:st.newScrims
+    };});
+    const scrimDetails=selectedScrims.map(sc=>({
+      DATA: new Date(sc.start).toLocaleString('it-IT'), STAGIONE: seasons.find(s=>s.id===sc.seasonId)?.name||'Senza stagione',
+      CLAN_AVVERSARIO:sc.opponent, TIPO:sc.source==='historical'?'Storica':'Raggruppata 24h',
+      PARTITE_NOTE:sc.matchCount, V_PARTITE:sc.wins, P_PARTITE:sc.losses, N_PARTITE:sc.draws,
+      RISULTATO:sc.score, ESITO:sc.result, ID_PARTITE:sc.matchIds.join(', '),
     }));
     XLSX.utils.book_append_sheet(workbook, XLSX.utils.json_to_sheet([{
       FILTRO_CLAN: useAll ? "Tutti" : filterClan,
@@ -794,9 +816,9 @@ export default function AnalyticsPage() {
       PARTITE: results.singles.played,
       V_PARTITE: results.singles.wins, P_PARTITE: results.singles.losses, N_PARTITE: results.singles.draws,
       WR_PARTITE: results.singles.wr,
-      SERIE_SCRIM: results.series.played,
-      V_SCRIM: results.series.wins, P_SCRIM: results.series.losses, N_SCRIM: results.series.draws,
-      WR_SCRIM: results.series.wr, RISULTATI_STORICI: results.resultOnly,
+      SERIE_SCRIM: selectedScrimStats.played,
+      V_SCRIM: selectedScrimStats.wins, P_SCRIM: selectedScrimStats.losses, N_SCRIM: selectedScrimStats.draws,
+      WR_SCRIM: selectedScrimStats.wr, SCRIM_STORICHE:selectedScrimStats.historical, SCRIM_NUOVE:selectedScrimStats.newScrims, RISULTATI_STORICI: results.resultOnly,
     }]), "RIEPILOGO");
     XLSX.utils.book_append_sheet(workbook, XLSX.utils.json_to_sheet(seasonBreakdown), "STAGIONI");
     XLSX.utils.book_append_sheet(workbook, XLSX.utils.json_to_sheet(opponentBreakdown), "CLAN_AVVERSARI");
@@ -825,8 +847,8 @@ export default function AnalyticsPage() {
       `❌ Sconfitte: ${summary.losses}`,
       `➖ Pareggi: ${summary.draw}`,
       `📈 Win rate partite: ${summary.wr}%`,
-      `🏟️ Scrim/serie: ${combinedResults.series.played} (V${combinedResults.series.wins} P${combinedResults.series.losses} N${combinedResults.series.draws})`,
-      `📈 WR scrim: ${combinedResults.series.wr}%`,
+      `🏟️ Scrim: ${scrimSummary.played} (V${scrimSummary.wins} P${scrimSummary.losses} N${scrimSummary.draws})`,
+      `📈 WR scrim: ${scrimSummary.wr}%`,
       "",
       "⚔️ *PRESTAZIONI*",
       `💥 Kill: ${summary.kills}`,
@@ -887,14 +909,13 @@ export default function AnalyticsPage() {
   return (
     <main className="container wide analytics-page">
       <section className="card hero-compact gaming-panel">
-        <p className="eyebrow">📊 Analytics 2.0</p>
-        <h1>Statistiche clan e player</h1>
+        <p className="eyebrow">AK47DX · RISULTATI E PRESTAZIONI</p>
+        <h1>Panoramica statistiche</h1>
         <p className="muted">
-          Grafici essenziali, classifiche e filtri per clan, modalità, MVP e
-          mappa. K/D/A resta sempre Kill / Death / Assist. I player manuali
-          restano visibili nelle statistiche anche senza profilo registrato.
+          FIX18 · Totale carriera di tutte le stagioni (anche storiche), Scrim per clan e confronto stagionale senza doppio conteggio.
         </p>
         {message && <div className="notice">{message}</div>}
+        <div className="ak18-analytics-toolbar"><strong>V14.2 FIX18 · Statistiche aggregate</strong><span>{matches.length} risultati caricati · {seasons.length} stagioni · {scrimSummary.played} Scrim nel filtro</span><button className="btn small secondary" type="button" disabled={loadingData} onClick={()=>void load()}>↻ Ricarica dati Supabase</button><button className="btn small secondary" type="button" onClick={()=>{setFilterSeason('ALL');setFilterOpponent('ALL');setFilterMode('ALL');setFilterMap('ALL');setFilterClan('ALL');}}>📚 Mostra totale tutte le stagioni</button></div>
         {loadingData && <div className="notice" role="status">Caricamento di tutte le stagioni e dei risultati storici...</div>}
         <div className="grid grid-2 top-gap">
           <div className="field"><label>Stagione statistiche</label><select className="select" value={filterSeason} onChange={e => setFilterSeason(e.target.value)}>
@@ -908,8 +929,8 @@ export default function AnalyticsPage() {
             {opponentOptions.map(([key,name])=><option key={key} value={key}>{name}</option>)}
           </select></div>
         </div>
-        <p className="muted">La vista completa somma tutte le stagioni, incluse quelle storiche e gli eventuali risultati senza stagione. La scelta di una singola stagione esclude tutte le altre. Scrim e partite sono conteggiate separatamente.</p>
-        <div className="grid grid-3 top-gap analytics-filter-grid-v138">
+        <p className="muted v1426-filter-hint">Tutte le stagioni include anche lo storico. Le Scrim si raggruppano per clan e per 24 ore; i filtri modalità e mappa riguardano solo le statistiche delle singole partite.</p>
+        <details className="v1426-filter-more top-gap"><summary>Filtri aggiuntivi · modalità, mappa e giocatori</summary><div className="grid grid-3 top-gap analytics-filter-grid-v138">
           <div className="field">
             <label>Clan appartenenza</label>
             <select
@@ -953,7 +974,7 @@ export default function AnalyticsPage() {
             </select>
           </div>
         </div>
-        <div className="v14-history-stats top-gap"><div className="v14-stat-chip"><span>Risultati storici filtrati</span><strong>{historicalCount}</strong></div><div className="v14-stat-chip"><span>Scrim / serie registrate</span><strong>{filteredSeries.length}</strong></div><div className="v14-stat-chip"><span>Scrim vinte / perse</span><strong>{seriesWins} / {seriesLosses}</strong></div><div className="v14-stat-chip"><span>Win Rate serie</span><strong>{filteredSeries.length?Math.round(100*seriesWins/filteredSeries.length):0}%</strong></div><p className="muted">Le serie hanno un conteggio distinto. Le partite storiche singole entrano nel Win Rate del clan, non nelle metriche individuali senza dati.</p><a className="btn small secondary" href="/import/history">+ Registra risultati storici</a></div>
+        </details>
         <div className="analytics-share-actions-v1311 top-gap">
           <button className="btn" type="button" onClick={() => exportExcel(false)}>📊 Excel filtrato</button>
           <button className="btn secondary" type="button" onClick={() => exportExcel(true)}>📚 Excel completo</button>
@@ -962,75 +983,59 @@ export default function AnalyticsPage() {
         </div>
       </section>
 
-      <section id="analytics-share-summary-v1311" className="card top-gap analytics-share-summary-v1311">
-        <div><p className="eyebrow">AK47DX · RIEPILOGO CONDIVISIBILE</p><h2>{filterMap === "ALL" ? "Tutte le mappe" : filterMap} · {filterMode === "ALL" ? "Tutte le modalità" : filterMode}</h2></div>
-        <div className="analytics-share-kpis-v1311"><span><b>{summary.total}</b> Partite</span><span><b>{summary.wr}%</b> Win rate</span><span><b>{summary.kd}</b> K/D</span><span><b>{summary.kills}/{summary.deaths}/{summary.assists}</b> Kill/Death/Assist</span></div>
-      </section>
-
-      <section className="card top-gap v1425-rollup" aria-label="Statistiche stagioni">
-        <div className="section-title"><div><h2>📚 Riepilogo di tutte le stagioni</h2><p className="muted">{selectedSeasonId === "ALL" ? "Totale completo: stagioni attive, archiviate, storiche e partite non assegnate." : "Solo la stagione scelta nel filtro."} Ogni risultato finale Scrim vale una serie, non una singola partita.</p></div></div>
-        <div className="grid grid-3 top-gap">
-          <div className="kpi"><span>Partite singole · V / P / N</span><strong>{combinedResults.singles.played}</strong><small>{combinedResults.singles.wins} / {combinedResults.singles.losses} / {combinedResults.singles.draws} · WR {combinedResults.singles.wr}%</small></div>
-          <div className="kpi"><span>Scrim / serie · V / P / N</span><strong>{combinedResults.series.played}</strong><small>{combinedResults.series.wins} / {combinedResults.series.losses} / {combinedResults.series.draws} · WR {combinedResults.series.wr}%</small></div>
-          <div className="kpi"><span>Risultati storici (solo punteggio)</span><strong>{combinedResults.resultOnly}</strong><small>Inclusi nei conteggi di squadra, non nel K/D individuale</small></div>
+      <section className="v1426-overview top-gap" aria-label="Panoramica Scrim">
+        <div className="v1426-kpis">
+          <div className="v1426-kpi v1426-kpi-primary"><span>Scrim totali</span><strong>{scrimSummary.played}</strong><small>{scrimSummary.historical} storiche + {scrimSummary.newScrims} nuove</small></div>
+          <div className="v1426-kpi"><span>Scrim vinte</span><strong>{scrimSummary.wins}</strong><small>{scrimSummary.losses} perse · {scrimSummary.draws} pareggiate</small></div>
+          <div className="v1426-kpi"><span>Win rate Scrim</span><strong>{scrimSummary.wr}%</strong><small>Vittorie / Scrim disputate</small></div>
+          <div className="v1426-kpi"><span>Partite con dati</span><strong>{summary.total}</strong><small>{summary.wins} V · {summary.losses} P · {summary.draw} N</small></div>
         </div>
-        <div className="table-scroll top-gap"><table className="table compact v1425-compact-table"><thead><tr><th>Stagione</th><th>Partite</th><th>V</th><th>P</th><th>N</th><th>WR%</th><th>Scrim</th><th>V</th><th>P</th><th>N</th><th>WR%</th><th>Storiche</th></tr></thead>
-          <tbody>{seasonResults.map(row=><tr key={row.id}>
-            <td><button className="v1425-link-button" type="button" onClick={()=>setFilterSeason(row.id)}><b>{row.name}</b></button>{row.isActive&&<span className="badge ok">Attuale</span>}{row.isHistorical&&<span className="badge">Storica</span>}</td>
-            <td>{row.singles.played}</td><td>{row.singles.wins}</td><td>{row.singles.losses}</td><td>{row.singles.draws}</td><td>{row.singles.wr}%</td>
-            <td><b>{row.series.played}</b></td><td>{row.series.wins}</td><td>{row.series.losses}</td><td>{row.series.draws}</td><td>{row.series.wr}%</td><td>{row.resultOnly}</td>
-          </tr>)}{!seasonResults.length&&<tr><td colSpan={12}>Nessuna stagione disponibile.</td></tr>}</tbody>
-        </table></div>
-        {selectedSeasonId !== "ALL"&&<button className="btn small secondary top-gap" onClick={()=>setFilterSeason("ALL")}>↩ Mostra tutte le stagioni</button>}
+        <div className="v1426-graphs">
+          <div className="card v1426-chart"><h2>Esito Scrim</h2><p className="muted">Storiche e nuove, conteggiate una sola volta</p>
+            <div className="v1426-results-bar" role="img" aria-label={`Scrim: ${scrimSummary.wins} vinte, ${scrimSummary.losses} perse, ${scrimSummary.draws} pareggiate`}>
+              {scrimResultSlices.filter(v=>v.value>0).map((v,i)=><div key={v.label} className={`v1426-segment ${v.label==='Vinte'?'win':v.label==='Perse'?'loss':'draw'}`} style={{width:`${v.percent}%`}} title={`${v.label}: ${v.value}`}/>) }
+            </div>
+            <div className="v1426-result-legend">{scrimResultSlices.map(s=><span key={s.label}><i className={s.label==='Vinte'?'win':s.label==='Perse'?'loss':'draw'}/>{s.label} <b>{s.value}</b></span>)}</div>
+            <div className="v1426-source-count"><span>Archivio storico <b>{scrimSummary.historical}</b></span><span>Scrim raggruppate 24h <b>{scrimSummary.newScrims}</b></span></div>
+          </div>
+          <div className="card v1426-chart"><h2>Scrim per stagione</h2><p className="muted">Seleziona una riga per aprire la stagione</p>
+            <div className="v1426-season-bars">{seasonResults.filter(s=>s.scrim.played>0).map(row=><button className="v1426-season-bar" type="button" key={row.id} onClick={()=>setFilterSeason(row.id)}>
+              <span title={row.name}>{row.name}</span><div className="v1426-track"><i style={{width:`${100*row.scrim.played/Math.max(1,...seasonResults.map(x=>x.scrim.played))}%`}}/></div><b>{row.scrim.played}</b>
+            </button>)}{!seasonResults.some(s=>s.scrim.played>0)&&<span className="muted">Nessuna Scrim disponibile.</span>}</div>
+          </div>
+        </div>
       </section>
 
-      <section className="card top-gap v1425-opponents" aria-label="Storico clan avversari">
-        <div className="section-title"><div><h2>⚔️ Storico contro ogni clan avversario</h2><p className="muted">Numero Scrim, bilancio e risultati finali con data, punteggio, modalità e stagione. I nomi con sole differenze di maiuscole o spazi vengono riuniti.</p></div><span className="badge">{opponentResults.length} clan</span></div>
-        <div className="table-scroll top-gap"><table className="table compact v1425-compact-table"><thead><tr><th>Clan avversario</th><th>Scrim</th><th>V</th><th>P</th><th>N</th><th>WR Scrim</th><th>Partite</th><th>V</th><th>P</th><th>N</th><th>WR Partite</th><th>Risultati</th></tr></thead><tbody>
-          {opponentResults.map(op=><tr key={op.key}>
-            <td><b>{op.name}</b></td><td><b>{op.series.played}</b></td><td>{op.series.wins}</td><td>{op.series.losses}</td><td>{op.series.draws}</td><td>{op.series.wr}%</td>
-            <td>{op.singles.played}</td><td>{op.singles.wins}</td><td>{op.singles.losses}</td><td>{op.singles.draws}</td><td>{op.singles.wr}%</td>
-            <td><button type="button" className="btn small secondary" onClick={()=>setFilterOpponent(op.key)}>Filtra clan</button></td>
-          </tr>)}{!opponentResults.length&&<tr><td colSpan={12}>Nessun clan avversario nei filtri selezionati.</td></tr>}
+      <section id="analytics-share-summary-v1311" className="card top-gap analytics-share-summary-v1311 v1426-share-card">
+        <div><p className="eyebrow">AK47DX · SINTESI</p><h2>{selectedSeasonId==='ALL'?'Tutte le stagioni':seasonResults.find(s=>s.id===selectedSeasonId)?.name||'Stagione selezionata'}</h2></div>
+        <div className="analytics-share-kpis-v1311"><span><b>{scrimSummary.played}</b> Scrim</span><span><b>{scrimSummary.wr}%</b> WR Scrim</span><span><b>{summary.total}</b> Partite</span><span><b>{summary.kd}</b> K/D</span></div>
+      </section>
+
+      <section className="card top-gap v1426-table-card" aria-label="Riepilogo per stagione">
+        <div className="section-title"><div><h2>Riepilogo stagioni</h2><p className="muted">Ogni risultato storico vale una Scrim. Le partite recenti dello stesso clan entro 24 ore formano una Scrim.</p></div></div>
+        <div className="table-scroll"><table className="table compact v1426-table"><thead><tr><th>Stagione</th><th>Scrim</th><th>V</th><th>P</th><th>N</th><th>WR%</th><th>Storiche</th><th>Nuove</th><th>Partite</th></tr></thead><tbody>
+          {selectedSeasonId==='ALL'&&<tr className="ak18-grand-total"><td><b>Σ TOTALE TUTTE LE STAGIONI</b></td><td><b>{scrimSummary.played}</b></td><td><b>{scrimSummary.wins}</b></td><td><b>{scrimSummary.losses}</b></td><td><b>{scrimSummary.draws}</b></td><td><b>{scrimSummary.wr}%</b></td><td><b>{scrimSummary.historical}</b></td><td><b>{scrimSummary.newScrims}</b></td><td><b>{seasonResults.reduce((n,x)=>n+x.matches,0)}</b></td></tr>}
+          {seasonResults.map(row=><tr key={row.id}><td><button type="button" className="v1425-link-button" onClick={()=>setFilterSeason(row.id)}><b>{row.name}</b></button> {row.isActive&&<span className="badge ok">Attiva</span>}</td>
+            <td><b>{row.scrim.played}</b></td><td>{row.scrim.wins}</td><td>{row.scrim.losses}</td><td>{row.scrim.draws}</td><td>{row.scrim.wr}%</td><td>{row.scrim.historical}</td><td>{row.scrim.newScrims}</td><td>{row.matches}</td>
+          </tr>)}{!seasonResults.length&&<tr><td colSpan={9}>Nessuna stagione.</td></tr>}
         </tbody></table></div>
-        <h3 className="top-gap">Risultati e incontri disputati</h3>
-        <div className="v1425-opponent-details">
-          {opponentResults.map(op=><details className="v1425-opponent-detail" key={op.key}>
-            <summary><b>{op.name}</b> · {op.series.played} scrim ({op.series.wins}V / {op.series.losses}P / {op.series.draws}N) · {op.singles.played} partite <span className="muted">— Apri storico</span></summary>
-            <div className="table-scroll"><table className="table compact v1425-compact-table"><thead><tr><th>Data e ora</th><th>Stagione</th><th>Livello</th><th>Modalità</th><th>Punteggio</th><th>Esito</th><th>Disponibilità</th></tr></thead><tbody>
-              {op.matches.map(m=><tr key={m.id}>
-                <td>{new Date(m.match_date).toLocaleString("it-IT")}</td><td>{seasons.find(season=>season.id===m.season_id)?.name||"Senza stagione"}</td>
-                <td>{m.match_scope==="series"?"Scrim / Serie":"Partita"}</td><td>{modeLabel(m.mode)}</td>
-                <td><b>{m.team_score??"—"} – {m.enemy_score??"—"}</b></td>
-                <td><span className={`badge ${m.result==="WIN"?"ok":m.result==="LOSE"?"danger":""}`}>{m.result==="WIN"?"Vinta":m.result==="LOSE"?"Persa":"Pareggio"}</span></td>
-                <td>{m.record_quality==="result_only"?"Solo risultato":"Statistiche complete"}</td>
-              </tr>)}
+        {selectedSeasonId!=='ALL'&&<button className="btn small secondary top-gap" type="button" onClick={()=>setFilterSeason('ALL')}>Mostra tutte le stagioni</button>}
+      </section>
+
+      <section className="card top-gap v1426-table-card" aria-label="Risultati per clan avversario">
+        <div className="section-title"><div><h2>Risultati per clan avversario</h2><p className="muted">Apri un clan per vedere tutte le Scrim, i risultati e le partite contenute.</p></div><span className="badge">{opponentResults.length} clan</span></div>
+        <div className="table-scroll"><table className="table compact v1426-table"><thead><tr><th>Clan</th><th>Scrim</th><th>V</th><th>P</th><th>N</th><th>WR%</th><th>Storico</th></tr></thead><tbody>
+          {opponentResults.map(op=><tr key={op.key}><td><b>{op.name}</b></td><td><b>{op.summary.played}</b></td><td>{op.summary.wins}</td><td>{op.summary.losses}</td><td>{op.summary.draws}</td><td>{op.summary.wr}%</td><td>{op.summary.historical}</td></tr>)}
+          {!opponentResults.length&&<tr><td colSpan={7}>Nessun risultato con questi filtri.</td></tr>}
+        </tbody></table></div>
+        <details className="v1426-clan-details"><summary>Apri risultati Scrim e partite per ogni clan</summary>
+          {opponentResults.map(op=><details key={op.key} className="v1425-opponent-detail"><summary><b>{op.name}</b> · {op.summary.played} Scrim · {op.summary.wins}V / {op.summary.losses}P / {op.summary.draws}N</summary>
+            <div className="table-scroll"><table className="table compact v1426-table"><thead><tr><th>Data</th><th>Stagione</th><th>Origine</th><th>Partite</th><th>Risultato</th><th>Esito</th></tr></thead><tbody>
+              {op.scrims.map(sc=><tr key={sc.id}><td>{new Date(sc.start).toLocaleString('it-IT')}</td><td>{seasons.find(s=>s.id===sc.seasonId)?.name||'Senza stagione'}</td>
+                <td>{sc.source==='historical'?'Storica':'Nuova (24h)'}</td><td>{sc.matchCount>0?<details className="v1426-match-list"><summary>{sc.matchCount} · Apri</summary><div className="v1426-match-list-content">{sc.matchIds.map(id=>matches.find(m=>m.id===id)).filter((m):m is Match=>Boolean(m)&&m?.match_scope!=='series').map(m=><div key={m.id}><b>{modeLabel(m.mode)}</b> · {m.map_name||'Mappa non indicata'} · {m.team_score??'—'}–{m.enemy_score??'—'} · {m.result==='WIN'?'V':m.result==='LOSE'?'P':'N'}</div>)}</div></details>:'—'}</td><td>{sc.score||'—'}</td><td><span className={`badge ${sc.result==='WIN'?'ok':sc.result==='LOSE'?'danger':''}`}>{sc.result==='WIN'?'Vinta':sc.result==='LOSE'?'Persa':'Pari'}</span></td></tr>)}
             </tbody></table></div>
           </details>)}
-        </div>
-        {filterOpponent!=="ALL"&&<button className="btn small secondary top-gap" onClick={()=>setFilterOpponent("ALL")}>Mostra tutti i clan avversari</button>}
-        <p className="muted top-gap">Le Scrim 3–2 sono un singolo incontro e restano separate dalle partite con punteggi 250–200 o 7–5. Nessuna statistica giocatore viene attribuita ai risultati senza K/D/A.</p>
-      </section>
-
-      <section className="grid grid-4 top-gap">
-        <div className="kpi kpi-glow">
-          <span>Partite</span>
-          <strong>{summary.total}</strong>
-        </div>
-        <div className="kpi kpi-glow">
-          <span>Win rate</span>
-          <strong>{summary.wr}%</strong>
-        </div>
-        <div className="kpi kpi-glow">
-          <span>K/D</span>
-          <strong>{summary.kd}</strong>
-        </div>
-        <div className="kpi kpi-glow">
-          <span>Kill / Death / Assist</span>
-          <strong>
-            {summary.kills}/{summary.deaths}/{summary.assists}
-          </strong>
-        </div>
+        </details>
       </section>
 
       {showObjective && <section className="card top-gap v14-objective-stats">
@@ -1063,6 +1068,28 @@ export default function AnalyticsPage() {
         </div>
         <p className="muted top-gap">I tempi mancanti non contribuiscono alle medie. Le partite storiche con il solo risultato non ricevono tempi fittizi.</p>
       </section>}
+
+      <details className="v1426-advanced top-gap"><summary>Analisi avanzate · giocatori, K/D/A, mappe e grafici</summary>
+      <section className="grid grid-4 top-gap">
+        <div className="kpi kpi-glow">
+          <span>Partite</span>
+          <strong>{summary.total}</strong>
+        </div>
+        <div className="kpi kpi-glow">
+          <span>Win rate</span>
+          <strong>{summary.wr}%</strong>
+        </div>
+        <div className="kpi kpi-glow">
+          <span>K/D</span>
+          <strong>{summary.kd}</strong>
+        </div>
+        <div className="kpi kpi-glow">
+          <span>Kill / Death / Assist</span>
+          <strong>
+            {summary.kills}/{summary.deaths}/{summary.assists}
+          </strong>
+        </div>
+      </section>
 
       <section className="grid grid-3 top-gap analytics-main-pies-v131">
         <PieCard title="Vittorie / sconfitte" slices={resultPie} />
@@ -1347,6 +1374,7 @@ export default function AnalyticsPage() {
           </table>
         </div>
       </section>
+      </details>
     </main>
   );
 }

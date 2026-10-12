@@ -26,9 +26,17 @@ export async function POST(request:NextRequest){
   const {data:seasons,error:seasonError}=await db.from('codm_seasons').select('id,is_active').in('id',Array.from(new Set(rows.map(r=>r.season_id))));
   if(seasonError)throw seasonError;
   const validIds=new Set((seasons||[]).filter(s=>!s.is_active).map(s=>s.id));
+  // Dizionario clan avversari storico: stessi nomi, senza nuove varianti di maiuscole/spazi.
+  const knownOpponents=new Map<string,string>();
+  for(let offset=0;offset<20000;offset+=1000){
+   const q=await db.from('matches').select('opponent').eq('clan_id',clanId).not('opponent','is',null).range(offset,offset+999);
+   if(q.error)throw q.error;
+   for(const match of q.data||[]){const n=String(match.opponent||'').trim().replace(/\s+/g,' ');if(n&&!knownOpponents.has(n.toLocaleLowerCase('it')))knownOpponents.set(n.toLocaleLowerCase('it'),n)}
+   if((q.data||[]).length<1000)break;
+  }
   const payload=[];
   for(const [i,r] of rows.entries()){
-   const opponent=String(r.opponent||'').trim(),mode=String(r.mode||'').trim().toUpperCase(),result=String(r.result||'').toUpperCase();
+   const proposed=String(r.opponent||'').trim().replace(/\s+/g,' '),opponent=knownOpponents.get(proposed.toLocaleLowerCase('it'))||proposed,mode=String(r.mode||'').trim().toUpperCase(),result=String(r.result||'').toUpperCase();
    const a=Number(r.team_score),b=Number(r.enemy_score);
    if(!validIds.has(r.season_id))return NextResponse.json({error:`Riga ${i+1}: scegli una stagione NON attiva`},{status:400});
    if(!opponent||opponent.length>120||!MODES.includes(mode)||!['WIN','LOSE','DRAW'].includes(result)||!['single','series'].includes(r.match_scope)||!Number.isSafeInteger(a)||!Number.isSafeInteger(b)||a<0||b<0||a>9999||b>9999)return NextResponse.json({error:`Riga ${i+1}: dati incompleti o non validi`},{status:400});
@@ -37,6 +45,7 @@ export async function POST(request:NextRequest){
    const sourceKey=String(r.source_key||'').trim();
    const photo=String(r.screenshot_url||'').trim();
    if(photo && (!/^https:\/\//i.test(photo)||photo.length>2000))return NextResponse.json({error:`Riga ${i+1}: il link foto deve essere HTTPS`},{status:400});
+   knownOpponents.set(opponent.toLocaleLowerCase('it'),opponent);
    payload.push({clan_id:clanId,season_id:r.season_id,match_date:dt.toISOString(),match_type:'scrim',mode:mode==='CONTROLLO'?'CONTROL':mode,map_name:r.map_name||null,opponent,result,team_score:a,enemy_score:b,notes:String(r.notes||'').slice(0,1000),screenshot_url:photo||null,record_quality:'result_only',match_scope:r.match_scope,historical_source_key:sourceKey||null,created_by:user.id});
   }
   // Non sovrascrivere mai un match completo: l'import con chiave già presente viene rifiutato.

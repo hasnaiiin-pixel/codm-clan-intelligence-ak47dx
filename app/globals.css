@@ -3204,3 +3204,22 @@ select.pro-select {
 @media(max-width:620px){.ak64-column{width:215px}.ak64-map-scroll{grid-template-columns:repeat(2,minmax(0,1fr));max-height:220px}.ak64-map-scroll label{font-size:.72rem;overflow-wrap:anywhere;padding:7px}.ak64-add{flex-wrap:wrap}.ak64-switch>label{margin-left:0}}
 
 .ak64-champion{display:flex;flex-wrap:wrap;justify-content:space-between;align-items:center;gap:12px;border:1px solid #d3b15d;border-radius:12px;background:rgba(146,117,33,.15);padding:14px;margin:15px 0}.ak64-champion b{font-size:1.1rem}.ak64-champion span{font-size:.8rem;opacity:.8}
+
+/* FIX18: interfaccia mappe, torneo delle armi, rigenerazione e somma stagioni */
+.ak18-search{margin:8px 0 10px}
+.ak18-map-picker{max-height:310px;overflow-y:auto;align-content:start}
+.ak18-action-line{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin:10px 0}
+.ak18-action-line .muted{font-size:.85rem}
+.ak18-weapons-card{padding:18px;border-radius:14px;border:1px solid rgba(160,180,200,.22);background:rgba(21,29,43,.65)}
+.ak18-weapons-card h3{margin:0 0 6px}
+.ak18-weapon-picker{max-height:260px;overflow:auto;display:grid;grid-template-columns:repeat(auto-fit,minmax(155px,1fr));gap:8px;padding:12px 0}
+.ak18-weapon-picker label{padding:9px 11px;display:flex;align-items:center;gap:9px;background:rgba(150,165,195,.08);border:1px solid rgba(170,180,210,.15);border-radius:9px}
+.ak18-clone-card{border:1px solid rgba(210,161,70,.45)}
+.ak18-clone-actions{display:flex;align-items:center;gap:15px;flex-wrap:wrap;padding:12px 0}
+.ak18-clone-actions label{display:flex;align-items:center;gap:8px}
+.ak18-analytics-toolbar{display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding:11px 15px;margin:10px 0;border:1px solid rgba(130,160,205,.32);background:rgba(37,53,77,.32);border-radius:12px}
+.ak18-analytics-toolbar strong{color:var(--text,#f2f4f8)}
+.ak18-analytics-toolbar span{color:var(--muted,#acb8c6);font-size:.86rem;flex:1}
+.ak18-grand-total{background:rgba(74,114,169,.22);border-top:2px solid rgba(130,174,234,.55)}
+.ak18-grand-total td{font-weight:700}
+@media (max-width:600px){.ak18-weapon-picker{grid-template-columns:repeat(2,minmax(0,1fr))}.ak18-analytics-toolbar .btn{flex:1}}

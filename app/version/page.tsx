@@ -1,25 +1,12 @@
 export default function VersionPage() {
   return (
-    <main className="ak-login-page">
-      <section className="ak-login-wrap">
-        <div className="ak-login-card">
-          <div className="ak-pill">CLAN MANAGER DEPLOY CHECK</div>
-          <h1 className="ak-title">CLAN MANAGER V13.11.2</h1>
-          <p className="ak-lead">Ordinamento touch delle tabelle, selezioni grafico annullabili e condivisioni WhatsApp ordinate senza link dell’app.</p>
-          <div className="notice top-gap"><strong>Marker:</strong> V13_11_2_TOUCH_SORT_CHART_WHATSAPP_OK</div>
-          <div className="notice top-gap"><strong>Statistiche:</strong> Excel filtrato/completo, riepilogo WhatsApp e immagine condivisibile.</div>
-          <div className="notice top-gap"><strong>Admin:</strong> visite, visitatori unici, PWA, mobile, andamento giornaliero e pagine più viste.</div>
-          <div className="notice top-gap"><strong>Fondo:</strong> quote mensili, preferenza arma, Leggendaria/Mitica, estrazione casuale e blocco vincitore fino a giro completo.</div>
-          <div className="notice top-gap"><strong>SQL:</strong> eseguire supabase/UPDATE_V13_11_SHARE_VISITORS_FUND.sql.</div>
-          <div className="ak-quick-links">
-            <a href="/analytics">Statistiche</a>
-            <a href="/admin/visitors">Visitatori sito</a>
-            <a href="/fund">Fondo estrazioni</a>
-            <a href="/events">Eventi</a>
-            <a href="/cache-reset">Reset cache sicuro</a>
-          </div>
-        </div>
-      </section>
-    </main>
+    <main className="ak-login-page"><section className="ak-login-wrap"><div className="ak-login-card">
+      <div className="ak-pill">AK47DX · VERIFICA DEPLOYMENT</div>
+      <h1 className="ak-title">CODM CLAN MANAGER V14.2 FIX18</h1>
+      <p className="ak-lead">Mappe CODM condivise nelle Regole e nel bracket 64, torneo delle armi per categoria, statistiche aggregate e rigenerazione sicura da iscritti.</p>
+      <div className="notice top-gap"><strong>Marker pubblicazione:</strong> AK47DX_V14_2_FIX18_MAPPE_ARMI_STATISTICHE_RIGENERA</div>
+      <p className="muted">Se qui compare ancora V13 oppure FIX15/FIX16, Vercel non ha pubblicato la FIX18: controlla commit, branch main e deployment Production.</p>
+      <div className="ak-quick-links"><a href="/tournament">Tornei</a><a href="/analytics">Statistiche (tutte le stagioni)</a><a href="/cache-reset">Reset cache PWA</a></div>
+    </div></section></main>
   );
 }
