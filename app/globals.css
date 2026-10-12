@@ -3082,3 +3082,53 @@ select.pro-select {
 .table th{background:rgba(255,255,255,.05)}.table tbody tr:hover{background:rgba(255,255,255,.035)}
 :where(button,a,input,select,textarea):focus-visible{outline:2px solid #f38d92;outline-offset:2px}
 @media(prefers-reduced-motion:reduce){.btn,.card,.bracket-match{transition:none!important;animation:none!important}}
+
+/* V14.2 - Tornei: tabelle compatte, partecipanti, regole e calendario responsive */
+.v142-rules-grid{display:grid;grid-template-columns:1fr 1.2fr;gap:1rem;margin:1rem 0}
+.v142-rules-grid>div{min-width:0;padding:.9rem;background:rgba(20,27,38,.65);border:1px solid rgba(148,163,184,.2);border-radius:14px}
+.v142-choice{display:grid;grid-template-columns:18px minmax(90px,1fr) 42px 75px;align-items:center;gap:.4rem;padding:.38rem 0;font-size:.88rem}
+.v142-choice .input{min-width:0;padding:.36rem .4rem;height:34px}.v142-choice small{color:#b3c4d4}
+.v142-map-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(125px,1fr));gap:.4rem}
+.v142-map-choice{display:flex;align-items:center;gap:.45rem;padding:.38rem;border:1px solid rgba(148,163,184,.17);border-radius:8px;font-size:.82rem}
+.v14-group-grid{grid-template-columns:repeat(auto-fit,minmax(min(100%,275px),1fr));gap:.7rem}
+.v14-group-card{padding:.7rem;min-width:0}
+.v14-group-card .table{width:100%;table-layout:fixed;font-size:.76rem}
+.v14-group-card .table th,.v14-group-card .table td{padding:.32rem .15rem;min-width:0!important;text-align:center;white-space:nowrap}
+.v14-group-card .table th:nth-child(1),.v14-group-card .table td:nth-child(1){width:22px}
+.v14-group-card .table th:nth-child(2),.v14-group-card .table td:nth-child(2){width:42%;max-width:90px;text-align:left;overflow:hidden;text-overflow:ellipsis}
+.v14-group-card .table th:nth-child(n+3),.v14-group-card .table td:nth-child(n+3){width:9%}
+.v14-group-games .v14-game{min-width:0;padding:.5rem;max-width:100%;text-align:left}
+.v14-game span{min-width:0}.v14-game .v142-game-team{display:block;flex:1;min-width:0;overflow-wrap:anywhere;font-size:.75rem}
+.bracket-match span{white-space:normal;overflow-wrap:anywhere;font-size:.83rem}
+.bracket-column{min-width:260px}.bracket-match{grid-template-columns:minmax(0,1fr) 30px}
+.v142-advancement-table{width:100%;font-size:.82rem}.v142-advancement-table td,.v142-advancement-table th{padding:.5rem .4rem}
+.v142-winning{color:#75d5a4;font-weight:700}.v142-losing{color:#a0a7b1}
+.v142-history-overview{max-height:370px;overflow:auto;margin:1rem 0}.v142-history-overview table{font-size:.82rem}
+@media(max-width:760px){.v142-rules-grid{grid-template-columns:1fr}.v142-choice{grid-template-columns:18px minmax(80px,1fr) 40px 70px}.v14-group-card .table{font-size:.73rem}}
+
+.v142-calendar-list{display:grid;gap:.65rem}.v142-calendar-item{display:grid;grid-template-columns:minmax(125px,190px) 1fr;gap:.35rem .9rem;border-radius:12px;padding:.9rem;background:#1a2430;border:1px solid rgba(148,163,184,.25);text-align:left;color:#e5eaf0}
+.v142-calendar-item:hover{border-color:#cb4c50}.v142-calendar-item span{overflow-wrap:anywhere}.v142-calendar-item small{font-size:.78rem;color:#a8bad0}
+@media(max-width:760px){.v142-calendar-item{grid-template-columns:1fr}}
+
+/* AK47DX V14.3 - gestione gironi, seconda possibilita e sorteggio */
+.v143-controls{display:grid;grid-template-columns:repeat(auto-fit,minmax(175px,1fr));gap:.7rem;padding:1rem;border:1px solid rgba(148,163,184,.2);border-radius:14px;background:rgba(17,24,39,.65)}
+.v143-controls .field{min-width:0}
+.v143-actions{display:flex;gap:.5rem;align-items:center;flex-wrap:wrap}
+.v143-actions .btn{white-space:normal}
+.v14-group-card tr.v143-repechage{background:rgba(180,125,23,.12);color:#f3cf84}
+.v142-advancement-table tr.v143-repechage{background:rgba(180,125,23,.10);color:#f3cf84}
+@media(max-width:600px){.v143-controls{grid-template-columns:repeat(2,minmax(0,1fr));padding:.6rem}.v143-actions .btn{flex:1 1 130px}}
+
+/* V14.2 FIX15 — riepiloghi stagioni e storico clan avversari */
+.v1425-compact-table { width:100%; border-collapse:collapse; font-variant-numeric:tabular-nums; }
+.v1425-compact-table th, .v1425-compact-table td { padding:7px 6px; white-space:nowrap; font-size:.83rem; }
+.v1425-compact-table td:first-child, .v1425-compact-table th:first-child { text-align:left; }
+.v1425-link-button { border:0; background:transparent; color:var(--accent2, #9ac9f7); text-align:left; padding:0; cursor:pointer; font:inherit; }
+.v1425-link-button:hover { text-decoration:underline; }
+.v1425-rollup .badge { margin-left:5px; font-size:.65rem; }
+.v1425-opponent-details { display:grid; gap:8px; margin-top:12px; }
+.v1425-opponent-detail { border:1px solid rgba(150,160,180,.25); border-radius:10px; overflow:hidden; }
+.v1425-opponent-detail > summary { cursor:pointer; padding:12px 14px; background:rgba(120,135,160,.09); }
+.v1425-opponent-detail > summary:hover { background:rgba(120,135,160,.16); }
+.v1425-opponent-detail .table-scroll { padding:8px; }
+@media(max-width:640px) { .v1425-compact-table th, .v1425-compact-table td { padding:6px 4px; font-size:.73rem; } .v1425-opponent-detail > summary { font-size:.85rem; } }

@@ -5,6 +5,7 @@ import * as XLSX from "xlsx";
 import { supabase } from "@/lib/supabaseClient";
 import { kdRatio, winRate, normalizeGameMode, modeLabel } from "@/lib/statistics";
 import type { Match, MatchPlayerStat, Player } from "@/lib/types";
+import { countResults, normalizeOpponent, summarizeOpponents, summarizeSeasons } from "@/lib/seasonOpponentStats";
 
 type StatRow = MatchPlayerStat & {
   players?: { nickname: string; clan_name?: string | null } | null;
@@ -34,6 +35,37 @@ type ScoreboardRow = {
   objective_time_text?: string | null;
   players?: { nickname: string; clan_name?: string | null } | null;
 };
+
+// Unisce lo scoreboard OCR con i record K/D/A della vecchia struttura senza duplicare
+// lo stesso giocatore nella stessa partita: la riga scoreboard prevale.
+function combinePlayerRows(board: ScoreboardRow[], legacy: StatRow[]): ScoreboardRow[] {
+  const seen = new Set<string>();
+  const addKeys = (matchId: string, id?: string | null, name?: string | null) => {
+    if (id) seen.add(`${matchId}:id:${id}`);
+    if (name?.trim()) seen.add(`${matchId}:name:${name.trim().toLocaleLowerCase('it-IT')}`);
+  };
+  for (const row of board) addKeys(row.match_id, row.player_id, row.nickname_resolved || row.nickname_raw || row.players?.nickname);
+  const result = [...board];
+  for (const row of legacy) {
+    const idKey = row.player_id && `${row.match_id}:id:${row.player_id}`;
+    const name = row.players?.nickname || '';
+    const nameKey = name && `${row.match_id}:name:${name.trim().toLocaleLowerCase('it-IT')}`;
+    if ((idKey && seen.has(idKey)) || (nameKey && seen.has(nameKey))) continue;
+    result.push({
+      id: `legacy:${row.id}`, match_id: row.match_id, player_id: row.player_id || null,
+      nickname_raw: name || null, nickname_resolved: name || null,
+      team_color: row.team_side === 'ENEMY' ? 'red' : 'blue',
+      team_side: row.team_side === 'ENEMY' ? 'ENEMY' : 'ALLY',
+      team_rank: row.rank_position || null, kills: row.kills || 0, deaths: row.deaths || 0,
+      assists: row.assists || 0, mvp_type: row.is_mvp ? 'MVP' : null,
+      objective_time_seconds: row.objective_time_seconds,
+      objective_time_text: row.objective_time_text,
+      players: row.players,
+    });
+    addKeys(row.match_id, row.player_id, name);
+  }
+  return result;
+}
 
 type PieSlice = { label: string; value: number; percent: number };
 
@@ -113,8 +145,10 @@ export default function AnalyticsPage() {
   const [stats, setStats] = useState<StatRow[]>([]);
   const [scoreboardRows, setScoreboardRows] = useState<ScoreboardRow[]>([]);
   const [filterClan, setFilterClan] = useState("ALL");
-  const [filterSeason, setFilterSeason] = useState("ACTIVE");
-  const [seasons, setSeasons] = useState<Array<{ id: string; name: string; is_active: boolean }>>([]);
+  const [filterSeason, setFilterSeason] = useState("ALL");
+  const [filterOpponent, setFilterOpponent] = useState("ALL");
+  const [loadingData, setLoadingData] = useState(true);
+  const [seasons, setSeasons] = useState<Array<{ id: string; name: string; is_active: boolean; is_historical?: boolean }>>([]);
   const [filterMode, setFilterMode] = useState("ALL");
   const [filterMap, setFilterMap] = useState("ALL");
   const [message, setMessage] = useState("");
@@ -124,32 +158,45 @@ export default function AnalyticsPage() {
     load();
   }, []);
 
+  // Supabase/PostgREST può limitare a 1.000 righe ogni richiesta.
+  // Paginiamo tutte le tabelle per non perdere vecchie stagioni e partite nel riepilogo.
+  async function fetchEveryRow(table: "matches" | "match_player_stats" | "match_scoreboard_rows", fields: string): Promise<unknown[]> {
+    const collected: unknown[] = [];
+    const pageSize = 1000;
+    for (let offset = 0; offset < 50000; offset += pageSize) {
+      const { data, error } = await supabase.from(table)
+        .select(fields).order("id", { ascending: true }).range(offset, offset + pageSize - 1);
+      if (error) throw new Error(`Errore ${table}: ${error.message}`);
+      const page = data || [];
+      collected.push(...page);
+      if (page.length < pageSize) return collected;
+    }
+    throw new Error(`Troppi record in ${table} (oltre 50.000). Il riepilogo non può essere considerato completo.`);
+  }
+
   async function load() {
-    const seasonResult = await supabase.from("codm_seasons").select("id,name,is_active").order("name");
-    if (!seasonResult.error) setSeasons(seasonResult.data || []);
-    const { data: matchData, error: matchError } = await supabase
-      .from("matches")
-      .select("*")
-      .order("match_date", { ascending: false });
-    const { data: playerData } = await supabase
-      .from("players")
-      .select("*")
-      .order("nickname");
-    const { data: statData } = await supabase
-      .from("match_player_stats")
-      .select(
-        "*, players(nickname,clan_name), matches(mode,result,map_name,match_date,season_id)",
-      )
-      .order("created_at", { ascending: false });
-    const { data: boardData } = await supabase
-      .from("match_scoreboard_rows")
-      .select("*, players(nickname,clan_name)")
-      .order("team_rank", { ascending: true });
-    if (matchError) setMessage(matchError.message);
-    setMatches((matchData || []) as Match[]);
-    setPlayers((playerData || []) as Player[]);
-    setStats((statData || []) as StatRow[]);
-    setScoreboardRows((boardData || []) as ScoreboardRow[]);
+    setLoadingData(true);
+    setMessage("");
+    try {
+      const [seasonResult, matchData, playerResult, statData, boardData] = await Promise.all([
+        supabase.from("codm_seasons").select("id,name,is_active,is_historical").order("name"),
+        fetchEveryRow("matches", "*"),
+        supabase.from("players").select("*").order("nickname"),
+        fetchEveryRow("match_player_stats", "*, players(nickname,clan_name), matches(mode,result,map_name,match_date,season_id)"),
+        fetchEveryRow("match_scoreboard_rows", "*, players(nickname,clan_name)"),
+      ]);
+      if (seasonResult.error) throw new Error(`Errore stagioni: ${seasonResult.error.message}`);
+      if (playerResult.error) throw new Error(`Errore giocatori: ${playerResult.error.message}`);
+      setSeasons(seasonResult.data || []);
+      setMatches(matchData as Match[]);
+      setPlayers((playerResult.data || []) as Player[]);
+      setStats(statData as StatRow[]);
+      setScoreboardRows(boardData as ScoreboardRow[]);
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Impossibile caricare tutti i dati.");
+    } finally {
+      setLoadingData(false);
+    }
   }
 
   const clanOptions = useMemo(() => {
@@ -179,60 +226,58 @@ export default function AnalyticsPage() {
     [matches],
   );
 
-  const selectedSeasonId = filterSeason === "ACTIVE" ? (seasons.find(s => s.is_active)?.id || "ALL") : filterSeason;
-  const isInSeason = (match?: Match | null) => selectedSeasonId === "ALL" || match?.season_id === selectedSeasonId;
+  const selectedSeasonId = filterSeason === "ACTIVE" ? (seasons.find(s => s.is_active)?.id || "__NO_ACTIVE_SEASON__") : filterSeason;
+  const knownSeasonIds = useMemo(() => new Set(seasons.map(s => s.id)), [seasons]);
+  const mergedPlayerRows = useMemo(() => combinePlayerRows(scoreboardRows, stats), [scoreboardRows, stats]);
+  const opponentOptions = useMemo(() => {
+    const names = new Map<string, string>();
+    for (const match of matches) {
+      const key = normalizeOpponent(match.opponent);
+      if (key && !names.has(key)) names.set(key, String(match.opponent).trim().replace(/\s+/g, " "));
+    }
+    return [...names.entries()].sort((a, b) => a[1].localeCompare(b[1], "it"));
+  }, [matches]);
+  const isInSeason = (match?: Match | null) => selectedSeasonId === "ALL" ||
+    (selectedSeasonId === "__UNASSIGNED__" ? !match?.season_id || !knownSeasonIds.has(match.season_id) : match?.season_id === selectedSeasonId);
   const scopedMatches = useMemo(
     () =>
       matches.filter(
         (m) =>
-          isInSeason(m) && (filterMode === "ALL" || normalizeGameMode(m.mode) === normalizeGameMode(filterMode)) &&
+          isInSeason(m) && (filterOpponent === "ALL" || normalizeOpponent(m.opponent) === filterOpponent) &&
+          (filterMode === "ALL" || normalizeGameMode(m.mode) === normalizeGameMode(filterMode)) &&
           (filterMap === "ALL" ||
             (m.map_name || "Mappa non letta") === filterMap),
       ),
-    [matches, filterMode, filterMap, selectedSeasonId],
+    [matches, filterMode, filterMap, filterOpponent, selectedSeasonId, knownSeasonIds],
   );
   // Le serie (Scrim 3-2) non devono diventare una singola partita nei totali partite.
   const filteredMatches = useMemo(()=>scopedMatches.filter(m=>m.match_scope!=='series'),[scopedMatches]);
   const filteredSeries = useMemo(()=>scopedMatches.filter(m=>m.match_scope==='series'),[scopedMatches]);
   const historicalCount = scopedMatches.filter(m=>m.record_quality==='result_only').length;
+  const combinedResults = useMemo(() => countResults(scopedMatches), [scopedMatches]);
+  const seasonResults = useMemo(() => summarizeSeasons(scopedMatches,
+    selectedSeasonId === "ALL" ? seasons : seasons.filter(s => s.id === selectedSeasonId)
+  ), [scopedMatches, seasons, selectedSeasonId]);
+  const opponentResults = useMemo(() => summarizeOpponents(scopedMatches), [scopedMatches]);
+  const scopedMatchIds = useMemo(() => new Set(scopedMatches.map(m => m.id)), [scopedMatches]);
   const seriesWins = filteredSeries.filter(m=>m.result==='WIN').length;
   const seriesLosses = filteredSeries.filter(m=>m.result==='LOSE').length;
 
 
   const filteredRows = useMemo(
-    () =>
-      scoreboardRows.filter((r) => {
-        const clan = r.players?.clan_name || "Senza clan";
-        if (filterClan !== "ALL" && clan !== filterClan) return false;
-        const match = matches.find((m) => m.id === r.match_id);
-        if (!isInSeason(match)) return false;
-        if (filterMode !== "ALL" && normalizeGameMode(match?.mode) !== normalizeGameMode(filterMode)) return false;
-        if (
-          filterMap !== "ALL" &&
-          (match?.map_name || "Mappa non letta") !== filterMap
-        )
-          return false;
-        return true;
-      }),
-    [scoreboardRows, matches, filterClan, filterMode, filterMap, selectedSeasonId],
+    () => mergedPlayerRows.filter(r =>
+      scopedMatchIds.has(r.match_id) &&
+      (filterClan === "ALL" || (r.players?.clan_name || "Senza clan") === filterClan)
+    ),
+    [mergedPlayerRows, scopedMatchIds, filterClan],
   );
 
   const filteredStats = useMemo(
-    () =>
-      stats.filter((s) => {
-        const clan = s.players?.clan_name || "Senza clan";
-        if (selectedSeasonId !== "ALL" && s.matches?.season_id !== selectedSeasonId) return false;
-        if (filterClan !== "ALL" && clan !== filterClan) return false;
-        if (filterMode !== "ALL" && normalizeGameMode(s.matches?.mode) !== normalizeGameMode(filterMode))
-          return false;
-        if (
-          filterMap !== "ALL" &&
-          (s.matches?.map_name || "Mappa non letta") !== filterMap
-        )
-          return false;
-        return true;
-      }),
-    [stats, filterClan, filterMode, filterMap, selectedSeasonId],
+    () => stats.filter(s =>
+      scopedMatchIds.has(s.match_id) &&
+      (filterClan === "ALL" || (s.players?.clan_name || "Senza clan") === filterClan)
+    ),
+    [stats, scopedMatchIds, filterClan],
   );
 
   // Una misura per giocatore e partita; evita doppi conteggi tra scoreboard e statistiche.
@@ -281,15 +326,10 @@ export default function AnalyticsPage() {
     const wins = filteredMatches.filter((m) => m.result === "WIN").length;
     const losses = filteredMatches.filter((m) => m.result === "LOSE").length;
     const draw = filteredMatches.filter((m) => m.result === "DRAW").length;
-    const kills =
-      filteredRows.reduce((sum, r) => sum + (r.kills || 0), 0) ||
-      filteredStats.reduce((sum, s) => sum + (s.kills || 0), 0);
-    const deaths =
-      filteredRows.reduce((sum, r) => sum + (r.deaths || 0), 0) ||
-      filteredStats.reduce((sum, s) => sum + (s.deaths || 0), 0);
-    const assists =
-      filteredRows.reduce((sum, r) => sum + (r.assists || 0), 0) ||
-      filteredStats.reduce((sum, s) => sum + (s.assists || 0), 0);
+    // Il merge unisce scoreboards e statistiche storiche senza duplicare i giocatori.
+    const kills = filteredRows.reduce((sum, r) => sum + (r.kills || 0), 0);
+    const deaths = filteredRows.reduce((sum, r) => sum + (r.deaths || 0), 0);
+    const assists = filteredRows.reduce((sum, r) => sum + (r.assists || 0), 0);
     return {
       wins,
       losses,
@@ -662,8 +702,7 @@ export default function AnalyticsPage() {
 
   function exportExcel(useAll = false) {
     const selectedMatches = useAll ? matches : scopedMatches;
-    const selectedRows = useAll ? scoreboardRows : filteredRows;
-    const selectedStats = useAll ? stats : filteredStats;
+    const selectedRows = useAll ? mergedPlayerRows : filteredRows;
     const matchById = new Map(matches.map((match) => [match.id, match]));
     const grouped = new Map<string, { player: string; clan: string; matches: Set<string>; kills: number; deaths: number; assists: number; mvp: number; rankSum: number; rankCount: number }>();
     for (const row of selectedRows) {
@@ -680,22 +719,6 @@ export default function AnalyticsPage() {
       if (row.mvp_type) item.mvp += 1;
       if (row.team_rank) { item.rankSum += row.team_rank; item.rankCount += 1; }
       grouped.set(key, item);
-    }
-    if (!selectedRows.length) {
-      for (const row of selectedStats) {
-        const key = row.player_id || row.id;
-        const item = grouped.get(key) || {
-          player: row.players?.nickname || "Player",
-          clan: row.players?.clan_name || "Senza clan",
-          matches: new Set<string>(), kills: 0, deaths: 0, assists: 0, mvp: 0, rankSum: 0, rankCount: 0,
-        };
-        item.matches.add(row.match_id);
-        item.kills += row.kills || 0;
-        item.deaths += row.deaths || 0;
-        item.assists += row.assists || 0;
-        if (row.is_mvp) item.mvp += 1;
-        grouped.set(key, item);
-      }
     }
     const playerRows = Array.from(grouped.values()).map((item) => ({
       PLAYER: item.player,
@@ -740,17 +763,44 @@ export default function AnalyticsPage() {
       };
     });
     const workbook = XLSX.utils.book_new();
+    const results = countResults(selectedMatches);
+    const seasonBreakdown = summarizeSeasons(selectedMatches, seasons).map(row => ({
+      STAGIONE: row.name,
+      TIPO: row.isHistorical ? "Storica" : row.isActive ? "Attiva" : "Archiviata",
+      PARTITE: row.singles.played, V_PARTITE: row.singles.wins, P_PARTITE: row.singles.losses,
+      N_PARTITE: row.singles.draws, WR_PARTITE: row.singles.wr,
+      SCRIM_SERIE: row.series.played, V_SCRIM: row.series.wins, P_SCRIM: row.series.losses,
+      N_SCRIM: row.series.draws, WR_SCRIM: row.series.wr, SOLO_RISULTATO: row.resultOnly,
+    }));
+    const opponentBreakdown = summarizeOpponents(selectedMatches).map(row => ({
+      CLAN_AVVERSARIO: row.name, SCRIM: row.series.played, V_SCRIM: row.series.wins,
+      P_SCRIM: row.series.losses, N_SCRIM: row.series.draws, WR_SCRIM: row.series.wr,
+      PARTITE: row.singles.played, V_PARTITE: row.singles.wins, P_PARTITE: row.singles.losses,
+      N_PARTITE: row.singles.draws, WR_PARTITE: row.singles.wr,
+    }));
+    const scrimDetails = selectedMatches.filter(m=>m.match_scope==='series').map(m=>({
+      DATA: new Date(m.match_date).toLocaleString('it-IT'),
+      STAGIONE: seasons.find(s=>s.id===m.season_id)?.name || 'Senza stagione',
+      CLAN_AVVERSARIO: m.opponent || 'Non specificato', MODALITA: modeLabel(m.mode),
+      AK47DX: m.team_score ?? '', AVVERSARIO: m.enemy_score ?? '', ESITO: m.result,
+      LIVELLO: 'Scrim / Serie',
+    }));
     XLSX.utils.book_append_sheet(workbook, XLSX.utils.json_to_sheet([{
       FILTRO_CLAN: useAll ? "Tutti" : filterClan,
       STAGIONE: useAll ? "Carriera" : (seasons.find(s => s.id === selectedSeasonId)?.name || "Carriera"),
+      FILTRO_CLAN_AVVERSARIO: useAll ? "Tutti" : filterOpponent,
       FILTRO_MODALITA: useAll ? "Tutte" : filterMode,
       FILTRO_MAPPA: useAll ? "Tutte" : filterMap,
-      PARTITE: selectedMatches.filter(m=>m.match_scope!=='series').length,
-      SERIE_SCRIM: selectedMatches.filter(m=>m.match_scope==='series').length,
-      VITTORIE: selectedMatches.filter((item) => item.result === "WIN").length,
-      SCONFITTE: selectedMatches.filter((item) => item.result === "LOSE").length,
-      PAREGGI: selectedMatches.filter((item) => item.result === "DRAW").length,
+      PARTITE: results.singles.played,
+      V_PARTITE: results.singles.wins, P_PARTITE: results.singles.losses, N_PARTITE: results.singles.draws,
+      WR_PARTITE: results.singles.wr,
+      SERIE_SCRIM: results.series.played,
+      V_SCRIM: results.series.wins, P_SCRIM: results.series.losses, N_SCRIM: results.series.draws,
+      WR_SCRIM: results.series.wr, RISULTATI_STORICI: results.resultOnly,
     }]), "RIEPILOGO");
+    XLSX.utils.book_append_sheet(workbook, XLSX.utils.json_to_sheet(seasonBreakdown), "STAGIONI");
+    XLSX.utils.book_append_sheet(workbook, XLSX.utils.json_to_sheet(opponentBreakdown), "CLAN_AVVERSARI");
+    XLSX.utils.book_append_sheet(workbook, XLSX.utils.json_to_sheet(scrimDetails), "RISULTATI_SCRIM");
     XLSX.utils.book_append_sheet(workbook, XLSX.utils.json_to_sheet(playerRows), "STATISTICHE_GIOCATORI");
     XLSX.utils.book_append_sheet(workbook, XLSX.utils.json_to_sheet(matchRows), "PARTITE");
     XLSX.utils.book_append_sheet(workbook, XLSX.utils.json_to_sheet(rawRows), "DETTAGLIO_KDA");
@@ -764,6 +814,8 @@ export default function AnalyticsPage() {
       "━━━━━━━━━━━━━━━━",
       "",
       "🎛️ *FILTRI APPLICATI*",
+      `📆 Stagione: ${filterSeason === "ALL" ? "Tutte incluse storiche" : seasons.find(s=>s.id===selectedSeasonId)?.name || "Attuale"}`,
+      `🆚 Avversario: ${filterOpponent === "ALL" ? "Tutti" : opponentOptions.find(([key])=>key===filterOpponent)?.[1] || "Selezionato"}`,
       `🎮 Modalità: ${filterMode === "ALL" ? "Tutte" : filterMode}`,
       `🗺️ Mappa: ${filterMap === "ALL" ? "Tutte" : filterMap}`,
       "",
@@ -772,7 +824,9 @@ export default function AnalyticsPage() {
       `✅ Vittorie: ${summary.wins}`,
       `❌ Sconfitte: ${summary.losses}`,
       `➖ Pareggi: ${summary.draw}`,
-      `📈 Win rate: ${summary.wr}%`,
+      `📈 Win rate partite: ${summary.wr}%`,
+      `🏟️ Scrim/serie: ${combinedResults.series.played} (V${combinedResults.series.wins} P${combinedResults.series.losses} N${combinedResults.series.draws})`,
+      `📈 WR scrim: ${combinedResults.series.wr}%`,
       "",
       "⚔️ *PRESTAZIONI*",
       `💥 Kill: ${summary.kills}`,
@@ -841,7 +895,20 @@ export default function AnalyticsPage() {
           restano visibili nelle statistiche anche senza profilo registrato.
         </p>
         {message && <div className="notice">{message}</div>}
-        <div className="field top-gap"><label>Stagione statistiche</label><select className="select" value={filterSeason} onChange={e => setFilterSeason(e.target.value)}><option value="ACTIVE">Stagione attuale</option><option value="ALL">Tutte le stagioni · Carriera</option>{seasons.map(season => <option key={season.id} value={season.id}>{season.name}{season.is_active ? " · Attuale" : ""}</option>)}</select></div>
+        {loadingData && <div className="notice" role="status">Caricamento di tutte le stagioni e dei risultati storici...</div>}
+        <div className="grid grid-2 top-gap">
+          <div className="field"><label>Stagione statistiche</label><select className="select" value={filterSeason} onChange={e => setFilterSeason(e.target.value)}>
+            <option value="ALL">📚 Tutte le stagioni (anche storiche) — Totale carriera</option>
+            <option value="ACTIVE">Stagione attuale</option>
+            {seasons.map(season => <option key={season.id} value={season.id}>{season.name}{season.is_historical ? " · Storica" : season.is_active ? " · Attuale" : ""}</option>)}
+            {matches.some(m => !m.season_id || !knownSeasonIds.has(m.season_id)) && <option value="__UNASSIGNED__">Senza stagione / non riconosciuta</option>}
+          </select></div>
+          <div className="field"><label>Clan avversario (risultati e scrim)</label><select className="select" value={filterOpponent} onChange={e=>setFilterOpponent(e.target.value)}>
+            <option value="ALL">Tutti i clan avversari</option>
+            {opponentOptions.map(([key,name])=><option key={key} value={key}>{name}</option>)}
+          </select></div>
+        </div>
+        <p className="muted">La vista completa somma tutte le stagioni, incluse quelle storiche e gli eventuali risultati senza stagione. La scelta di una singola stagione esclude tutte le altre. Scrim e partite sono conteggiate separatamente.</p>
         <div className="grid grid-3 top-gap analytics-filter-grid-v138">
           <div className="field">
             <label>Clan appartenenza</label>
@@ -898,6 +965,51 @@ export default function AnalyticsPage() {
       <section id="analytics-share-summary-v1311" className="card top-gap analytics-share-summary-v1311">
         <div><p className="eyebrow">AK47DX · RIEPILOGO CONDIVISIBILE</p><h2>{filterMap === "ALL" ? "Tutte le mappe" : filterMap} · {filterMode === "ALL" ? "Tutte le modalità" : filterMode}</h2></div>
         <div className="analytics-share-kpis-v1311"><span><b>{summary.total}</b> Partite</span><span><b>{summary.wr}%</b> Win rate</span><span><b>{summary.kd}</b> K/D</span><span><b>{summary.kills}/{summary.deaths}/{summary.assists}</b> Kill/Death/Assist</span></div>
+      </section>
+
+      <section className="card top-gap v1425-rollup" aria-label="Statistiche stagioni">
+        <div className="section-title"><div><h2>📚 Riepilogo di tutte le stagioni</h2><p className="muted">{selectedSeasonId === "ALL" ? "Totale completo: stagioni attive, archiviate, storiche e partite non assegnate." : "Solo la stagione scelta nel filtro."} Ogni risultato finale Scrim vale una serie, non una singola partita.</p></div></div>
+        <div className="grid grid-3 top-gap">
+          <div className="kpi"><span>Partite singole · V / P / N</span><strong>{combinedResults.singles.played}</strong><small>{combinedResults.singles.wins} / {combinedResults.singles.losses} / {combinedResults.singles.draws} · WR {combinedResults.singles.wr}%</small></div>
+          <div className="kpi"><span>Scrim / serie · V / P / N</span><strong>{combinedResults.series.played}</strong><small>{combinedResults.series.wins} / {combinedResults.series.losses} / {combinedResults.series.draws} · WR {combinedResults.series.wr}%</small></div>
+          <div className="kpi"><span>Risultati storici (solo punteggio)</span><strong>{combinedResults.resultOnly}</strong><small>Inclusi nei conteggi di squadra, non nel K/D individuale</small></div>
+        </div>
+        <div className="table-scroll top-gap"><table className="table compact v1425-compact-table"><thead><tr><th>Stagione</th><th>Partite</th><th>V</th><th>P</th><th>N</th><th>WR%</th><th>Scrim</th><th>V</th><th>P</th><th>N</th><th>WR%</th><th>Storiche</th></tr></thead>
+          <tbody>{seasonResults.map(row=><tr key={row.id}>
+            <td><button className="v1425-link-button" type="button" onClick={()=>setFilterSeason(row.id)}><b>{row.name}</b></button>{row.isActive&&<span className="badge ok">Attuale</span>}{row.isHistorical&&<span className="badge">Storica</span>}</td>
+            <td>{row.singles.played}</td><td>{row.singles.wins}</td><td>{row.singles.losses}</td><td>{row.singles.draws}</td><td>{row.singles.wr}%</td>
+            <td><b>{row.series.played}</b></td><td>{row.series.wins}</td><td>{row.series.losses}</td><td>{row.series.draws}</td><td>{row.series.wr}%</td><td>{row.resultOnly}</td>
+          </tr>)}{!seasonResults.length&&<tr><td colSpan={12}>Nessuna stagione disponibile.</td></tr>}</tbody>
+        </table></div>
+        {selectedSeasonId !== "ALL"&&<button className="btn small secondary top-gap" onClick={()=>setFilterSeason("ALL")}>↩ Mostra tutte le stagioni</button>}
+      </section>
+
+      <section className="card top-gap v1425-opponents" aria-label="Storico clan avversari">
+        <div className="section-title"><div><h2>⚔️ Storico contro ogni clan avversario</h2><p className="muted">Numero Scrim, bilancio e risultati finali con data, punteggio, modalità e stagione. I nomi con sole differenze di maiuscole o spazi vengono riuniti.</p></div><span className="badge">{opponentResults.length} clan</span></div>
+        <div className="table-scroll top-gap"><table className="table compact v1425-compact-table"><thead><tr><th>Clan avversario</th><th>Scrim</th><th>V</th><th>P</th><th>N</th><th>WR Scrim</th><th>Partite</th><th>V</th><th>P</th><th>N</th><th>WR Partite</th><th>Risultati</th></tr></thead><tbody>
+          {opponentResults.map(op=><tr key={op.key}>
+            <td><b>{op.name}</b></td><td><b>{op.series.played}</b></td><td>{op.series.wins}</td><td>{op.series.losses}</td><td>{op.series.draws}</td><td>{op.series.wr}%</td>
+            <td>{op.singles.played}</td><td>{op.singles.wins}</td><td>{op.singles.losses}</td><td>{op.singles.draws}</td><td>{op.singles.wr}%</td>
+            <td><button type="button" className="btn small secondary" onClick={()=>setFilterOpponent(op.key)}>Filtra clan</button></td>
+          </tr>)}{!opponentResults.length&&<tr><td colSpan={12}>Nessun clan avversario nei filtri selezionati.</td></tr>}
+        </tbody></table></div>
+        <h3 className="top-gap">Risultati e incontri disputati</h3>
+        <div className="v1425-opponent-details">
+          {opponentResults.map(op=><details className="v1425-opponent-detail" key={op.key}>
+            <summary><b>{op.name}</b> · {op.series.played} scrim ({op.series.wins}V / {op.series.losses}P / {op.series.draws}N) · {op.singles.played} partite <span className="muted">— Apri storico</span></summary>
+            <div className="table-scroll"><table className="table compact v1425-compact-table"><thead><tr><th>Data e ora</th><th>Stagione</th><th>Livello</th><th>Modalità</th><th>Punteggio</th><th>Esito</th><th>Disponibilità</th></tr></thead><tbody>
+              {op.matches.map(m=><tr key={m.id}>
+                <td>{new Date(m.match_date).toLocaleString("it-IT")}</td><td>{seasons.find(season=>season.id===m.season_id)?.name||"Senza stagione"}</td>
+                <td>{m.match_scope==="series"?"Scrim / Serie":"Partita"}</td><td>{modeLabel(m.mode)}</td>
+                <td><b>{m.team_score??"—"} – {m.enemy_score??"—"}</b></td>
+                <td><span className={`badge ${m.result==="WIN"?"ok":m.result==="LOSE"?"danger":""}`}>{m.result==="WIN"?"Vinta":m.result==="LOSE"?"Persa":"Pareggio"}</span></td>
+                <td>{m.record_quality==="result_only"?"Solo risultato":"Statistiche complete"}</td>
+              </tr>)}
+            </tbody></table></div>
+          </details>)}
+        </div>
+        {filterOpponent!=="ALL"&&<button className="btn small secondary top-gap" onClick={()=>setFilterOpponent("ALL")}>Mostra tutti i clan avversari</button>}
+        <p className="muted top-gap">Le Scrim 3–2 sono un singolo incontro e restano separate dalle partite con punteggi 250–200 o 7–5. Nessuna statistica giocatore viene attribuita ai risultati senza K/D/A.</p>
       </section>
 
       <section className="grid grid-4 top-gap">
