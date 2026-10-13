@@ -26,11 +26,12 @@ const engineModule={exports:{}};vm.runInNewContext(transpile('src/lib/advancedBr
 const teams=Array.from({length:16},(_,i)=>({id:`team-${i+1}`,name:`Team ${i+1}`,seed:i+1}));
 const tournament=engineModule.exports.buildAdvancedBracket(teams);
 const viewModule={exports:{}};
-vm.runInNewContext(transpile('app/tournament/BracketFlowBoard.tsx',true),{module:viewModule,exports:viewModule.exports,require:(name)=>name==='react'?{useMemo:f=>f()}:name==='react/jsx-runtime'?{jsx:()=>null,jsxs:()=>null}:require(name),Map,Set,Array,Math});
+const codesModule={exports:{}};vm.runInNewContext(transpile('src/lib/tournamentMatchCodes.ts'),{module:codesModule,exports:codesModule.exports,require,Map,Set,Array,Math});
+vm.runInNewContext(transpile('app/tournament/BracketFlowBoard.tsx',true),{module:viewModule,exports:viewModule.exports,require:(name)=>name==='react'?{useMemo:f=>f(),useEffect:()=>{},useRef:()=>({current:null}),useState:v=>[v,()=>{}]}:name==='react/jsx-runtime'?{jsx:()=>null,jsxs:()=>null}:name==='@/lib/tournamentMatchCodes'?codesModule.exports:require(name),Map,Set,Array,Math});
 const flow=viewModule.exports.buildFlowLayout(tournament,'ALL');
 assert.equal(flow.positions.size,tournament.matches.length);
 assert.ok(flow.links.some(link=>link.kind==='win'&&!link.crossLane),'collegamento vincente');
 assert.ok(flow.links.some(link=>link.kind==='loss'&&link.crossLane),'collegamento incrociato Winners-Losers');
 assert.ok(flow.positions.has('GF-BO3'),'Grand Final presente');
-assert.ok(flow.links.every(link=>/^M /.test(link.path)),'fili SVG calcolati');
+assert.ok(flow.links.every(link=>/^M/.test(link.path)),'fili SVG calcolati');
 console.log(`OK FIX22: ${flow.positions.size} incontri, ${flow.links.length} frecce SVG effettive (incluse Winners→Losers e GF)`);

@@ -1,12 +1,12 @@
 {
-  "version": "14.2_FIX22",
-  "marker": "AK47DX_V14_2_FIX22_BRACKET_CONNETTORI_PRO",
+  "version": "14.2_FIX23",
+  "marker": "AK47DX_V14_2_FIX23_COMPACT_UNIFIED_BRACKET",
   "appName": "CLAN MANAGER",
   "app": "CLAN MANAGER by MIRZA",
-  "notes": "Torneo: collegamenti SVG Winners blu, Losers arancione, finale oro; slot qualificazione pianificati in anticipo, calendario con squadre e giocatori separati. Eredita FIX19.",
-  "build": "CODM_AK47DX_V14_2_TEST_FIX22",
-  "date": "2026-10-12",
-  "status": "TEST_FIX22_BUILD",
+  "notes": "Tabellone completo compatto Winners/Losers, finale a destra, W1/L1/GF, panoramica e dettaglio; VS, gironi, calendario e risultati centrati.",
+  "build": "CODM_AK47DX_V14_2_TEST_FIX23",
+  "date": "2026-10-13",
+  "status": "TEST_FIX23_BUILD",
   "routes": [
     "/",
     "/events",
