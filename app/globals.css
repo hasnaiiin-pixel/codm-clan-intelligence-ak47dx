@@ -3262,3 +3262,80 @@ select.pro-select {
 .ak64-match small{font-size:.72em;opacity:.9;overflow-wrap:anywhere}
 .ak64-destination{border-top:1px solid rgba(150,165,190,.16);margin-top:2px;padding-top:6px}
 @media(max-width:760px){.v14-game-vs{grid-template-columns:1fr}.v14-vs-badge,.ak64-vs-center{justify-self:center}.v142-calendar-item{grid-template-columns:1fr}.ak64-column{width:245px}.ak64-match-vs{grid-template-columns:1fr}}
+
+/* AK47DX FIX22 — Professional Tournament Center. Readable, centered team names,
+   genuine color-coded SVG paths (winner blue, loser amber, grand final gold). */
+.ak22-graph-wrap{margin-top:18px}
+.ak22-graph-legend{display:flex;gap:14px;align-items:center;flex-wrap:wrap;margin:12px 0;color:#dbe8f8;font-size:.83rem}
+.ak22-graph-legend>span{display:inline-flex;align-items:center;gap:6px}
+.ak22-graph-legend>span i{display:inline-block;width:24px;height:3px;border-radius:5px;background:#5b9cf5;position:relative}
+.ak22-graph-legend>span i.ak22-legend-loss{background:#f5a45d}
+.ak22-graph-legend>span i.ak22-legend-gf{background:#e8c66a}
+.ak22-graph-legend>small{font-size:.76rem;color:#a7bbd4;flex-basis:100%}
+.ak22-graph-scroll{max-width:100%;max-height:700px;overflow:auto;border:1px solid rgba(143,167,205,.32);border-radius:18px;background:radial-gradient(ellipse at 15% 0%,rgba(58,105,173,.10),transparent 35%),linear-gradient(180deg,#111a2b,#0c1320);scrollbar-width:thin}
+.ak22-graph-canvas{position:relative;isolation:isolate;min-height:300px}
+.ak22-lane-header{position:absolute;z-index:2;left:16px;right:16px;height:53px;display:flex;align-items:center;justify-content:space-between;gap:14px;border-bottom:2px solid rgba(120,170,245,.4);background:rgba(14,23,39,.88);padding:0 12px;color:#bfdbfe;text-align:center}
+.ak22-lane-header b{font-size:.91rem;letter-spacing:.035em}
+.ak22-lane-header span{font-size:.75rem;font-variant-numeric:tabular-nums}
+.ak22-lane-l{border-color:rgba(247,166,93,.65);color:#ffd9ad}
+.ak22-lane-gf{border-color:rgba(236,202,113,.65);color:#f6e3aa}
+.ak22-lines{position:absolute;inset:0;z-index:0;pointer-events:none;overflow:visible}
+.ak22-connector{fill:none;stroke:#5b9cf5;stroke-width:2.4;stroke-linecap:round;stroke-linejoin:round;opacity:.7;transition:opacity .15s}
+.ak22-loss-route{stroke:#f5a45d}
+.ak22-cross-route{stroke-dasharray:7 7;opacity:.42}
+.ak22-route-active{stroke-width:4;opacity:1;filter:drop-shadow(0 0 4px rgba(255,255,255,.22))}
+.ak22-flow-match{position:absolute;z-index:1;display:flex;flex-direction:column;gap:8px;text-align:center!important;padding:11px 11px 8px;background:#1b2a40;border:1px solid #4b78ac;border-left:4px solid #5b9cf5;border-radius:14px;color:#f3f7ff;box-shadow:0 8px 22px rgba(0,0,0,.18);cursor:pointer;overflow:hidden}
+.ak22-card-l{background:#30251e;border-color:#a56b43;border-left-color:#f5a45d}
+.ak22-card-gf{background:#3a3523;border-color:#b99d4b;border-left-color:#e8c66a}
+.ak22-card-selected{outline:3px solid #f2f7ff;outline-offset:2px;z-index:3}
+.ak22-flow-match:hover{filter:brightness(1.12)}
+.ak22-flow-head{display:flex;justify-content:space-between;align-items:center;gap:9px;border-bottom:1px solid rgba(209,226,248,.17);padding-bottom:6px;line-height:1.1;text-align:center}
+.ak22-flow-head b{font-size:.78rem;max-width:62%;line-height:1.25}
+.ak22-flow-head span{font-size:.66rem;color:#b9cee7;white-space:nowrap}
+.ak22-flow-teams{display:grid;grid-template-columns:minmax(0,1fr) 30px minmax(0,1fr);align-items:stretch;gap:5px;flex:1}
+.ak22-flow-team{display:flex;flex-direction:column;justify-content:center;align-items:center;gap:4px;min-width:0;background:rgba(248,251,255,.05);border:1px solid rgba(229,237,255,.12);border-radius:10px;padding:6px 4px;text-align:center}
+.ak22-flow-team.won{background:rgba(56,175,127,.20);border-color:rgba(104,221,161,.55)}
+.ak22-team-name{display:block;text-align:center!important;font-weight:800!important;font-size:.83rem;line-height:1.27;overflow-wrap:anywhere;color:#f4f7ff}
+.ak22-team-players{display:block!important;text-align:center!important;color:#afc1da!important;font-size:.65rem!important;line-height:1.3;font-weight:400!important;overflow-wrap:anywhere;max-width:100%}
+.ak22-team-score{font-size:1.05rem;font-weight:800;line-height:1}
+.ak22-team-vs{display:flex;align-items:center;justify-content:center;color:#f4c9c9;font-size:.73rem;font-weight:900;letter-spacing:.04em}
+.ak22-flow-details{display:flex;align-items:center;justify-content:center;gap:4px;flex-wrap:wrap}
+.ak22-flow-details span{display:inline-block;padding:2px 5px;background:rgba(225,237,255,.08);border-radius:5px;font-size:.60rem;line-height:1.25;max-width:100%;overflow-wrap:anywhere}
+.ak22-flow-routing{display:flex;justify-content:space-between;gap:5px;border-top:1px solid rgba(195,213,238,.16);padding-top:5px;font-size:.65rem}
+.ak22-flow-routing span{max-width:50%;overflow-wrap:anywhere;color:#bcdafa}
+.ak22-flow-routing span+span{color:#ffcf9f}
+.ak22-plan-notice{padding:14px;border:1px solid rgba(107,160,228,.35);border-radius:14px;background:rgba(37,75,128,.16);margin:14px 0}
+.ak22-plan-notice>strong{color:#d7ebff}
+.ak22-plan-notice p{margin:6px 0 10px;color:#bfd0e5;font-size:.85rem}
+.ak22-slot-chips{display:flex;gap:6px;flex-wrap:wrap}
+.ak22-slot-chips span{font-size:.79rem;padding:5px 8px;background:rgba(104,152,215,.13);border-radius:8px;border:1px solid rgba(112,157,216,.28)}
+.ak22-qualification-panel{margin:20px 0 6px;border:1px solid rgba(128,163,209,.26);border-radius:15px;padding:16px;background:rgba(18,27,44,.48)}
+.ak22-qualification-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:9px;margin-top:12px}
+.ak22-qualification-route{display:grid;grid-template-columns:minmax(0,1fr) 22px minmax(0,1.1fr);align-items:center;gap:6px;border:1px solid rgba(135,162,200,.24);border-radius:10px;padding:10px;background:rgba(33,49,73,.42)}
+.ak22-qualification-route>div{display:grid;gap:5px;min-width:0;overflow-wrap:anywhere;font-size:.78rem;text-align:center}
+.ak22-qualification-route>div>small{font-size:.7rem;color:#8cdfb2}
+.ak22-qualification-route>span{font-weight:800;font-size:1.1rem;color:#73a9ee;text-align:center}
+.ak22-advanced-calendar{margin:12px 0 25px}
+.ak22-calendar-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,350px),1fr));gap:12px;margin-top:10px}
+.ak22-fixture{display:flex;flex-direction:column;gap:10px;border:1px solid rgba(93,156,245,.42);border-top:3px solid #5b9cf5;background:linear-gradient(155deg,rgba(39,58,84,.52),rgba(21,31,49,.7));padding:13px;border-radius:15px;min-width:0}
+.ak22-fixture-l{border-color:rgba(245,164,93,.4);border-top-color:#f5a45d}
+.ak22-fixture-gf{border-color:rgba(232,198,106,.42);border-top-color:#e8c66a}
+.ak22-fixture header{display:flex;justify-content:space-between;gap:10px;align-items:center;font-size:.82rem}
+.ak22-fixture header span{font-size:.73rem;color:#acbfdb}
+.ak22-fixture-time{font-size:.83rem;text-align:center;color:#d9e6f8;font-weight:600}
+.ak22-fixture-vs{display:grid;grid-template-columns:minmax(0,1fr) 36px minmax(0,1fr);gap:5px;align-items:stretch}
+.ak22-fixture-vs>div{display:grid;align-content:center;justify-items:center;gap:6px;text-align:center;border:1px solid rgba(148,163,184,.18);border-radius:12px;padding:10px 6px;min-height:107px;background:rgba(255,255,255,.04)}
+.ak22-fixture-vs>span{align-self:center;justify-self:center;font-weight:900;color:#ebd9df}
+.ak22-score{font-size:1.1rem}
+.ak22-fixture footer{display:flex;gap:6px;flex-wrap:wrap;justify-content:center;text-align:center}
+.ak22-fixture footer span{font-size:.73rem;background:rgba(136,160,193,.15);padding:5px 8px;border-radius:7px}
+.ak22-fixture-route{display:flex;justify-content:space-between;color:#bfd9f5;font-size:.71rem}
+.ak22-fixture-route span:last-child{color:#f3c59f}
+.ak22-fixture>.btn{align-self:center}
+.v14-game-pro .v14-game-vs,.v142-calendar-vs{display:grid;grid-template-columns:minmax(0,1fr) 46px minmax(0,1fr)}
+.v14-game-pro .v14-team-slot,.v142-calendar-vs .v14-team-slot{display:flex;flex-direction:column;gap:6px;align-items:center;justify-content:center;min-width:0;text-align:center!important}
+.v14-game-pro .v14-team-slot b,.v142-calendar-vs .v14-team-slot b{margin-top:4px}
+.v14-game-pro .v14-game-head{text-align:center}
+.v142-calendar-item,.v14-game-pro{text-align:center!important}
+.v142-calendar-time,.v142-calendar-result{justify-content:center;text-align:center}
+@media(max-width:680px){.ak22-graph-scroll{max-height:590px}.ak22-calendar-grid{grid-template-columns:1fr}.v14-game-pro .v14-game-vs,.v142-calendar-vs{grid-template-columns:minmax(0,1fr) 38px minmax(0,1fr)}.v14-game-pro .v14-vs-badge{min-width:35px;height:35px}.ak22-qualification-grid{grid-template-columns:1fr}}

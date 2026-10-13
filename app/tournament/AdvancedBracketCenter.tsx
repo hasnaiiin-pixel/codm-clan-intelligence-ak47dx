@@ -4,8 +4,10 @@ import {useEffect,useMemo,useState} from 'react';
 import {supabase} from '@/lib/supabaseClient';
 import {autoCapacity,buildAdvancedBracket,resolveBracket,validateBracketResult,roundName,BracketPlan,BracketResult,BracketTeam,BracketMatch} from '@/lib/advancedBracket';
 import {CODM_MULTIPLAYER_MAPS,CODM_WEAPONS,eligibleWeapons,randomFrom} from '@/lib/codmTournamentCatalog';
+import BracketFlowBoard from './BracketFlowBoard';
+import type {QualificationSlot} from '@/lib/tournamentQualification';
 
-type Props={tournamentId:string;participants:Array<{id:string;name:string}>;canWrite:boolean;rules:Record<string,any>;legacyMatchCount:number;eligible:boolean;teamLabel?:(name:string)=>string;onSaved:(rules:Record<string,any>)=>void};
+type Props={tournamentId:string;participants:Array<{id:string;name:string}>;canWrite:boolean;rules:Record<string,any>;legacyMatchCount:number;eligible:boolean;teamLabel?:(name:string)=>string;teamPlayers?:(name:string)=>string;qualifyingSlots?:QualificationSlot[];resolvedSlotNames?:Record<string,string>;groupSettings?:Record<string,unknown>;onSaved:(rules:Record<string,any>)=>void};
 type Assignment={mode:string;map:string;weapon:string;category:string;scoreLimit:number;bo3Maps?:string[];bo3Weapons?:Array<{category:string;weapon:string}>;at?:string};
 type BracketConfig={capacityMode:'auto'|'manual';manualCapacity:number;seedMode:'ranking'|'shuffle';modes:string[];mapModePool:Record<string,string[]>;weapons:Record<string,string[]>;customMaps:string[];customWeapons:Record<string,string[]>};
 type SavedBracket={version:2;revision:number;plan:BracketPlan;results:Record<string,BracketResult>;assignments:Record<string,Assignment>;config:BracketConfig};
@@ -74,7 +76,7 @@ function validateAssignment(a:Assignment,m:BracketMatch,config:BracketConfig){
   if(!config.weapons[a.category]?.includes(a.weapon))throw new Error('Arma non consentita dalle regole.');
   if(m.bestOf===3){const maps=a.bo3Maps||[];if(maps.length!==3||new Set(maps).size!==3||maps.some(x=>!allowed.includes(x)))throw new Error('Grand Final BO3: servono tre mappe diverse, compatibili con la modalità.');const weapons=a.bo3Weapons||[];if(weapons.length!==3||weapons.some(w=>!config.weapons[w.category]?.includes(w.weapon)))throw new Error('Grand Final BO3: scegli un’arma valida per ciascuna delle tre partite.');}
 }
-export default function AdvancedBracketCenter({tournamentId,participants,canWrite,rules,legacyMatchCount,eligible,teamLabel,onSaved}:Props){
+export default function AdvancedBracketCenter({tournamentId,participants,canWrite,rules,legacyMatchCount,eligible,teamLabel,teamPlayers,qualifyingSlots=[],resolvedSlotNames={},groupSettings={},onSaved}:Props){
   const saved=(rules?.advanced_bracket_v2?.version===2?rules.advanced_bracket_v2:null) as SavedBracket|null;
   const [config,setConfig]=useState<BracketConfig>(()=>saved?.config||configFromRules(rules));
   const [plan,setPlan]=useState<BracketPlan|null>(saved?.plan||null);
@@ -110,7 +112,16 @@ export default function AdvancedBracketCenter({tournamentId,participants,canWrit
   const allWeapons=Object.fromEntries(Object.entries(CODM_WEAPONS).map(([c,items])=>[c,uniqueness([...items,...(config.customWeapons[c]||[])])])) as Record<string,string[]>;
   const selectedMaps=allMaps.filter(m=>config.mapModePool[mapMode]?.includes(m));
   const total=plan?matchCount(plan.teams.length):matchCount(Math.max(5,Math.min(count,64)));
-  const nameFor=(id:string|null|undefined)=>{if(!id)return 'Da definire';const name=plan?.teams.find(t=>t.id===id)?.name||id;return teamLabel?teamLabel(name):name;};
+  const nameFor=(id:string|null|undefined)=>{if(!id)return 'Da definire';const original=plan?.teams.find(t=>t.id===id)?.name||id;const resolved=resolvedSlotNames[id]||original;return teamLabel?teamLabel(resolved):resolved;};
+  const playersFor=(id:string|null|undefined)=>{if(!id)return '';const name=nameFor(id);return teamPlayers?.(name)||'';};
+  const sourceName=(match:BracketMatch,side:'a'|'b')=>{const ref=match[side];return ref.type==='team'?nameFor(ref.ref):`${ref.type==='winner'?'Vincente':'Perdente'} ${ref.ref}`;};
+  const seededRoutes=useMemo(()=>{
+    if(!plan)return [];
+    return plan.teams.map(team=>{
+      const first=plan.matches.find(m=>(m.a.type==='team'&&m.a.ref===team.id)||(m.b.type==='team'&&m.b.ref===team.id));
+      return {id:team.id,origin:team.name,destination:first?`${first.key} · ${first.name}`:'BYE'};
+    });
+  },[plan]);
   const invalidTeamCount=new Set(participants.map(t=>t.id)).size!==count;
 
   function setModeMaps(mode:string,maps:string[]){setConfig(c=>({...c,mapModePool:{...c.mapModePool,[mode]:uniqueness(maps)}}));}
@@ -139,7 +150,7 @@ export default function AdvancedBracketCenter({tournamentId,participants,canWrit
       if(!canWrite)throw new Error('Solo lo staff può generare il tabellone.');
       if(plan)throw new Error('Un tabellone è già stato generato. Crea un nuovo torneo per cambiarlo senza perdere i risultati.');
       if(legacyMatchCount)throw new Error('Questo torneo contiene incontri nel formato precedente. Crea un nuovo torneo per il bracket 64, così non alteri lo storico.');
-      if(!eligible)throw new Error('Completa prima i gironi e il ripescaggio (oppure scegli nessun ripescaggio).');
+      if(!eligible)throw new Error('Scegli prima le regole di qualificazione e ripescaggio per fissare tutto il percorso.');
       if(invalidTeamCount)throw new Error('Ci sono squadre duplicate negli iscritti.');
       if(config.capacityMode==='manual'&&(![8,16,32,64].includes(capacity)||capacity<minCap))throw new Error('Il formato scelto è troppo piccolo.');
       let arranged=[...participants];
@@ -155,7 +166,7 @@ export default function AdvancedBracketCenter({tournamentId,participants,canWrit
       const built=buildAdvancedBracket(teams,capacity);
       const assigned=makeAssignments(built,config);
       setPlan(built);setAssignments(assigned);setResults({});setActiveLane('W');setSelectedKey('');
-      setNotice(`Anteprima pronta: ${built.matches.length} serie, ${built.byes} BYE senza partite fittizie. Premi Salva per registrare il torneo.`);
+      setNotice(`Percorso completo pronto prima dei risultati: ${built.matches.length} serie, ${built.byes} BYE. Controlla le frecce Winners/Losers, poi premi Salva.`);
     }catch(e:any){setNotice(`Errore: ${e?.message||String(e)}`);}
   }
   async function save(updatedResults=results,updatedAssignments=assignments):Promise<boolean>{
@@ -170,7 +181,7 @@ export default function AdvancedBracketCenter({tournamentId,participants,canWrit
       const expected=Number(saved?.revision||0);
       if(revision!==expected)throw new Error('Il tabellone è stato modificato da un altro dispositivo. Ricarica la pagina prima di salvare.');
       const snapshot:SavedBracket={version:2,revision:revision+1,plan,results:updatedResults,assignments:updatedAssignments,config};
-      const next={...freshRules,advanced_bracket_v2:snapshot,advanced_bracket_config_v2:config,
+      const next={...freshRules,...groupSettings,advanced_bracket_v2:snapshot,advanced_bracket_config_v2:config,
         allowed_modes:[...config.modes],allowed_maps:uniqueness(Object.values(config.mapModePool).flat()),
         allowed_weapons:uniqueness(Object.values(config.weapons).flat())};
       const {data:confirmed,error}=await supabase.from('codm_tournaments').update({rules:next}).eq('id',tournamentId).select('id').single();
@@ -183,6 +194,10 @@ export default function AdvancedBracketCenter({tournamentId,participants,canWrit
   async function saveScore(){
     if(!plan||!selected)return;
     try{
+      // Lo schema si salva prima dei gironi; i playoff attendono squadre effettivamente qualificate.
+      for(const id of [selectedState?.teamA,selectedState?.teamB]){
+        if(id?.startsWith('QS-')&&!resolvedSlotNames[id])throw new Error('Prima concludi i gironi/ripescaggi che determinano questa squadra. Il percorso predefinito rimane salvato.');
+      }
       const a=Number(entryScores.a),b=Number(entryScores.b);
       if(entryScores.a.trim()===''||entryScores.b.trim()==='')throw new Error('Inserisci entrambi i punteggi.');
       validateBracketResult(plan,results,selected.key,a,b);
@@ -208,7 +223,7 @@ export default function AdvancedBracketCenter({tournamentId,participants,canWrit
     try{setAssignments(makeAssignments(plan,config));setNotice('Nuove assegnazioni generate. Premi Salva per confermare.');}catch(e:any){setNotice(e.message)}
   }
   return <section className="card top-gap ak-bracket64">
-    <div className="section-title"><div><h2>🏆 Tabellone completo del torneo · Winners + Losers + Grand Final</h2><p className="muted">Prima definisci il percorso completo del torneo, poi puoi rifinire orari, mappe, armi e risultati. Winners blu, Losers arancione e Grand Final BO3 dorata. Nessun bracket reset.</p></div></div>
+    <div className="section-title"><div><h2>🏆 Tabellone completo con frecce · Winners, Losers e Grand Final</h2><p className="muted">Prima definisci il percorso completo del torneo, poi puoi rifinire orari, mappe, armi e risultati. Winners blu, Losers arancione e Grand Final BO3 dorata. Nessun bracket reset.</p></div></div>
     {notice&&<p className="notice" role="status">{notice}</p>}
     {!plan&&<>
       <div className="grid grid-3 top-gap">
@@ -234,19 +249,22 @@ export default function AdvancedBracketCenter({tournamentId,participants,canWrit
     <div className="ak64-add"><input className="input" placeholder="Nuova arma in questa categoria" value={newWeapon} onChange={(e:{target:{value:string}})=>setNewWeapon(e.target.value)}/><button className="btn small secondary" type="button" onClick={()=>{const w=newWeapon.trim();if(!w)return;setConfig(c=>({...c,customWeapons:{...c.customWeapons,[expandedWeaponCat]:uniqueness([...(c.customWeapons[expandedWeaponCat]||[]),w])},weapons:{...c.weapons,[expandedWeaponCat]:uniqueness([...(c.weapons[expandedWeaponCat]||[]),w])}}));setNewWeapon('');}}>+ Arma</button></div>
     {saved&&<p className="notice">Per rigenerare il torneo da zero mantenendo gli iscritti, apri <b>Crea / Gestisci → Rigenera torneo da iscritti</b>. I risultati originali rimangono nell’edizione precedente.</p>}
     {!plan&&<div className="cal-buttons top-gap"><button className="btn small secondary" type="button" disabled={!canWrite||busy} onClick={()=>void saveConfiguration()}>💾 Salva scelte mappe / armi / formato</button></div>}
-    {!plan&&<div className="cal-buttons top-gap"><button className="btn" disabled={!canWrite||!eligible||count<5||count>64||legacyMatchCount>0||invalidTeamCount} onClick={generate}>⚡ Genera anteprima Winners + Losers + BO3</button>{legacyMatchCount>0&&<p className="muted">Per proteggere gli incontri esistenti, crea un nuovo torneo per utilizzare questo formato.</p>}</div>}
+    {!plan&&<div className="cal-buttons top-gap"><button className="btn" disabled={!canWrite||!eligible||count<5||count>64||legacyMatchCount>0||invalidTeamCount} onClick={generate}>⚡ Genera tabellone completo Winners + Losers + BO3</button>{legacyMatchCount>0&&<p className="muted">Per proteggere gli incontri esistenti, crea un nuovo torneo per utilizzare questo formato.</p>}</div>}
     {plan&&<>
       <div className="ak64-metrics top-gap"><span><b>{plan.teams.length}</b> squadre</span><span><b>{roundName(plan.capacity)}</b> inizio</span><span><b>{plan.byes}</b> BYE</span><span><b>{plan.matches.length}</b> serie effettive</span><span><b>1</b> Grand Final BO3</span></div>
       {!saved&&canWrite&&Object.keys(results).length===0&&<div className="cal-buttons"><button className="btn small secondary" type="button" disabled={busy} onClick={()=>{setPlan(null);setAssignments({});setResults({});setSelectedKey('');setNotice('Anteprima annullata: puoi cambiare turno iniziale, teste di serie e regole, poi generare nuovamente.');}}>↩️ Modifica formato / Rigenera anteprima</button></div>}
       {state.get('GF-BO3')?.winner&&<div className="ak64-champion"><b>🏆 Campione del torneo: {nameFor(state.get('GF-BO3')?.winner)}</b><span>Grand Final BO3 confermata · nessun bracket reset</span></div>}
       <div className="cal-buttons top-gap"><button className="btn small secondary" disabled={!canWrite||busy||Object.keys(results).length>0} onClick={reassignAll}>🎲 Riassegna mappe e armi</button><button className="btn" disabled={!canWrite||busy} onClick={()=>void save()}>💾 {busy?'Salvataggio...':'Salva tabellone e configurazione'}</button></div>
-      <div className="ak64-switch top-gap">{(['W','L','GF'] as const).map(lane=><button key={lane} className={`btn small ${activeLane===lane?'':'secondary'}`} onClick={()=>setActiveLane(lane)}>{lane==='W'?'🔵 Winners':lane==='L'?'🟠 Losers':'🏆 Grand Final'}</button>)}<label>Zoom <select className="select" value={scale} onChange={(e:{target:{value:string}})=>setScale(Number(e.target.value))}>{[75,100,125,150].map(n=><option value={n} key={n}>{n}%</option>)}</select></label></div>
-      <div className={`ak64-board lane-${activeLane.toLowerCase()}`}><div className="ak64-board-inner" style={{fontSize:`${scale}%`}}>{Array.from(new Set(plan.matches.filter(m=>m.lane===activeLane).map(m=>m.round))).map(round=><div className="ak64-column" key={round}><h3>{plan.matches.find(m=>m.lane===activeLane&&m.round===round)?.name}</h3>{plan.matches.filter(m=>m.lane===activeLane&&m.round===round).map(m=>{const resolved=state.get(m.key)!;const metadata=assignments[m.key];return <button type="button" key={m.key} className={`ak64-match ${selectedKey===m.key?'selected':''}`} onClick={()=>selectMatch(m)}><div className="ak64-match-head"><small>{m.key}{m.bestOf===3?' · BO3':''}</small><span>{m.name}</span></div><div className="ak64-match-vs"><div className={`ak64-team-line ${resolved.winner&&resolved.winner===resolved.teamA?'ak64-winning':resolved.loser===resolved.teamA?'ak64-losing':''}`}><span className="ak64-team-name">{nameFor(resolved.teamA)}</span><b>{results[m.key]?.scoreA??'–'}</b></div><div className="ak64-vs-center">VS</div><div className={`ak64-team-line ${resolved.winner&&resolved.winner===resolved.teamB?'ak64-winning':resolved.loser===resolved.teamB?'ak64-losing':''}`}><span className="ak64-team-name">{nameFor(resolved.teamB)}</span><b>{results[m.key]?.scoreB??'–'}</b></div></div><div className="ak64-chip-row"><small>{metadata?.mode||'—'}</small><small>{metadata?.map||'—'}</small><small>{metadata?.weapon||'—'}</small></div><small>{dateDisplay(metadata?.at)}</small><small className="ak64-destination">✓ {m.winnerTo||'Campione'} · × {m.loserTo||(m.lane==='W'&&m.name==='Finale Winners'?'Eliminata':'Fuori dal torneo')}</small></button>})}</div>)}</div></div>
+      <BracketFlowBoard plan={plan} state={state} results={results} assignments={assignments} selectedKey={selectedKey} onSelect={selectMatch} nameFor={nameFor} playersFor={playersFor} sourceName={sourceName}/>
+      <div className="ak22-qualification-panel"><h3>🧭 Dalla qualificazione al tabellone: slot già fissati</h3>
+        <p className="muted">Le destinazioni vengono definite prima delle partite. Nei gironi appaiono inizialmente le posizioni; a risultati conclusi diventano i nomi effettivi senza cambiare incroci.</p>
+        <div className="ak22-qualification-grid">{seededRoutes.map(row=><div className="ak22-qualification-route" key={row.id}><div><b>{row.origin}</b>{resolvedSlotNames[row.id]&&<small>✓ {resolvedSlotNames[row.id]}</small>}</div><span aria-hidden="true">➜</span><div><b>{row.destination}</b></div></div>)}</div>
+      </div>
       <p className="muted">Le teste di serie con BYE avanzano senza risultato e senza partite fittizie. Clicca una partita per registrare punteggio, calendario, mappa e arma.</p>
       {selected&&assigned&&<div className="ak64-editor"><h3>🎮 {selected.name} — {selected.key}</h3><p><b>{nameFor(selectedState?.teamA)}</b> VS <b>{nameFor(selectedState?.teamB)}</b></p><div className="grid grid-3"><div className="field"><label>Modalità</label><select className="select" value={assigned.mode} onChange={(e:{target:{value:string}})=>{const mode=e.target.value;const maps=config.mapModePool[mode]||[];assignMatch({mode,map:maps[0]||'',scoreLimit:selected.bestOf===3?2:DEFAULT_LIMITS[mode]||50,bo3Maps:selected.bestOf===3?maps.slice(0,3):undefined});}}>{config.modes.map(id=><option key={id} value={id}>{MODES[id]}</option>)}</select></div><div className="field"><label>Mappa</label><select className="select" value={assigned.map} onChange={(e:{target:{value:string}})=>assignMatch({map:e.target.value,bo3Maps:selected.bestOf===3?[e.target.value,...(assigned.bo3Maps||[]).slice(1)]:undefined})}>{(config.mapModePool[assigned.mode]||[]).map(x=><option key={x}>{x}</option>)}</select></div><div className="field"><label>Arma sorteggiata / scelta</label><select className="select" value={`${assigned.category}::${assigned.weapon}`} onChange={(e:{target:{value:string}})=>{const i=e.target.value.indexOf('::');assignMatch({category:e.target.value.slice(0,i),weapon:e.target.value.slice(i+2)});}}>{eligibleWeapons(config.weapons).map(w=><option key={w.category+w.name} value={`${w.category}::${w.name}`}>{w.category} — {w.name}</option>)}</select></div><div className="field"><label>Limite punteggio / round</label><input className="input" type="number" min="1" max="9999" disabled={selected.bestOf===3} value={assigned.scoreLimit} onChange={(e:{target:{value:string}})=>assignMatch({scoreLimit:Math.max(1,Number(e.target.value)||1)})}/></div></div>
       {selected.bestOf===3&&<div className="grid grid-3">{[0,1,2].map(i=><div className="field" key={i}><label>Grand Final · Partita {i+1} · Mappa</label><select className="select" value={assigned.bo3Maps?.[i]||''} onChange={(e:{target:{value:string}})=>{const maps=[...(assigned.bo3Maps||[])];maps[i]=e.target.value;assignMatch({bo3Maps:maps,map:maps[0]||''});}}>{(config.mapModePool[assigned.mode]||[]).map(m=><option key={m}>{m}</option>)}</select><label>Arma partita {i+1}</label><select className="select" value={`${assigned.bo3Weapons?.[i]?.category||''}::${assigned.bo3Weapons?.[i]?.weapon||''}`} onChange={(e:{target:{value:string}})=>{const j=e.target.value.indexOf('::');const weapons=[...(assigned.bo3Weapons||[])];weapons[i]={category:e.target.value.slice(0,j),weapon:e.target.value.slice(j+2)};assignMatch({bo3Weapons:weapons});}}>{eligibleWeapons(config.weapons).map(w=><option key={w.category+w.name} value={`${w.category}::${w.name}`}>{w.category} — {w.name}</option>)}</select></div>)}</div>}
       <div className="grid grid-3"><div className="field"><label>Giorno e ora</label><input className="input" type="datetime-local" value={dateInput(assigned.at)} onChange={(e:{target:{value:string}})=>assignMatch({at:e.target.value?new Date(e.target.value).toISOString():''})}/></div><div className="field"><label>Punti / round A</label><input className="input" inputMode="numeric" type="number" min="0" max={selected.bestOf===3?2:9999} value={entryScores.a} onChange={(e:{target:{value:string}})=>setEntryScores(s=>({...s,a:e.target.value}))}/></div><div className="field"><label>Punti / round B</label><input className="input" inputMode="numeric" type="number" min="0" max={selected.bestOf===3?2:9999} value={entryScores.b} onChange={(e:{target:{value:string}})=>setEntryScores(s=>({...s,b:e.target.value}))}/></div></div>
-      <div className="cal-buttons"><button className="btn small" disabled={!canWrite||busy||!selectedState?.teamA||!selectedState?.teamB} onClick={()=>void saveScore()}>💾 Conferma risultato</button><button className="btn small danger" disabled={!canWrite||busy||!results[selected.key]} onClick={()=>void clearScore()}>Cancella risultato</button><button className="btn small secondary" disabled={!canWrite||busy} onClick={()=>void save()}>Salva mappa / arma / orario</button></div></div>}
+      <div className="cal-buttons"><button className="btn small" disabled={!canWrite||busy||!selectedState?.teamA||!selectedState?.teamB||[selectedState?.teamA,selectedState?.teamB].some(id=>Boolean(id?.startsWith('QS-')&&!resolvedSlotNames[id]))} onClick={()=>void saveScore()}>💾 Conferma risultato</button><button className="btn small danger" disabled={!canWrite||busy||!results[selected.key]} onClick={()=>void clearScore()}>Cancella risultato</button><button className="btn small secondary" disabled={!canWrite||busy} onClick={()=>void save()}>Salva mappa / arma / orario</button></div></div>}
       <h3 className="top-gap">📅 Calendario del tabellone completo</h3>
       <div className="table-scroll"><table className="table compact"><thead><tr><th>Quando</th><th>Fase</th><th>Squadre (giocatori)</th><th>Modalità / Mappa</th><th>Arma</th><th>Risultato</th></tr></thead><tbody>{[...plan.matches].sort((a,b)=>String(assignments[a.key]?.at||'9999').localeCompare(String(assignments[b.key]?.at||'9999'))).map(m=><tr key={m.key}><td>{dateDisplay(assignments[m.key]?.at)}</td><td>{m.name}</td><td>{nameFor(state.get(m.key)?.teamA)} VS {nameFor(state.get(m.key)?.teamB)}</td><td>{assignments[m.key]?.mode} · {m.bestOf===3?(assignments[m.key]?.bo3Maps||[]).join(' / '):assignments[m.key]?.map}</td><td>{m.bestOf===3?(assignments[m.key]?.bo3Weapons||[]).map(x=>x.weapon).join(' / '):assignments[m.key]?.weapon}</td><td>{results[m.key]?`${results[m.key].scoreA}–${results[m.key].scoreB}`:'–'}</td></tr>)}</tbody></table></div>
       <h3 className="top-gap">Percorso vincitori e perdenti</h3><div className="table-scroll"><table className="table compact"><thead><tr><th>Tabellone</th><th>Incontro</th><th>Vincente →</th><th>Perdente →</th><th>Stato</th></tr></thead><tbody>{plan.matches.map(m=><tr key={m.key}><td>{m.lane}</td><td>{m.key} · {m.name}</td><td>{m.winnerTo||'Campione'}</td><td>{m.loserTo||(m.lane==='W'&&m.name==='Finale Winners'?'Eliminata':'Fine percorso')}</td><td>{state.get(m.key)?.completed?'✓ Completato':'In attesa'}</td></tr>)}</tbody></table></div>

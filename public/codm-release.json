@@ -1,12 +1,12 @@
 {
-  "version": "13.2_STATS_EVENTS_PLAYERS_TELEGRAM_GROUP_FIX",
-  "marker": "V13_2_STATS_EVENTS_PLAYERS_TELEGRAM_GROUP_OK",
+  "version": "14.2_FIX22",
+  "marker": "AK47DX_V14_2_FIX22_BRACKET_CONNETTORI_PRO",
   "appName": "CLAN MANAGER",
   "app": "CLAN MANAGER by MIRZA",
-  "notes": "V13.2 sopra V13.1: statistiche con Partite uniche e colonne separate, eventi da fare visibili subito in Home e pagina Eventi, eventi passati con inserimento risultato, utenti con associazione account a player da roster/statistiche e creazione automatica, click giocatore verso profilo personale, Telegram con invio privato + gruppo clan.",
-  "build": "CLAN_MANAGER_AK47DX_V13_2_STATS_EVENTS_PLAYERS_TELEGRAM_GROUP_FIX_BUILD",
-  "date": "2026-07-09",
-  "status": "V13_2_STATS_EVENTS_PLAYERS_TELEGRAM_GROUP_OK",
+  "notes": "Torneo: collegamenti SVG Winners blu, Losers arancione, finale oro; slot qualificazione pianificati in anticipo, calendario con squadre e giocatori separati. Eredita FIX19.",
+  "build": "CODM_AK47DX_V14_2_TEST_FIX22",
+  "date": "2026-10-12",
+  "status": "TEST_FIX22_BUILD",
   "routes": [
     "/",
     "/events",
