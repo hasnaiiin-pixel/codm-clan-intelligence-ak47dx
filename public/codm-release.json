@@ -1,12 +1,12 @@
 {
-  "version": "14.2_FIX23",
-  "marker": "AK47DX_V14_2_FIX23_COMPACT_UNIFIED_BRACKET",
+  "version": "14.2_FIX24",
+  "marker": "AK47DX_V14_2_FIX24_PUBLIC_SIGNUP_EXPORT",
   "appName": "CLAN MANAGER",
   "app": "CLAN MANAGER by MIRZA",
-  "notes": "Tabellone completo compatto Winners/Losers, finale a destra, W1/L1/GF, panoramica e dettaglio; VS, gironi, calendario e risultati centrati.",
-  "build": "CODM_AK47DX_V14_2_TEST_FIX23",
-  "date": "2026-10-13",
-  "status": "TEST_FIX23_BUILD",
+  "notes": "Iscrizione pubblica al torneo: Cognome, Nome, nickname, UID, privacy; gestione staff, export XLSX 10 fogli, CSV e PDF pubblico/tabellone; eredita FIX23.",
+  "build": "CODM_AK47DX_V14_2_TEST_FIX24",
+  "date": "2026-10-14",
+  "status": "TEST_FIX24_BUILD",
   "routes": [
     "/",
     "/events",
@@ -17,6 +17,8 @@
     "/clan",
     "/import/match",
     "/api/telegram/status",
-    "/api/telegram/test"
+    "/api/telegram/test",
+    "/tournament",
+    "/iscrizione/[id]"
   ]
 }

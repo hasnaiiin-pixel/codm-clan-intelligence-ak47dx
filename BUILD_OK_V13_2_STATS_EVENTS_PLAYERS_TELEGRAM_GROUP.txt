@@ -1,0 +1,14 @@
+CLAN MANAGER AK47DX - V13.2
+Base: V13.1/V13 stabile.
+
+Modifiche mirate:
+- Statistiche: Partite = partite uniche, non righe scoreboard.
+- K/D/A confermato come Kill / Death / Assist.
+- Tabelle statistiche compatte con intestazioni a capo e righe verticali.
+- Eventi da fare visibili subito in Home e in alto nella pagina Eventi.
+- Eventi passati automatici sotto e risultato inseribile anche dopo la data evento.
+- Utenti admin: associazione account registrato a player da roster o da statistiche; se manca viene creato player.
+- Giocatori: click sul nome apre profilo personale /players/[id].
+- Telegram: invio a chat privata e gruppo clan con TELEGRAM_GROUP_CHAT_ID o alias supportati.
+
+Non toccato: import risultati/OCR, colonne KILL/DEATH/ASSIST, template Excel, salvataggi principali.

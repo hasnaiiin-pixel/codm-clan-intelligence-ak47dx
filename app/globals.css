@@ -3420,3 +3420,34 @@ select.pro-select {
  .v14-game-pro .v14-game-vs,.v142-calendar-vs,.ak23-result-card>.v14-game-vs{grid-template-columns:minmax(0,1fr) 33px minmax(0,1fr)!important}
  .v14-vs-badge{width:32px!important;min-width:32px!important;height:32px!important;min-height:32px!important}
 }
+
+/* AK47DX FIX24: pagina pubblica e admin iscrizioni, layout PWA */
+.ak24-public-page{min-height:80vh;display:flex;align-items:flex-start;justify-content:center;padding:28px 10px 50px;color:#eef3ff}
+.ak24-public-card{width:min(100%,490px);background:linear-gradient(145deg,#142039 0%,#090f1d 100%);border:1px solid #31425f;border-radius:20px;padding:24px;box-shadow:0 15px 55px #0008}
+.ak24-public-head{text-align:center;border-bottom:1px solid #34435b;padding-bottom:16px}
+.ak24-public-head h1{font-size:clamp(20px,5vw,28px);margin:8px 0;color:#fff;line-height:1.22}
+.ak24-public-head p{font-size:13px;color:#b7c5da;margin:0}
+.ak24-public-eyebrow{font-size:12px;color:#ff6979;font-weight:800;letter-spacing:.1em}
+.ak24-public-info{text-align:center;background:#1b2840;border-radius:12px;margin:18px 0;padding:18px 10px}
+.ak24-public-info h2{font-size:20px;color:#fff;margin:0 0 9px}
+.ak24-public-meta{display:flex;flex-wrap:wrap;gap:8px;justify-content:center;font-size:12px;margin-bottom:10px}
+.ak24-public-meta span{background:#273750;border-radius:8px;padding:5px 8px}
+.ak24-public-open{font-size:12px;color:#79efb8;font-weight:750}.ak24-public-closed{font-size:12px;color:#ffb0b0;font-weight:750}
+.ak24-public-form{display:flex;flex-direction:column;gap:16px}
+.ak24-public-form label{display:flex;flex-direction:column;gap:6px;font-size:13px;font-weight:700;color:#dce7fa}
+.ak24-public-fields{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.ak24-public-form input:not([type=checkbox]){background:#111b2f;color:#fff;padding:12px;border:1px solid #4a5870;border-radius:9px;min-width:0;width:100%;font-size:16px}
+.ak24-public-form input:focus{outline:2px solid #f04c5a;outline-offset:1px}
+.ak24-public-form input::placeholder{color:#8a9ab3}
+.ak24-public-hint{color:#aebbd2;font-size:12px;line-height:1.5;margin:-8px 0 0}
+.ak24-public-consent{flex-direction:row!important;align-items:flex-start;gap:11px!important;font-weight:400!important;line-height:1.5}.ak24-public-consent input{margin:4px 0 0;width:20px;height:20px;flex-shrink:0}.ak24-public-consent a{color:#a9d2ff;text-decoration:underline}
+.ak24-public-submit{border:0;background:linear-gradient(110deg,#b92539,#eb4655);color:white;border-radius:12px;padding:14px;font-weight:800;font-size:15px;cursor:pointer}.ak24-public-submit:disabled{opacity:.55;cursor:wait}
+.ak24-public-error{color:#ffc7cb;background:#5b1f2b;padding:12px;border-radius:9px;font-size:13px}
+.ak24-public-success{text-align:center;padding:20px;background:#173b35;border-radius:12px;border:1px solid #34866a}.ak24-public-success h2{color:#92ffc6}.ak24-public-note{text-align:center;padding:10px;color:#bdc9dc}
+.ak24-public-trap{position:absolute!important;left:-10000px!important;height:1px!important;width:1px!important;overflow:hidden!important}
+.ak24-admin-card{width:100%;min-width:0}.ak24-link-line,.ak24-export-actions,.ak24-admin-filters{display:flex;flex-wrap:wrap;align-items:center;gap:9px;margin:14px 0}.ak24-link-line input,.ak24-admin-filters input{flex:1 1 210px;min-width:150px}.ak24-admin-filters select{flex:0 1 210px}
+.ak24-stat{font-size:12px;color:#a7d4ff}.ak24-signup-list{display:grid;gap:8px}.ak24-signup-row{border:1px solid #34435b;border-radius:10px;padding:11px;display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap}
+.ak24-signup-row>div:first-child{display:flex;flex-direction:column;gap:2px;min-width:160px}.ak24-signup-row span,.ak24-signup-row small{font-size:12px;color:#b8c6d9}.ak24-signup-actions{display:flex;flex-wrap:wrap;gap:6px;align-items:center}.ak24-signup-actions .ak24-state{padding:5px 8px;border:1px solid #54627b;border-radius:16px;color:#e0e9f8}
+.ak24-settings{margin-top:18px;padding:16px;border:1px solid #35445f;border-radius:12px}
+@media(max-width:600px){.ak24-public-page{padding:15px 7px}.ak24-public-card{padding:16px 12px}.ak24-public-fields{grid-template-columns:1fr}.ak24-link-line>*{flex:1 1 100%!important}.ak24-signup-row{align-items:stretch}.ak24-admin-filters>*{flex:1 1 100%!important}}
+.ak24-edit-form{padding:16px;margin:12px 0;background:#142239;border:1px solid #476385;border-radius:12px}

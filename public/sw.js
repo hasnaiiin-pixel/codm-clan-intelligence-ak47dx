@@ -1,4 +1,4 @@
-const CODM_CACHE = 'clan-manager-pwa-v14-2-fix23-compact-unified';
+const CODM_CACHE = 'clan-manager-pwa-v14-2-fix24-public-signups';
 const CODM_OFFLINE_URL = '/offline.html';
 const CORE_ASSETS = [CODM_OFFLINE_URL, '/manifest.webmanifest', '/icons/icon-192.png', '/icons/icon-512.png', '/icons/icon-maskable-512.png'];
 
