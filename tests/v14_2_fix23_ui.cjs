@@ -49,5 +49,5 @@ assert.match(css,/ak23-view-switch/);
 assert.match(css,/ak23-result-card/);
 assert.match(css,/\.v14-group-card \.table-scroll\{overflow-x:visible/);
 assert.match(css,/\.ak23-match \.ak23-vs/);
-assert.match(fs.readFileSync('app/version/page.tsx','utf8'),/FIX23/);
+assert.match(fs.readFileSync('app/version/page.tsx','utf8'),/FIX(?:23|24|25)/);
 console.log('OK FIX23: codici W/L/GF, una panoramica, card VS, gironi, calendario e risultati');

@@ -1,4 +1,0 @@
-CLAN MANAGER AK47DX V13.6
-Patch modifica nome giocatore.
-TypeScript: npx tsc --noEmit OK.
-Nessuna migrazione SQL richiesta.

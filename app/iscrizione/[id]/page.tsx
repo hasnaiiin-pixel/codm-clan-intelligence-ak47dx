@@ -7,7 +7,7 @@ import { supabase } from '@/lib/supabaseClient';
 type PublicTournament = {
   id: string; name: string; description?: string | null; cover_url?: string | null;
   date?: string | null; time?: string | null; format?: string | null; type?: string | null;
-  status: string; privacy_url?: string | null; limit?: number | null; registered?: number;
+  status: string; privacy_url?: string | null; limit?: number | null; registered?: number; controller_name?: string | null;
 };
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -18,7 +18,7 @@ export default function PublicTournamentSignupPage() {
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
-  const [done, setDone] = useState<{reference:string,status:string}|null>(null);
+  const [done, setDone] = useState<{reference:string;signup_id:string;access_code:string;status:string}|null>(null);
   const [form, setForm] = useState({surname:'',given_name:'',nickname:'',uid:'',privacy:false,website:''});
 
   useEffect(() => {
@@ -35,7 +35,7 @@ export default function PublicTournamentSignupPage() {
     return () => { cancelled = true; };
   },[id]);
 
-  const open = tournament?.status === 'Iscrizioni aperte' && Boolean(tournament.privacy_url) &&
+  const open = tournament?.status === 'Iscrizioni aperte' && Boolean(tournament.privacy_url) && Boolean(tournament.controller_name?.trim()) &&
     (!tournament.limit || Number(tournament.registered || 0) < tournament.limit);
 
   async function submit(event: React.FormEvent) {
@@ -49,7 +49,7 @@ export default function PublicTournamentSignupPage() {
     });
     setBusy(false);
     if(dbError) {setError(dbError.message);return;}
-    setDone(data as {reference:string,status:string});
+    setDone(data as {reference:string;signup_id:string;access_code:string;status:string});
   }
 
   return <div className="ak24-public-page">
@@ -68,16 +68,16 @@ export default function PublicTournamentSignupPage() {
         <span className={open?'ak24-public-open':'ak24-public-closed'}>{open?'● Iscrizioni aperte':'● Iscrizioni non disponibili'}</span>
       </div>}
       {!loading && !tournament && <p className="ak24-public-error" role="alert">{error || 'Torneo non disponibile.'}</p>}
-      {done && <div className="ak24-public-success" role="status"><h2>✅ Iscrizione ricevuta!</h2><p><strong>{form.nickname}</strong> · {tournament?.name}</p><p>Stato: <strong>In attesa di conferma</strong></p><p>Riferimento: <code>{done.reference}</code></p><small>Conserva il riferimento. L'organizzatore verificherà l'iscrizione.</small></div>}
+      {done && <div className="ak24-public-success" role="status"><h2>✅ Iscrizione ricevuta!</h2><p><strong>{form.nickname}</strong> · {tournament?.name}</p><p>Stato: <strong>In attesa di conferma</strong></p><p>Riferimento: <code>{done.reference}</code></p><div className="ak25-ticket"><p><strong>ID iscrizione:</strong> <code>{done.signup_id}</code></p><p><strong>Codice privacy personale:</strong> <code>{done.access_code}</code></p><button type="button" className="btn small secondary" onClick={()=>void navigator.clipboard.writeText(`ID torneo: ${id}\nID iscrizione: ${done.signup_id}\nCodice privato: ${done.access_code}`)}>📋 Copia i codici</button></div><p><strong>Conserva i codici in un luogo sicuro:</strong> saranno mostrati solo adesso e sono necessari per richiedere la modifica o cancellazione dei dati, senza email. Non condividerli.</p><a href={`/privacy/richiesta?tournament=${encodeURIComponent(id)}`}>🛡️ Gestione privacy / richieste</a><small>L'organizzatore verificherà l'iscrizione.</small></div>}
       {tournament && !done && <>
-        {!open && <p className="ak24-public-note">{tournament.status!=='Iscrizioni aperte'?'Le iscrizioni per questo torneo sono chiuse.':!tournament.privacy_url?'Informativa privacy non ancora configurata dall’organizzatore.':'Posti disponibili esauriti.'}</p>}
+        {!open && <p className="ak24-public-note">{tournament.status!=='Iscrizioni aperte'?'Le iscrizioni per questo torneo sono chiuse.':!tournament.controller_name?.trim()?'L’organizzatore deve ancora indicare il titolare dei dati nelle impostazioni del torneo.':!tournament.privacy_url?'Informativa privacy non ancora configurata dall’organizzatore.':'Posti disponibili esauriti.'}</p>}
         {open && <form className="ak24-public-form" onSubmit={submit}>
           <div className="ak24-public-fields"><label>Cognome *<input autoComplete="family-name" maxLength={80} minLength={2} required value={form.surname} onChange={e=>setForm({...form,surname:e.target.value})} placeholder="Cognome" /></label>
           <label>Nome *<input autoComplete="given-name" maxLength={80} minLength={2} required value={form.given_name} onChange={e=>setForm({...form,given_name:e.target.value})} placeholder="Nome" /></label></div>
           <label>Nome in gioco CODM *<input maxLength={80} minLength={2} required value={form.nickname} onChange={e=>setForm({...form,nickname:e.target.value})} placeholder="Es. ѦҞঐMirza" /></label>
           <label>UID COD Mobile *<input type="text" inputMode="numeric" pattern="[0-9]{8,25}" maxLength={25} required value={form.uid} onChange={e=>setForm({...form,uid:e.target.value.replace(/\D/g,'')})} placeholder="UID numerico (non il nickname)" /></label>
           <p className="ak24-public-hint">Trovi l'UID nel profilo COD Mobile. Serve per evitare iscrizioni duplicate.</p>
-          <label className="ak24-public-consent"><input type="checkbox" required checked={form.privacy} onChange={e=>setForm({...form,privacy:e.target.checked})}/><span>Ho letto l'<a href={tournament.privacy_url!} target="_blank" rel="noopener noreferrer">informativa privacy</a> e accetto il trattamento dei dati per l'iscrizione al torneo.</span></label>
+          <label className="ak24-public-consent"><input type="checkbox" required checked={form.privacy} onChange={e=>setForm({...form,privacy:e.target.checked})}/><span>Confermo di avere letto l'<a href={tournament.privacy_url?.startsWith('/privacy')?`/privacy?tournament=${encodeURIComponent(id)}`:tournament.privacy_url!} target="_blank" rel="noopener noreferrer">informativa privacy</a> per la gestione dell'iscrizione al torneo.</span></label>
           <div className="ak24-public-trap" aria-hidden="true"><label>Sito Web <input autoComplete="off" tabIndex={-1} value={form.website} onChange={e=>setForm({...form,website:e.target.value})}/></label></div>
           {error && <p className="ak24-public-error" role="alert">{error}</p>}
           <button className="ak24-public-submit" disabled={busy||!form.privacy} type="submit">{busy?'Invio in corso…':'🎮 CONFERMA ISCRIZIONE'}</button>

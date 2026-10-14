@@ -1,33 +1,22 @@
-# CLAN MANAGER AK47DX — V12.0 Definitive Excel + Foto + SQL Import
+# AK47DX Clan Manager — V14.2 FIX25 TEST
 
-Release definitiva per gestione risultati CODM con tre modalità:
+Web / PWA per iscrizioni ai tornei COD Mobile, squadre, gironi, Winners/Losers, calendario, risultati, esportazioni Excel/PDF.
 
-1. Import diretto da foto/OCR già esistente.
-2. Import da Excel con numeri precisi e foto allegate.
-3. Import SQL Supabase tramite staging table/funzione.
+## Pagine pubbliche incluse
+- `/iscrizione/<UUID-torneo>` — partecipazione senza account, Nome/Cognome/Nickname/UID.
+- `/privacy?tournament=<UUID-torneo>` — informativa integrata, con identità del titolare indicata dall'organizzatore.
+- `/privacy/richiesta?tournament=<UUID-torneo>` — richiesta e consultazione esito senza email.
 
-## File importanti
+Il codice personale per esercitare i diritti viene mostrato una sola volta alla fine dell'iscrizione. Non è possibile recuperarlo automaticamente. Le iscrizioni FIX24 antecedenti alla FIX25 non hanno tale codice: occorre una verifica manuale da parte dello staff.
 
-- `public/templates/TEMPLATE_IMPORT_RISULTATI_CODM_CLAN_MANAGER_V12_DEFINITIVO.xlsx`
-- `supabase/IMPORT_RISULTATI_EXCEL_STAGING_V12.sql`
-- `supabase/FINAL_SCHEMA_CLAN_MANAGER.sql`
-- `foto_partite/README_FOTO_PARTITE.txt`
+**Non pubblicare il link a nuovi giocatori finché il titolare reale non è indicato e l'informativa non è adattata/verificata.** La registrazione viene bloccata automaticamente se manca il titolare, anche quando il torneo è "Iscrizioni aperte".
 
-## Flusso consigliato
+## Documentazione
+- `README_INSTALLAZIONE.md`: passaggi Windows, Supabase e Vercel.
+- `supabase/UPDATE_V14_2_FIX25_PRIVACY_PORTAL.sql`: migrazione NON distruttiva da eseguire dopo FIX24.
+- `docs/project_history/RELEASE_NOTES_LEGACY.md`: storico versioni consolidato.
 
-Mandi foto a ChatGPT → ChatGPT genera Excel + SQL + cartella foto → carichi Excel in app → scegli partita se ci sono più ID_PARTITA → alleghi foto ora o dopo → salvi su Supabase.
+## Test
+`npm run test:fix24 && npm run test:fix25 && npm run build`
 
-## Installazione
-
-```bash
-npm ci --legacy-peer-deps
-npm run build
-```
-
-## Deploy
-
-```bash
-git add -A
-git commit -m "CLAN MANAGER V12.0 definitive excel photo sql import"
-git push origin main
-```
+La distribuzione resta **TEST** finché build Next e integrazione reale Supabase non sono verificate.
