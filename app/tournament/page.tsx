@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState, useRef } from 'react';
 import { supabase } from '@/lib/supabaseClient';
 import { useCodmAuth } from '@/lib/authRoles';
 import { makeRepechageBuckets, roundRobinPairs } from '@/lib/tournamentRepechage';
@@ -152,25 +152,32 @@ export default function TournamentPage() {
 
   const [confirmDelete, setConfirmDelete] = useState(false);
 
-  const selected = tournaments.find((t) => t.id === selectedId) || tournaments[0] || null;
-  const activeTournament = tournaments.find((t) => !['Finito', 'Archiviato'].includes(String(t.status || ''))) || selected;
+  const selected = tournaments.find((t) => t.id === selectedId) || (!selectedId?tournaments[0]:null) || null;
+  const selectedRef = useRef('');
+  const detailsSeq = useRef(0);
+  selectedRef.current = selected?.id || '';
+  const [updatedAt,setUpdatedAt]=useState('');
+  const activeTournament = selected;
   const myRegistration = registrations.find((r) => r.user_id === auth.user?.id);
   const confirmedRegistrations = registrations.filter((r) => r.status === 'Confermata');
   const participants: Participant[] = useMemo(() => {
     if (teams.length) return teams.map((team, index) => ({ name: team.name, seed: index + 1, source: 'team' as const }));
+    if (!/^1v1$/i.test(String(selected?.format||form.format))) return [];
     return confirmedRegistrations.map((registration, index) => ({ name: registration.nickname || `Player ${index + 1}`, seed: index + 1, source: 'registration' as const }));
-  }, [teams, confirmedRegistrations]);
+  }, [teams, confirmedRegistrations, selected?.format, form.format]);
   const recommended = useMemo(() => recommendTournament(participants.length), [participants.length]);
   const teamLabel=(name?:string|null)=>name||'Da definire';
   const teamPlayers=(name?:string|null)=>(teams.find(t=>t.name===name)?.players||[]).join(' · ');
   function toggleChoice(value:string,current:string[],setter:(next:string[])=>void){setter(current.includes(value)?current.filter(x=>x!==value):[...current,value]);}
 
-  const filteredRosterOptions = useMemo(() => rosterOptions.filter(p=>p.nickname.toLocaleLowerCase('it-IT').includes(rosterSearch.trim().toLocaleLowerCase('it-IT'))).slice(0, 200), [rosterOptions,rosterSearch]);
+  // FIX26: soltanto le iscrizioni confermate del torneo corrente entrano nelle scelte operative.
+  const filteredRosterOptions = useMemo(() => confirmedRegistrations.filter(p=>(p.nickname||'').toLocaleLowerCase('it-IT').includes(rosterSearch.trim().toLocaleLowerCase('it-IT'))).map(p=>({nickname:p.nickname||''})).slice(0,200),[confirmedRegistrations,rosterSearch]);
 
   useEffect(() => { void load(); }, []);
   // Il roster può contenere giocatori da anagrafica, importazioni precedenti e iscrizioni.
   // Ricarica dopo il login: una query anonima (RLS) potrebbe restituire zero righe.
-  useEffect(() => { void loadRosterOptions(); }, [auth.user?.id]);
+  // FIX26: niente import automatico dallo storico globale dei giocatori nella pagina del torneo.
+  // Il roster globale resta disponibile nelle funzioni clan, non nelle iscrizioni del torneo.
 
   async function loadRosterOptions() {
     setRosterLoading(true);
@@ -212,7 +219,31 @@ export default function TournamentPage() {
     } finally { setRosterLoading(false); }
   }
 
-  useEffect(() => { if (selected?.id) void loadDetails(selected.id); }, [selected?.id, auth.canWrite]);
+  useEffect(() => {
+    // Svuota sempre il torneo precedente prima di caricare il successivo.
+    detailsSeq.current += 1;
+    setTeams([]);setMatches([]);setRegistrations([]);setPublicSignups([]);
+    setEditingTeamId('');setManualNick('');setRosterSearch('');setMessage('');
+    if (selected?.id) void loadDetails(selected.id);
+  }, [selected?.id, auth.canWrite]);
+  useEffect(() => {
+    const id=selected?.id;
+    if(!id)return;
+    // Realtime richiede la publication Supabase; il polling ripristina l'aggiornamento
+    // anche quando il realtime non e' abilitato dal provider o l'app riapre dalla PWA.
+    const refresh=()=>{if(document.visibilityState==='visible'){void loadDetails(id);void refreshList();}};
+    const interval=window.setInterval(refresh,20000);
+    window.addEventListener('focus',refresh);
+    document.addEventListener('visibilitychange',refresh);
+    const channel=supabase.channel(`ak26-tournament-${id}`)
+      .on('postgres_changes',{event:'*',schema:'public',table:'codm_tournament_teams',filter:`tournament_id=eq.${id}`},refresh)
+      .on('postgres_changes',{event:'*',schema:'public',table:'codm_tournament_registrations',filter:`tournament_id=eq.${id}`},refresh)
+      .on('postgres_changes',{event:'*',schema:'public',table:'codm_tournament_matches',filter:`tournament_id=eq.${id}`},refresh)
+      .on('postgres_changes',{event:'*',schema:'public',table:'codm_tournament_public_signups',filter:`tournament_id=eq.${id}`},refresh)
+      .on('postgres_changes',{event:'*',schema:'public',table:'codm_tournaments',filter:`id=eq.${id}`},refresh)
+      .subscribe();
+    return()=>{window.clearInterval(interval);window.removeEventListener('focus',refresh);document.removeEventListener('visibilitychange',refresh);void supabase.removeChannel(channel);};
+  },[selected?.id,auth.canWrite]);
   useEffect(() => { if (selected) syncFormFromSelected(selected); }, [selected?.id]);
 
   function syncFormFromSelected(t: TournamentRow) {
@@ -292,6 +323,10 @@ export default function TournamentPage() {
     return { title: 'Consigliato: gruppi + finale', details: 'Tanti iscritti: meglio gruppi, top qualificati e bracket finale.' };
   }
 
+  async function refreshList(){
+    const {data,error}=await supabase.from('codm_tournaments').select('*').order('created_at',{ascending:false});
+    if(!error)setTournaments((data||[]) as TournamentRow[]);
+  }
   async function load() {
     setLoading(true); setMessage('');
     try {
@@ -306,17 +341,20 @@ export default function TournamentPage() {
   }
 
   async function loadDetails(tournamentId: string) {
+    const seq=++detailsSeq.current;
     const [teamResult, matchResult, registrationResult, publicResult] = await Promise.all([
       supabase.from('codm_tournament_teams').select('*').eq('tournament_id', tournamentId).order('name'),
       supabase.from('codm_tournament_matches').select('*').eq('tournament_id', tournamentId).order('created_at', { ascending: true }),
       supabase.from('codm_tournament_registrations').select('*').eq('tournament_id', tournamentId).order('created_at', { ascending: false }),
       auth.canWrite ? supabase.from('codm_tournament_public_signups').select('id,tournament_id,surname,given_name,nickname,uid,status,consent_at,created_at,registration_id').eq('tournament_id', tournamentId).order('created_at', { ascending: false }):Promise.resolve({data:[],error:null})
     ]);
+    if(seq!==detailsSeq.current||selectedRef.current!==tournamentId)return;
     if (!teamResult.error) setTeams((teamResult.data || []) as TeamRow[]);
     if (!matchResult.error) setMatches((matchResult.data || []) as MatchRow[]);
     if (!registrationResult.error) setRegistrations((registrationResult.data || []) as RegistrationRow[]);
     if (!publicResult.error) setPublicSignups((publicResult.data || []) as PublicSignup[]);
-    else {setPublicSignups([]);setMessage(`FIX24: ${publicResult.error.message}. Verifica la migrazione SQL FIX24.`);}
+    else {setPublicSignups([]);if(auth.canWrite)setMessage(`Iscrizioni: ${publicResult.error.message}. Verifica la migrazione SQL FIX24.`);}
+    setUpdatedAt(new Date().toLocaleTimeString('it-IT'));
   }
 
   async function saveTournament() {
@@ -404,8 +442,13 @@ export default function TournamentPage() {
     const payload = { tournament_id: selected.id, name: teamForm.name.trim(), captain: teamForm.captain.trim() || null, players: splitLines(teamForm.players), reserves: splitLines(teamForm.reserves), status: teamForm.status };
     if(teams.some(t=>t.id!==editingTeamId&&t.name.toLowerCase()===teamForm.name.trim().toLowerCase()))return setMessage('Nome squadra già esistente nel torneo.');
     const selectedPlayers=splitLines(teamForm.players).map(n=>n.toLowerCase());
-    const usedElsewhere=new Set(teams.filter(t=>t.id!==editingTeamId).flatMap(t=>(t.players||[]).map(n=>n.toLowerCase())));
-    if(selectedPlayers.some(n=>usedElsewhere.has(n)))return setMessage('Uno o più giocatori sono già assegnati a un’altra squadra.');
+    const usedElsewhere=new Set(teams.filter(t=>t.id!==editingTeamId).flatMap(t=>[...(t.players||[]),...(t.reserves||[])].map(n=>n.toLowerCase())));
+    if([...splitLines(teamForm.players),...splitLines(teamForm.reserves)].some(n=>usedElsewhere.has(n.toLowerCase())))return setMessage('Uno o più giocatori sono già assegnati a un’altra squadra.');
+    const allowed=new Set(confirmedRegistrations.map(r=>String(r.nickname||'').trim().toLowerCase()).filter(Boolean));
+    const assigned=[...splitLines(teamForm.players),...splitLines(teamForm.reserves)].map(s=>s.toLowerCase());
+    if(teamForm.captain.trim()&&!allowed.has(teamForm.captain.trim().toLowerCase()))return setMessage('Anche il capitano deve essere confermato nel torneo selezionato.');
+    if(assigned.some(name=>!allowed.has(name)))return setMessage('La squadra può usare soltanto giocatori confermati per il torneo selezionato. Aggiungi prima l’iscrizione in Iscrizioni.');
+    if(new Set(assigned).size!==assigned.length)return setMessage('Lo stesso giocatore non può essere ripetuto come titolare o riserva.');
     if(editingTeamId && teams.find(t=>t.id===editingTeamId)?.name!==teamForm.name.trim() && matches.some(m=>m.team_a===teams.find(t=>t.id===editingTeamId)?.name||m.team_b===teams.find(t=>t.id===editingTeamId)?.name)) return setMessage('Squadra già presente in partite generate: non puoi cambiarne il nome senza riallineare gli incontri. Prima completa o correggi il calendario.');
     const { error } = editingTeamId ? await supabase.from('codm_tournament_teams').update(payload).eq('id',editingTeamId) : await supabase.from('codm_tournament_teams').insert(payload);
     if (error) return setMessage(error.message);
@@ -789,21 +832,24 @@ export default function TournamentPage() {
     return qualificationSlots(names,qualifiersPerGroup,secondChance?secondChanceSlots:0);
   },[bracketIsGroupMode,groupTables,groupCount,participants.length,qualifiersPerGroup,secondChance,secondChanceSlots]);
   const resolvedQualifierNames=useMemo(()=>resolvedQualificationNames(fixedQualifiers,groupTables,repechageFinished,[...repechageWinners].sort((a,b)=>a.localeCompare(b,'it'))),[fixedQualifiers,groupTables,repechageFinished,repechageWinners]);
-  const playoffParticipants=bracketIsGroupMode?fixedQualifiers.map(s=>({id:s.id,name:s.name})):teams.length?teams.map(t=>({id:t.id,name:t.name})):confirmedRegistrations.map(r=>({id:r.id,name:r.nickname||r.id}));
+  const isSingles=/^1v1$/i.test(String(selected?.format||form.format));
+  const playoffParticipants=bracketIsGroupMode?fixedQualifiers.map(s=>({id:s.id,name:s.name})):teams.length?teams.map(t=>({id:t.id,name:t.name})):isSingles?confirmedRegistrations.map(r=>({id:r.id,name:r.nickname||r.id})):[];
+  const needsTeams=!isSingles&&!bracketIsGroupMode&&teams.length===0;
+
   const fullBracketLocked=Boolean(selected?.rules?.advanced_bracket_v2);
 
   const tournamentStats = useMemo(() => ({ played: matches.filter((m) => m.score_a != null && m.score_b != null).length, pending: matches.filter((m) => m.score_a == null || m.score_b == null).length, registrations: registrations.length, confirmed: confirmedRegistrations.length, participants: participants.length }), [matches, registrations, confirmedRegistrations, participants]);
 
-  const tabs = [['dashboard', '📌 Dashboard'], ['manage', '🛠️ Crea / Gestisci'], ['registrations', '📝 Iscrizioni'], ['export', '📁 Esportazioni'], ['teams', '👥 Squadre dopo iscrizioni'], ['rules', '🗺️ Mappe / 🔫 Torneo armi'], ['bracket', '📊 Tabellone'], ['calendar', '📅 Calendario'], ['matches', '🎮 Partita / Risultato'], ['archive', '🗂️ Archivio']];
+  const tabs = [['dashboard','📌 Panoramica'], ['registrations','📝 Iscrizioni'], ['teams','👥 Squadre'], ['groups','🧩 Gironi'], ['bracket','🏆 Eliminazione'], ['calendar','📅 Calendario'], ['matches','🎮 Risultati'], ['export','📁 Esportazioni'], ['rules','🗺️ Mappe / Armi'], ['manage','🛠️ Gestisci'], ['archive','🗂️ Archivio']];
 
   return (
     <main className="container wide tournament-page tournament-pro-page tournament-v11-page">
       <section className="card ak-section-head tournament-head">
-        <p className="eyebrow">🏆 TORNEO PRO · <strong>V14.2 FIX25</strong></p>
+        <p className="eyebrow">🏆 TORNEO PRO · <strong>V14.2 FIX26</strong></p>
         <h1>Gestione torneo CODM guidata</h1>
-        <p className="muted">Iscrizioni → Squadre → Mappe e armi → Calendario pulito → Tabellone completo Winners/Losers fino a 64 → Risultati. Tutte le mappe CODM nel catalogo condiviso.</p>
+        <p className="muted">Iscrizioni → Squadre → Gironi → Tabellone → Calendario → Risultati. Tutte le sezioni sono collegate al torneo selezionato.</p>
         <div className="tournament-tabs">{tabs.map(([id, label]) => <button key={id} className={active === id ? 'active' : ''} onClick={() => setActive(id)}>{label}</button>)}</div>
-        <div className="top-gap grid grid-2"><div className="field"><label>Torneo selezionato</label><select className="select pro-select" value={selected?.id || ''} onChange={(e)=>setSelectedId(e.target.value)}><option value="">Nessun torneo</option>{tournaments.map((t) => <option key={t.id} value={t.id}>{t.name} · {t.status}</option>)}</select></div><div className="notice">{message || (loading ? 'Caricamento tornei...' : 'Pronto.')}</div></div>
+        <div className="top-gap grid grid-2"><div className="field"><label>Torneo selezionato — tutte le sezioni utilizzano questo torneo</label><select className="select pro-select" value={selected?.id || ''} onChange={(e)=>setSelectedId(e.target.value)}><option value="">Nessun torneo</option>{tournaments.map((t) => <option key={t.id} value={t.id}>{t.name} · {t.status}</option>)}</select><div className="ak26-public-links">{selected?.id&&<a className="btn small secondary" href={`/tornei/${selected.id}`} target="_blank" rel="noopener noreferrer">👁️ Vista pubblica torneo ↗</a>}<a className="btn small secondary" href="/tornei" target="_blank" rel="noopener noreferrer">🌐 Elenco tornei pubblici</a></div></div><div className="notice">{message || (loading ? 'Caricamento tornei...' : `Dati del torneo aggiornati alle ${updatedAt||'—'}. Aggiornamento automatico attivo.`)}</div></div>
       </section>
 
       {active === 'dashboard' && <section className="grid grid-4 top-gap"><div className="kpi"><span>Torneo attivo</span><strong>{activeTournament?.name || '-'}</strong></div><div className="kpi"><span>Iscritti confermati</span><strong>{tournamentStats.confirmed}/{tournamentStats.registrations}</strong></div><div className="kpi"><span>Partecipanti tabellone</span><strong>{tournamentStats.participants}</strong></div><div className="kpi"><span>Partite finite/aperte</span><strong>{tournamentStats.played}/{tournamentStats.pending}</strong></div><div className="card grid-span-2"><h2>Flusso semplice</h2><ol className="pro-steps"><li>Crea torneo e apri iscrizioni</li><li>Player usa il link pubblico oppure il profilo</li><li>Admin conferma iscritti</li><li>Admin sceglie formato/tipo e genera tabellone</li><li>Clic partita → inserisci risultato → vincitore verde</li></ol></div><div className="card grid-span-2"><h2>Consiglio automatico</h2><p><b>{recommended.title}</b></p><p className="muted">{recommended.details}</p><button className="btn small secondary" onClick={() => setActive('bracket')}>Apri tabellone</button></div></section>}
@@ -816,12 +862,12 @@ export default function TournamentPage() {
         <p className="muted">Viene richiesta conferma scritta. I dati esistenti restano al sicuro nella precedente edizione.</p>
       </section>}
 
-      {active === 'registrations' && <section className="grid grid-2 top-gap"><div className="card"><h2>Iscrizione dal profilo</h2><p className="muted">Le squadre si creano dopo. Qui il player si iscrive come profilo singolo.</p><div className="notice"><b>Stato tuo profilo:</b> {myRegistration ? registrationBadge(myRegistration.status) : 'Non iscritto'}</div><textarea className="textarea top-gap" value={registrationNote} onChange={(e)=>setRegistrationNote(e.target.value)} placeholder="Note iscrizione: ruolo, orari, preferenze squadra..." /><button className="btn top-gap" onClick={registerMe} disabled={!auth.user || selected?.status !== 'Iscrizioni aperte'}>📝 Iscriviti / conferma iscrizione</button>{selected?.status !== 'Iscrizioni aperte' && <small className="muted">Metti il torneo in “Iscrizioni aperte”.</small>}</div><div className="card"><div className="v14-manual-participants"><h3>➕ Iscrivi partecipanti dalla tua lista</h3><p className="muted">Scegli dal roster o incolla un nome per riga. Giocatori esterni ammessi, nessun account obbligatorio.</p><div className="field"><label htmlFor="v14-roster-search">Cerca giocatore nel roster e nello storico ({rosterOptions.length})</label><input id="v14-roster-search" className="input" value={rosterSearch} onChange={e=>setRosterSearch(e.target.value)} placeholder="Cerca nickname..."/><select className="select top-gap" value="" disabled={rosterLoading} onChange={e=>{if(e.target.value)setManualNick(p=>{const existing=splitLines(p);return existing.some(n=>n.toLocaleLowerCase('it-IT')===e.target.value.toLocaleLowerCase('it-IT'))?p:[...existing,e.target.value].join('\n')});}}><option value="">{rosterLoading?'Caricamento giocatori...':filteredRosterOptions.length?'Scegli giocatore...':'Nessun risultato — puoi aggiungerlo manualmente'}</option>{filteredRosterOptions.map(p=><option key={p.nickname} value={p.nickname}>{p.nickname}</option>)}</select><div className="cal-buttons top-gap"><button className="btn small secondary" type="button" onClick={()=>void loadRosterOptions()} disabled={rosterLoading}>↻ Aggiorna elenco</button><small className="muted">Ricerca tra roster, statistiche importate e iscrizioni precedenti. Per un nome assente scrivilo sotto.</small></div>{rosterNotice&&<p className="notice" role="status">{rosterNotice}</p>}</div><textarea className="textarea top-gap" rows={5} value={manualNick} onChange={e=>setManualNick(e.target.value)} placeholder="Giocatore 1&#10;Giocatore 2&#10;Ospite esterno"/><button className="btn top-gap" disabled={!canWrite||!selected?.id} onClick={()=>void addManualRegistration()}>+ Aggiungi giocatori e conferma</button></div><div className="section-title"><div><h2>Lista iscrizioni</h2><p className="muted">Dopo conferma puoi generare torneo o creare squadre.</p></div>{canWrite && <button className="btn small secondary" type="button" onClick={fillTeamFromRegistrations}>Crea squadra dagli iscritti</button>}</div><div className="tournament-team-list top-gap">{registrations.map((r)=><article key={r.id} className="compact-card"><b>{r.nickname || 'Player'}</b><span>{registrationBadge(r.status)}</span><small>{r.note || '-'}</small>{canWrite && <div className="cal-buttons top-gap"><button className="btn small secondary" onClick={()=>updateRegistrationStatus(r.id,'Confermata')}>Conferma</button><button className="btn small secondary" onClick={()=>updateRegistrationStatus(r.id,'Riserva')}>Riserva</button><button className="btn small secondary" onClick={()=>updateRegistrationStatus(r.id,'Rifiutata')}>Rifiuta</button></div>}</article>)}{!registrations.length && <div className="empty-state">Nessuna iscrizione ancora.</div>}</div></div></section>}
+      {active === 'registrations' && <section className="grid grid-2 top-gap"><div className="card"><h2>Iscrizione dal profilo</h2><p className="muted">Le squadre si creano dopo. Qui il player si iscrive come profilo singolo.</p><div className="notice"><b>Stato tuo profilo:</b> {myRegistration ? registrationBadge(myRegistration.status) : 'Non iscritto'}</div><textarea className="textarea top-gap" value={registrationNote} onChange={(e)=>setRegistrationNote(e.target.value)} placeholder="Note iscrizione: ruolo, orari, preferenze squadra..." /><button className="btn top-gap" onClick={registerMe} disabled={!auth.user || selected?.status !== 'Iscrizioni aperte'}>📝 Iscriviti / conferma iscrizione</button>{selected?.status !== 'Iscrizioni aperte' && <small className="muted">Metti il torneo in “Iscrizioni aperte”.</small>}</div><div className="card"><div className="v14-manual-participants"><h3>➕ Iscrivi partecipanti dalla tua lista</h3><p className="muted">Visualizza i giocatori di questo torneo, oppure aggiungi nuovi iscritti manualmente. Nessun giocatore di altri tornei viene importato automaticamente.</p><div className="field"><label htmlFor="v14-roster-search">Cerca tra i confermati di questo torneo ({confirmedRegistrations.length})</label><input id="v14-roster-search" className="input" value={rosterSearch} onChange={e=>setRosterSearch(e.target.value)} placeholder="Cerca nickname..."/><select className="select top-gap" value="" disabled={rosterLoading} onChange={e=>{if(e.target.value)setManualNick(p=>{const existing=splitLines(p);return existing.some(n=>n.toLocaleLowerCase('it-IT')===e.target.value.toLocaleLowerCase('it-IT'))?p:[...existing,e.target.value].join('\n')});}}><option value="">{filteredRosterOptions.length?'Scegli partecipante confermato...':'Nessun confermato — puoi iscriverne uno manualmente'}</option>{filteredRosterOptions.map(p=><option key={p.nickname} value={p.nickname}>{p.nickname}</option>)}</select><div className="cal-buttons top-gap"><small className="muted">Sono visibili solo gli iscritti a questo torneo; nessuna importazione dallo storico.</small></div>{rosterNotice&&<p className="notice" role="status">{rosterNotice}</p>}</div><textarea className="textarea top-gap" rows={5} value={manualNick} onChange={e=>setManualNick(e.target.value)} placeholder="Giocatore 1&#10;Giocatore 2&#10;Ospite esterno"/><button className="btn top-gap" disabled={!canWrite||!selected?.id} onClick={()=>void addManualRegistration()}>+ Aggiungi giocatori e conferma</button></div><div className="section-title"><div><h2>Lista iscrizioni</h2><p className="muted">Dopo conferma puoi generare torneo o creare squadre.</p></div>{canWrite && <button className="btn small secondary" type="button" onClick={fillTeamFromRegistrations}>Crea squadra dagli iscritti</button>}</div><div className="tournament-team-list top-gap">{registrations.map((r)=><article key={r.id} className="compact-card"><b>{r.nickname || 'Player'}</b><span>{registrationBadge(r.status)}</span><small>{r.note || '-'}</small>{canWrite && <div className="cal-buttons top-gap"><button className="btn small secondary" onClick={()=>updateRegistrationStatus(r.id,'Confermata')}>Conferma</button><button className="btn small secondary" onClick={()=>updateRegistrationStatus(r.id,'Riserva')}>Riserva</button><button className="btn small secondary" onClick={()=>updateRegistrationStatus(r.id,'Rifiutata')}>Rifiuta</button></div>}</article>)}{!registrations.length && <div className="empty-state">Nessuna iscrizione ancora.</div>}</div></div></section>}
 
       {active === 'registrations' && selected?.id && <TournamentSignupAdmin tournamentId={selected.id} status={String(selected.status||'')} privacyUrl={selected.public_signup_privacy_url||'/privacy'} controllerName={selected.public_signup_controller_name} limit={selected.public_signup_limit} rows={publicSignups} canWrite={canWrite} onReload={()=>loadDetails(selected!.id)}/>}
       {active === 'export' && selected && <TournamentExportCenter tournament={selected} publicSignups={canWrite?publicSignups:[]} registrations={canWrite?registrations:[]} teams={teams} matches={matches} groups={groupTables} canWrite={canWrite}/>}
 
-      {active === 'teams' && <section className="card top-gap"><h2>Squadre dopo iscrizioni</h2><p className="muted">Per 1v1 puoi anche non creare squadre: il tabellone usa gli iscritti confermati. Per 2v2/5v5 crea squadre dagli iscritti.</p><div className="grid grid-3"><div className="field"><label>Nome squadra</label><input className="input" value={teamForm.name} onChange={(e)=>setTeamForm({...teamForm,name:e.target.value})}/></div><div className="field"><label>Capitano</label><input className="input" value={teamForm.captain} onChange={(e)=>setTeamForm({...teamForm,captain:e.target.value})}/></div><div className="field"><label>Stato squadra</label><select className="select pro-select" value={teamForm.status} onChange={(e)=>setTeamForm({...teamForm,status:e.target.value})}>{['Incompleta','Completa','Confermata','Eliminata'].map(s=><option key={s}>{s}</option>)}</select></div><div className="field"><label>Aggiungi titolare dalla lista iscritti</label><select className="select" defaultValue="" onChange={e=>{const name=e.target.value;if(name)setTeamForm(f=>({...f,players:[...new Set([...splitLines(f.players),name])].join('\n')}));e.target.value=''}}><option value="">Seleziona partecipante</option>{Array.from(new Set([...confirmedRegistrations.map(r=>r.nickname||''),...rosterOptions.map(r=>r.nickname)])).filter(Boolean).sort((a,b)=>a.localeCompare(b,'it')).map(n=><option key={n} value={n}>{n}</option>)}</select></div><div className="field"><label>Titolari</label><textarea className="textarea" value={teamForm.players} onChange={(e)=>setTeamForm({...teamForm,players:e.target.value})} /></div><div className="field"><label>Riserve</label><textarea className="textarea" value={teamForm.reserves} onChange={(e)=>setTeamForm({...teamForm,reserves:e.target.value})} /></div><div className="field"><label>Azione</label><button className="btn" onClick={saveTeam}>{editingTeamId?'💾 Aggiorna squadra':'➕ Aggiungi squadra'}</button></div></div><div className="tournament-team-list top-gap">{teams.map(t=><article key={t.id} className="compact-card"><b>{t.name}</b><span>{teamCompleteness(t, form.format || '5v5')}</span><small>Capitano: {t.captain || '-'} · Titolari: {(t.players||[]).join(', ') || '-'} · Riserve: {t.reserves?.length || 0}</small>{canWrite&&<button className="btn small secondary" onClick={()=>editTeam(t)}>✏️ Modifica squadra / nome</button>}</article>)}</div></section>}
+      {active === 'teams' && <section className="card top-gap"><h2>Squadre dopo iscrizioni</h2><p className="muted">Per 1v1 puoi anche non creare squadre: il tabellone usa gli iscritti confermati. Per 2v2/5v5 crea squadre dagli iscritti.</p><div className="grid grid-3"><div className="field"><label>Nome squadra</label><input className="input" value={teamForm.name} onChange={(e)=>setTeamForm({...teamForm,name:e.target.value})}/></div><div className="field"><label>Capitano</label><input className="input" value={teamForm.captain} onChange={(e)=>setTeamForm({...teamForm,captain:e.target.value})}/></div><div className="field"><label>Stato squadra</label><select className="select pro-select" value={teamForm.status} onChange={(e)=>setTeamForm({...teamForm,status:e.target.value})}>{['Incompleta','Completa','Confermata','Eliminata'].map(s=><option key={s}>{s}</option>)}</select></div><div className="field"><label>Aggiungi titolare dalla lista iscritti</label><select className="select" defaultValue="" onChange={e=>{const name=e.target.value;if(name)setTeamForm(f=>({...f,players:[...new Set([...splitLines(f.players),name])].join('\n')}));e.target.value=''}}><option value="">Seleziona partecipante</option>{Array.from(new Set([...confirmedRegistrations.map(r=>r.nickname||'')])).filter(Boolean).sort((a,b)=>a.localeCompare(b,'it')).map(n=><option key={n} value={n}>{n}</option>)}</select></div><div className="field"><label>Titolari</label><textarea className="textarea" value={teamForm.players} onChange={(e)=>setTeamForm({...teamForm,players:e.target.value})} /></div><div className="field"><label>Riserve</label><textarea className="textarea" value={teamForm.reserves} onChange={(e)=>setTeamForm({...teamForm,reserves:e.target.value})} /></div><div className="field"><label>Azione</label><button className="btn" onClick={saveTeam}>{editingTeamId?'💾 Aggiorna squadra':'➕ Aggiungi squadra'}</button></div></div><div className="tournament-team-list top-gap">{teams.map(t=><article key={t.id} className="compact-card"><b>{t.name}</b><span>{teamCompleteness(t, form.format || '5v5')}</span><small>Capitano: {t.captain || '-'} · Titolari: {(t.players||[]).join(', ') || '-'} · Riserve: {t.reserves?.length || 0}</small>{canWrite&&<button className="btn small secondary" onClick={()=>editTeam(t)}>✏️ Modifica squadra / nome</button>}</article>)}</div></section>}
 
       {active === 'rules' && <section className="card top-gap"><h2>Regolamento, mappe e modalità</h2><p className="muted">Scegli modalità e mappe ammesse: il sorteggio userà soltanto queste. Il limite è modificabile per ogni modalità e su ogni incontro. Salva prima di generare le partite.</p>
       <div className="v142-rules-grid"><div><h3>Modalità ammesse</h3>{codmModes.map(mode=><label className="v142-choice" key={mode}><input type="checkbox" checked={selectedModes.includes(mode)} onChange={()=>toggleChoice(mode,selectedModes,setSelectedModes)}/><span>{tournamentModeLabel(mode)}</span><small>Limite</small><input className="input" type="number" min="1" max="9999" value={scoreLimits[mode]??''} onChange={e=>setScoreLimits(p=>({...p,[mode]:Number(e.target.value)||0}))}/></label>)}</div>
@@ -837,7 +883,8 @@ export default function TournamentPage() {
       </div>
       <div className="grid grid-2"><div className="field"><label>Tipologia armi permesse</label><select className="select pro-select" value={form.allowedPreset} onChange={(e)=>setForm({...form,allowedPreset:e.target.value})}>{allowedWeaponPresets.map((w)=><option key={w}>{w}</option>)}</select><textarea className="textarea top-gap" value={form.allowedWeapons} onChange={(e)=>setForm({...form,allowedWeapons:e.target.value})} placeholder="Esempio: AR, SMG, Sniper, Pistol..." /></div><div className="field"><label>🚫 Armi / oggetti vietati</label><textarea className="textarea" value={form.bans} onChange={(e)=>setForm({...form,bans:e.target.value})} placeholder="NA45, Persistence, Martirio..." /></div><div className="field grid-span-2"><label>Regole generali</label><textarea className="textarea" value={form.rules} onChange={(e)=>setForm({...form,rules:e.target.value})} placeholder="BO3, ritardo massimo, screenshot obbligatorio, MVP..." /></div></div><button className="btn top-gap" onClick={saveTournament}>💾 Salva mappe, armi e regolamento su Supabase</button><p className="notice top-gap" role="status">{message || 'Le scelte diventano permanenti solo dopo il salvataggio su Supabase.'}</p></section>}
 
-      {active === 'bracket' && <section className="card top-gap v14-tournament-board"><div className="section-title"><div><h2>🏆 Gironi e tabellone</h2><p className="muted">Numero gironi personalizzabile, sorteggio rigenerabile e ripescaggio opzionale a gironi o eliminazione diretta. Verde: qualificata; ambra: ripescaggio; grigio: eliminata.</p></div></div>
+      {(active === 'groups'||active === 'bracket') && <section className="card top-gap v14-tournament-board"><div className="section-title"><div><h2>{active==='groups'?'🧩 Gironi e classifiche':'🏆 Fase a eliminazione'}</h2><p className="muted">Numero gironi personalizzabile, sorteggio rigenerabile e ripescaggio opzionale a gironi o eliminazione diretta. Verde: qualificata; ambra: ripescaggio; grigio: eliminata.</p></div></div>
+      {active==='groups'&&<>
       <div className="v143-controls top-gap">
         <div className="field"><label>Formato fase iniziale</label><select className="select pro-select" value={generationMode} disabled={fullBracketLocked||matches.some(m=>m.phase!=='Girone')} onChange={e=>setGenerationMode(e.target.value)}><option value="auto">Usa formato del torneo</option><option value="Eliminazione diretta">Solo eliminazione diretta</option><option value="A gruppi">Gironi + playoff</option></select></div>
         <div className="field"><label>Numero di gironi</label><select className="select" value={Math.min(groupCount,Math.max(1,Math.floor(participants.length/2)))} disabled={fullBracketLocked||!bracketIsGroupMode||matches.some(m=>m.phase!=='Girone')} onChange={e=>setGroupCount(Number(e.target.value))}>{Array.from({length:Math.max(1,Math.min(16,Math.floor(participants.length/2)))},(_,i)=>i+1).map(n=><option key={n} value={n}>{n} {n===1?'girone':'gironi'}</option>)}</select></div>
@@ -857,6 +904,8 @@ export default function TournamentPage() {
         {repechageKnockoutMatches.length>0&&<div className="tournament-bracket-board v14-bracket top-gap">{Array.from(new Set(repechageKnockoutMatches.map(m=>m.phase||'Ripescaggio'))).map(phase=><div className="bracket-column" key={phase}><h3>{phase}</h3>{repechageKnockoutMatches.filter(m=>m.phase===phase).map(m=><button className="bracket-match" key={m.id} onClick={()=>editMatch(m)}><span className={resultClass(m,m.team_a)}>{teamLabel(m.team_a)}</span><b>{m.score_a??'–'}</b><span className={resultClass(m,m.team_b)}>{teamLabel(m.team_b)}</span><b>{m.score_b??'–'}</b><small>{dateLabel(m.match_time)} · {m.lobby_name||'Lobby da assegnare'}</small></button>)}</div>)}</div>}
         <p className="notice top-gap">{repechageFinished?`Qualificate tramite ripescaggio: ${Array.from(repechageWinners).join(', ')}`:'Ripescaggio in corso: le ripescate saranno definite al termine di tutti gli incontri.'}</p>
       </>}
+      </>}
+      {active==='bracket'&&<>
       <h3 className="top-gap">Tabellone playoff</h3><div className="tournament-bracket-board v14-bracket top-gap">{groupedMatches.map(([phase,ms])=><div className="bracket-column" key={phase}><h3>{phase}</h3>{ms.map(m=><button key={m.id} className="bracket-match" onClick={()=>editMatch(m)}><span className={resultClass(m,m.team_a)}>{teamLabel(m.team_a)}</span><b>{m.score_a??'–'}</b><span className={resultClass(m,m.team_b)}>{teamLabel(m.team_b)}</span><b>{m.score_b??'–'}</b><small>{dateLabel(m.match_time)} · {m.mode||'—'} / {m.map_name||'—'} · {m.lobby_name||'Lobby da assegnare'}</small></button>)}</div>)}{!groupedMatches.length&&<div className="empty-state">Il percorso playoff completo è disponibile nello schema qui sotto. Gli incontri del girone rimangono nelle card in alto.</div>}</div>
       <h3 className="top-gap">Qualificazione al prossimo turno</h3>
       {groupTables.length>0&&<div className="table-scroll"><table className="table compact v142-advancement-table"><thead><tr><th>Girone</th><th>Squadra (giocatori)</th><th>G</th><th>V</th><th>N</th><th>Diff</th><th>Pt</th><th>Esito</th></tr></thead><tbody>{groupTables.flatMap(g=>g.standings.map((t,i)=>({g,t,qualifies:g.finished&&(i<g.qualifying||extraQualifiers.has(t.team)||repechageWinners.has(t.team)),mayRepeat:secondChance&&i>=g.qualifying}))).map(({g,t,qualifies,mayRepeat})=><tr key={g.name+t.team} className={g.finished?(qualifies?'v14-qualify':mayRepeat&&!repechageFinished?'v143-repechage':'v14-out'):'v14-pending'}><td>{g.name}</td><td>{teamLabel(t.team)}</td><td>{t.played}</td><td>{t.wins}</td><td>{t.draws}</td><td>{t.diff}</td><td>{t.points}</td><td>{!g.finished?'In attesa':qualifies?(repechageWinners.has(t.team)?'✓ Ripescata':'✓ Qualificata'):mayRepeat&&!repechageFinished?'♻️ Ripescaggio':'× Eliminata'}</td></tr>)}</tbody></table></div>}
@@ -867,9 +916,11 @@ export default function TournamentPage() {
         <div className="ak19-integrated-bracket" id="tabellone-doppia-eliminazione">
           <p className="notice">🏆 Tabellone integrato del torneo: prima generi l’intero percorso Winners + Losers + Grand Final, poi puoi ancora aggiornare orari, mappe, armi e risultati. Gli sconfitti del Winners entrano nel Losers senza limiti numerici, fino alla semifinale. Grand Final BO3 senza reset.</p>
           {bracketIsGroupMode && <div className="ak22-plan-notice"><strong>🧭 Schema qualificazione predisposto</strong><p>Da ogni girone verranno presi i posti indicati; i nominativi compariranno automaticamente al termine degli incontri. I collegamenti Winners/Losers sono già assegnati.</p><div className="ak22-slot-chips">{fixedQualifiers.map(slot=><span key={slot.id}>{slot.name}{resolvedQualifierNames[slot.id]?` → ${resolvedQualifierNames[slot.id]}`:''}</span>)}</div></div>}
+          {needsTeams&&<p className="notice">Per {selected.format} crea prima le squadre usando gli iscritti confermati. Il tabellone usa le squadre, non i singoli giocatori.</p>}
           <AdvancedBracketCenter key={selected.id} tournamentId={selected.id} participants={playoffParticipants} qualifyingSlots={fixedQualifiers} resolvedSlotNames={resolvedQualifierNames} groupSettings={{generation_mode:generationMode,group_count:groupCount,qualifiers_per_group:qualifiersPerGroup,second_chance:secondChance,second_chance_pending:false,second_chance_format:secondChanceFormat,second_chance_slots:secondChanceSlots}} canWrite={canWrite} rules={selected.rules||{}} legacyMatchCount={matches.filter(m=>m.phase!=='Girone'&&!String(m.phase||'').startsWith('Ripescaggio ')).length} eligible={!secondChancePending} teamLabel={teamLabel} teamPlayers={teamPlayers} onSaved={nextRules=>setTournaments(all=>all.map(t=>t.id===selected.id?{...t,rules:nextRules}:t))}/>
         </div>
-      )}</section>}
+      )}</>}
+      </section>}
 
       {active === 'calendar' && <section className="card top-gap v142-calendar"><div className="section-title"><div><h2>📅 Calendario delle partite</h2><p className="muted">Data, ora, squadre con giocatori, modalità, mappa e lobby. Clicca una partita per modificarla.</p></div><button className="btn small secondary" onClick={()=>setActive('bracket')}>Apri tabellone</button></div>
         {selected?.rules?.advanced_bracket_v2?.version===2 && <AdvancedTournamentCalendar snapshot={selected.rules.advanced_bracket_v2} resolvedSlotNames={resolvedQualifierNames} teamPlayers={teamPlayers} onEdit={()=>setActive('bracket')}/>}

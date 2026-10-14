@@ -13,7 +13,8 @@
     "test:fix22": "node tests/v14_2_fix22_qualification.cjs",
     "test:fix23": "node tests/v14_2_fix23_ui.cjs",
     "test:fix24": "node tests/v14_2_fix24_public_signup.cjs",
-    "test:fix25": "node tests/v14_2_fix25_privacy_portal.cjs"
+    "test:fix25": "node tests/v14_2_fix25_privacy_portal.cjs",
+    "test:fix26": "node tests/v14_2_fix26_public_tournaments.cjs"
   },
   "engines": {
     "node": ">=22.0.0 <25"

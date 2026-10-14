@@ -1626,3 +1626,7 @@ git push origin main
 ## Nota sul backup
 
 Il database SQL completo e l'archivio Storage vanno salvati separatamente anche dopo aver provato questa build. Il ripristino reale deve essere testato prima su un database distinto, mai dal pulsante web in questa build.
+
+
+## V14.2 FIX26 (2026-10-14)
+Separazione per torneo, schede Gironi/Eliminazione, partecipanti 2v2 derivati dalle squadre, lettura pubblica tramite RPC anonime whitelist, aggiornamento Realtime/polling e grafica bracket compatta con frecce e zoom. SQL nuovo: UPDATE_V14_2_FIX26_TOURNAMENT_PUBLIC_READ.sql.

@@ -1,0 +1,60 @@
+const fs=require('node:fs'),assert=require('node:assert/strict'),vm=require('node:vm'),ts=require('typescript');
+const read=p=>fs.readFileSync(p,'utf8');
+const transpile=file=>{
+ const t=ts.transpileModule(read(file),{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2020,jsx:ts.JsxEmit.ReactJSX},reportDiagnostics:true});
+ assert.equal((t.diagnostics||[]).filter(x=>x.category===ts.DiagnosticCategory.Error).length,0,`TSX parse error ${file}`);return t.outputText;
+};
+const files=['app/tournament/page.tsx','app/tournament/AdvancedBracketCenter.tsx','app/tournament/BracketFlowBoard.tsx','app/tornei/page.tsx','app/tornei/[id]/page.tsx','src/components/MobileSidebar.tsx','src/components/Header.tsx','app/page.tsx'];
+for(const f of files)transpile(f);
+const admin=read(files[0]),advanced=read(files[1]),board=read(files[2]),index=read(files[3]),publicPage=read(files[4]),sql=read('supabase/UPDATE_V14_2_FIX26_TOURNAMENT_PUBLIC_READ.sql');
+assert.match(admin,/\.eq\('tournament_id', tournamentId\)/);
+assert.match(admin,/setTeams\(\[\]\);setMatches\(\[\]\);setRegistrations\(\[\]\)/);
+assert.match(admin,/detailsSeq\.current/);
+assert.match(admin,/confirmedRegistrations\.map\(r=>r\.nickname/);
+assert.doesNotMatch(admin,/\.\.\.rosterOptions\.map\(r=>r\.nickname\)/);
+assert.match(admin,/assigned\.some\(name=>!allowed\.has\(name\)\)/);
+assert.match(admin,/if \(!\/\^1v1\$\/i\.test\(String\(selected\?\.format\|\|form\.format\)\)\) return \[\];/);
+assert.match(admin,/window\.setInterval\(refresh,20000\)/);
+assert.match(admin,/\['groups','🧩 Gironi'\]/);
+assert.match(admin,/\['bracket','🏆 Eliminazione'\]/);
+assert.match(advanced,/const capacity=minCap/);
+assert.match(board,/FLOW_CARD_WIDTH=170,FLOW_CARD_HEIGHT=106/);
+assert.match(board,/markerEnd/);
+assert.match(board,/readOnly\?:boolean/);
+assert.match(board,/setZoom/);
+assert.match(index,/codm_fix26_public_tournaments/);
+assert.match(publicPage,/codm_fix26_public_tournament/);
+assert.match(publicPage,/BracketFlowBoard/);
+assert.match(publicPage,/setInterval\(\(\)=>/);
+assert.match(sql,/returns jsonb/);
+assert.match(sql,/security definer/);
+assert.match(sql,/grant execute on function public\.codm_fix26_public_tournament\(uuid\) to anon, authenticated/);
+assert.match(sql,/where x\.tournament_id=t\.id/);
+assert.match(sql,/where m\.tournament_id=t\.id/);
+assert.doesNotMatch(sql,/jsonb_build_object\([^)]*'uid'/is);
+const load=(file,inject={})=>{
+ const mod={exports:{}};
+ vm.runInNewContext(transpile(file),{module:mod,exports:mod.exports,require:name=>{
+  if(inject[name])return inject[name];if(name==='react')return {useMemo:f=>f(),useRef:()=>({current:null}),useState:v=>[v,()=>{}],useEffect:()=>{}};
+  if(name==='react/jsx-runtime')return {jsx:()=>null,jsxs:()=>null};return require(name);
+ },Map,Set,Math,Date,Number,String,Object});return mod.exports;
+};
+const engine=load('src/lib/advancedBracket.ts');const codes=load('src/lib/tournamentMatchCodes.ts');
+const flow=load('app/tournament/BracketFlowBoard.tsx',{'@/lib/tournamentMatchCodes':codes});
+for(const n of [8,12,16,24,32,64]){
+ const participants=Array.from({length:n},(_,i)=>({id:`team${i}`,name:`Squadra ${i+1}`,seed:i+1}));
+ const plan=engine.buildAdvancedBracket(participants);
+ const layout=flow.buildFlowLayout(plan);
+ assert.equal(plan.teams.length,n);
+ assert.equal(plan.capacity,n===12?16:engine.autoCapacity(n));
+ if(n===12)assert.equal(plan.byes,4,'12 squadre devono avere 4 BYE');
+ assert.equal(plan.matches.length,2*n-3);
+ assert.equal(layout.positions.size,plan.matches.length);
+ assert.ok(layout.links.some(l=>l.kind==='win'));
+ assert.ok(layout.links.some(l=>l.kind==='loss'));
+ assert.ok(layout.links.some(l=>l.kind==='final'));
+ const final=layout.positions.get('GF-BO3');assert.ok(final);
+ assert.ok([...layout.positions.values()].filter(x=>x.match.lane!=='GF').every(x=>x.x<final.x));
+ console.log(`FIX26 ${n} squadre: ${plan.byes} BYE · ${plan.matches.length} match · ${layout.links.length} frecce`);
+}
+console.log('FIX26: route pubbliche, dati separati, protezioni, zoom, allineamenti e tabelloni OK.');

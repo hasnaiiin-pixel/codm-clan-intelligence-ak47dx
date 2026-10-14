@@ -29,5 +29,5 @@ assert.match(migration,/codm_fix25_review_privacy_request/);
 assert.match(migration,/set search_path = ''/);
 assert.match(migration,/enable row level security/);
 assert.match(migration,/t.public_signup_controller_name/);
-assert.match(read('app/version/page.tsx'),/AK47DX_V14_2_FIX25_PRIVACY_PORTAL/);
+assert.match(read('app/version/page.tsx'),/AK47DX_V14_2_FIX(?:25_PRIVACY_PORTAL|26_PUBLIC_TOURNAMENTS)/);
 console.log('OK FIX25: 25 controlli privacy, codice personale, RPC SQL, admin e pagine pubbliche.');

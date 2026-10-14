@@ -3,7 +3,7 @@ const navItems = [
   { href: '/import/history', icon: '🕘', label: 'Storico' },
   { href: '/matches', icon: '🎞️', label: 'Partite' },
   { href: '/players', icon: '🪖', label: 'Giocatori' },
-  { href: '/tournament', icon: '🏆', label: 'Torneo' },
+  { href: '/tornei', icon: '🏆', label: 'Tornei' },
   { href: '/analytics', icon: '📊', label: 'Stats' },
   { href: '/fund', icon: '💰', label: 'Fondo' },
   { href: '/clan', icon: '🐺', label: 'Clan HQ' },

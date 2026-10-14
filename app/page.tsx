@@ -476,8 +476,8 @@ export default function HomePage() {
                 : "Crea un torneo da Torneo per mostrarlo qui."}
             </p>
           </div>
-          <a className="btn small" href="/tournament">
-            Apri torneo
+          <a className="btn small" href={tournament ? `/tornei/${tournament.id}` : "/tornei"}>
+            Segui torneo
           </a>
         </div>
         {tournamentMatch && (

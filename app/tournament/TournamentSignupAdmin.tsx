@@ -14,11 +14,16 @@ export default function TournamentSignupAdmin({tournamentId,status,privacyUrl,co
   const [requestStates,setRequestStates]=useState<Record<string,string>>({});
   useEffect(()=>{
     if(!canWrite||!tournamentId)return;
-    let active=true;
-    void supabase.from('codm_tournament_privacy_requests').select('id,signup_id,kind,message,status,public_response,created_at').eq('tournament_id',tournamentId).order('created_at',{ascending:false}).then(({data,error})=>{
+    let active=true;setRequests([]);
+    const load=()=>void supabase.from('codm_tournament_privacy_requests').select('id,signup_id,kind,message,status,public_response,created_at').eq('tournament_id',tournamentId).order('created_at',{ascending:false}).then(({data,error})=>{
       if(active){if(error) setNotice(`Richieste privacy: ${error.message}. Verifica migrazione FIX25.`);else setRequests((data||[]) as PrivacyRequest[]);}
     });
-    return ()=>{active=false;};
+    load();
+    const interval=window.setInterval(()=>{if(document.visibilityState==='visible')load();},20000);
+    const channel=supabase.channel(`ak26-privacy-${tournamentId}`)
+      .on('postgres_changes',{event:'*',schema:'public',table:'codm_tournament_privacy_requests',filter:`tournament_id=eq.${tournamentId}`},load)
+      .subscribe();
+    return ()=>{active=false;window.clearInterval(interval);void supabase.removeChannel(channel);};
   },[tournamentId,canWrite]);
   async function updateRequest(r:PrivacyRequest){
     if(!canWrite||pending)return;

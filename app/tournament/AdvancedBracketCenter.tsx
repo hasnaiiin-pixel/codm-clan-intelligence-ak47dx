@@ -99,10 +99,11 @@ export default function AdvancedBracketCenter({tournamentId,participants,canWrit
     setPlan(snap?.version===2?snap.plan:null);setResults(snap?.version===2?snap.results||{}:{});
     setAssignments(snap?.version===2?snap.assignments||{}:{});setConfig(snap?.version===2?snap.config:configFromRules(rules));
     setSelectedKey('');setEntryScores({a:'',b:''});setNotice('');
-  },[tournamentId]);
+  },[tournamentId,rules?.advanced_bracket_v2?.revision]);
   const count=participants.length;
   const minCap=count>=5&&count<=64?autoCapacity(count):8;
-  const capacity=config.capacityMode==='auto'?minCap:Math.max(config.manualCapacity,minCap);
+  // FIX26: automatico SEMPRE sul numero reale di squadre, nessun turno gonfiato.
+  const capacity=minCap;
   const eligibleCaps=([8,16,32,64] as const).filter(x=>x>=minCap);
   const [previewCap,byeCount]=[capacity,Math.max(0,capacity-count)];
   const state=useMemo(()=>plan?resolveBracket(plan,results):new Map(),[plan,results]);
@@ -154,7 +155,7 @@ export default function AdvancedBracketCenter({tournamentId,participants,canWrit
       if(legacyMatchCount)throw new Error('Questo torneo contiene incontri nel formato precedente. Crea un nuovo torneo per il bracket 64, così non alteri lo storico.');
       if(!eligible)throw new Error('Scegli prima le regole di qualificazione e ripescaggio per fissare tutto il percorso.');
       if(invalidTeamCount)throw new Error('Ci sono squadre duplicate negli iscritti.');
-      if(config.capacityMode==='manual'&&(![8,16,32,64].includes(capacity)||capacity<minCap))throw new Error('Il formato scelto è troppo piccolo.');
+      // Lo storico già generato non viene ricalcolato; le nuove anteprime usano soltanto la capacità minima.
       let arranged=[...participants];
       if(config.seedMode==='ranking'){
         if(manualSeeds.trim()){
@@ -230,7 +231,7 @@ export default function AdvancedBracketCenter({tournamentId,participants,canWrit
     {!plan&&<>
       <div className="grid grid-3 top-gap">
         <div className="field"><label>Turno iniziale</label><select className="select" value={config.capacityMode} onChange={(e:{target:{value:string}})=>setConfig(c=>({...c,capacityMode:e.target.value as 'auto'|'manual',manualCapacity:Math.max(c.manualCapacity,minCap)}))}><option value="auto">Automatico</option><option value="manual">Manuale</option></select></div>
-        <div className="field"><label>Tabellone ({count} squadre)</label><select className="select" disabled={config.capacityMode==='auto'} value={config.capacityMode==='auto'?minCap:config.manualCapacity} onChange={(e:{target:{value:string}})=>setConfig(c=>({...c,manualCapacity:Number(e.target.value)}))}>{eligibleCaps.map(n=><option key={n} value={n}>{roundName(n)} · {n} posti</option>)}</select></div>
+        <div className="field"><label>Tabellone automatico ({count} squadre, {Math.max(0,minCap-count)} BYE)</label><select className="select" disabled value={minCap} onChange={(e:{target:{value:string}})=>setConfig(c=>({...c,manualCapacity:Number(e.target.value)}))}>{eligibleCaps.map(n=><option key={n} value={n}>{roundName(n)} · {n} posti</option>)}</select></div>
         <div className="field"><label>Teste di serie</label><select className="select" value={config.seedMode} onChange={(e:{target:{value:string}})=>setConfig(c=>({...c,seedMode:e.target.value as 'ranking'|'shuffle'}))}><option value="ranking">Manuale / ordine squadre</option><option value="shuffle">Casuale</option></select></div>
       </div>
       {config.seedMode==='ranking'&&<div className="field"><label>Ordine teste di serie (facoltativo: una squadra per riga, prima = testa di serie 1)</label><textarea className="textarea" rows={3} value={manualSeeds} onChange={(e:{target:{value:string}})=>setManualSeeds(e.target.value)} placeholder={participants.slice(0,3).map(p=>p.name).join('\n')}/></div>}
