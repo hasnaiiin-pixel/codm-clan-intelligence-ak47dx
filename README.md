@@ -1,4 +1,5 @@
-# AK47DX Clan Manager — V14.2 FIX26 TEST
+# AK47DX Clan Manager — V14.2 FIX28 TEST
+
 
 Web/PWA Call of Duty Mobile: iscrizioni, squadre, gironi, doppia eliminazione Winners/Losers, Grand Final BO3, calendario, risultati, privacy e export.
 
@@ -36,3 +37,13 @@ Web/PWA Call of Duty Mobile: iscrizioni, squadre, gironi, doppia eliminazione Wi
 - **Database**: nessuna migrazione aggiuntiva FIX27; la FIX26 deve essere già installata. In caso di permessi RLS insufficienti, la cancellazione mostra un errore anziché fingere il successo.
 - **Verifica locale**: `npm run test:fix27` e `npm run build` (usare node_modules già presenti, senza `npm ci` per questa patch).
 - **Pubblicazione**: `git add -A`, `git commit -m "AK47DX V14.2 FIX27 nomi squadre e spettatori"`, `git push origin main` solo a build riuscita.
+
+## FIX28 — Tornei Live: armi, tabellone e leggibilità
+
+- La pagina pubblica `/tornei/[id]` visualizza la **lista delle armi consentite** nel riepilogo e, nel calendario, l'arma assegnata a ogni incontro (quando presente).
+- **Tabellone**: se esiste uno snapshot Winners/Losers v2, mostra il percorso grafico già generato; con i vecchi playoff mostra almeno gli incontri già salvati senza inventare i collegamenti. Panoramica segnala che il tabellone è disponibile.
+- **Gironi**: due colonne su desktop (con quattro gironi: due sopra e due sotto), una colonna su telefono; sotto il nome squadra vengono mostrati i nickname dei giocatori, in piccolo.
+- **Calendario e Risultati**: card della stessa altezza, VS e riquadri modalità/mappa/arma centrati, punteggi chiari.
+- La RPC pubblica FIX26 viene aggiornata da `supabase/UPDATE_V14_2_FIX28_SPECTATOR_DETAILS.sql`, che restituisce solo armi consentite e il valore `Arma sorteggiata:` delle note. **Non espone le note originali**, UID, cognomi, nomi reali né iscrizioni.
+- Non sono stati modificati motore torneo, dati storici, schema delle tabelle o dipendenze npm.
+- Test: `npm run test:fix28`, `npm run test:fix27`, `npm run test:bracket64`, `npm run build`. La build Next richiede le dipendenze del PC, non disponibili nell'ambiente di preparazione.

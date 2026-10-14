@@ -1,3 +1,40 @@
+# AK47DX FIX28 TEST — Installazione rapida
+
+**Base richiesta: FIX27 funzionante.** Fai prima un backup della cartella del progetto.
+
+1. Apri lo ZIP `FIX28_PATCH` e copia i suoi file **direttamente nella radice del progetto**, sovrascrivendo i file omonimi. Non creare una cartella intermedia `patch` o `fix28`. Non toccare `.git`, `.env.local` e `node_modules`.
+2. Apri Supabase > progetto AK47DX > SQL Editor > New query. Esegui per intero `supabase/UPDATE_V14_2_FIX28_SPECTATOR_DETAILS.sql` (oppure lo script standalone). **Richiede la RPC FIX26 esistente e le colonne utilizzate nella FIX26.** Non contiene `DROP` e non altera righe.
+3. Esegui da Prompt Windows:
+
+```cmd
+cd C:\Users\spea4060_tmv331ef\Documents\PROGETTI\COD\CODM_CLAN_INTELLIGENCE_2_0_DEPLOYABLE_PWA_YOLO_AK47DX
+npm run test:fix28
+npm run test:fix27
+npm run test:bracket64
+npm run build
+```
+
+4. Solo se la build termina senza errori:
+
+```cmd
+git add -A
+git commit -m "AK47DX V14.2 FIX28 Tornei Live armi gironi e calendario"
+git push origin main
+```
+
+5. Su Vercel apri `/version`, verifica **FIX28**, e apri `/tornei/<id-torneo>` in un browser senza login: 
+   - nella Panoramica verifica l'elenco delle armi; nel Calendario verifica l'arma sorteggiata (se disponibile);
+   - nella sezione Gironi verifica 2 schede per riga su desktop, nickname sotto i nomi squadra e punteggi leggibili;
+   - nella sezione Tabellone verifica il piano già creato; per tornei legacy sono mostrati gli incontri salvati senza frecce fittizie;
+   - nel Calendario verifica card di altezza uguale, VS e informazioni centrati; controlla lo stesso nei Risultati;
+   - controlla che nessun dato anagrafico o UID siano pubblici.
+
+6. Se la PWA continua a mostrare FIX27, apri `/cache-reset` una volta e ricarica. Non eseguire `npm ci` se le dipendenze sono integre.
+
+**Stato:** FIX28 TEST; test automatici locali superati. Compilazione Next.js completa e collaudo della query Supabase da effettuare sul tuo ambiente.
+
+---
+
 # AK47DX V14.2 FIX26 — Installazione Windows + Supabase + Vercel
 
 **Base:** FIX25 funzionante, incluse le correzioni TypeScript precedenti. Non applicare questa patch a versioni più vecchie della FIX25.

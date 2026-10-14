@@ -3547,3 +3547,43 @@ select.pro-select {
 .ak27-index-heading{display:flex;align-items:center;justify-content:center;gap:10px;flex-wrap:wrap}
 .ak27-index-open{text-align:center;color:#9dccff;font-weight:700;margin-bottom:0}
 @media(max-width:690px){.ak27-public-kpis{grid-template-columns:repeat(2,minmax(0,1fr))}.ak27-spectator .ak26-public-tabs button{min-width:30%;font-size:.77rem;padding:9px 5px}.ak27-spectator .ak26-public-grid{grid-template-columns:minmax(0,1fr)}.ak27-spectator .ak26-public-header{justify-content:center;text-align:center}.ak27-emoji-choice{width:100%}}
+
+
+/* AK47DX FIX28 — Spettatori: armi, gironi 2x2, calendario uniforme e leggibile */
+.ak28-spectator{max-width:1280px!important;}
+.ak28-summary-grid{grid-template-columns:repeat(2,minmax(0,1fr))!important;}
+.ak28-spectator .ak28-weapons-panel{margin-top:12px;text-align:center;padding:14px;}
+.ak28-weapons-panel h2{margin:0 0 10px;}
+.ak28-weapon-chips{display:flex;justify-content:center;align-items:center;gap:6px;flex-wrap:wrap;}
+.ak28-weapon-chips>span{background:#263b55;color:#e6effc;border:1px solid #49617f;padding:5px 9px;font-size:.76rem;border-radius:7px;overflow-wrap:anywhere;}
+.ak28-footnote{font-size:.74rem;color:#b7c9dd;margin:9px 0 0;}
+.ak28-groups-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px;align-items:stretch;}
+.ak28-spectator .ak28-group-card{padding:12px 9px!important;min-width:0;}
+.ak28-group-heading{font-size:1rem;margin:0 0 9px!important;color:#f2f7ff;display:flex;justify-content:center;align-items:center;gap:9px;flex-wrap:wrap;}
+.ak28-group-heading small{font-size:.66rem;color:#bad3f1;border:1px solid #426182;padding:2px 7px;border-radius:999px;font-weight:400;}
+.ak28-spectator .ak28-group-table{width:100%;table-layout:fixed;font-size:.78rem;}
+.ak28-group-table th:first-child{width:45%;} .ak28-group-table th:not(:first-child){width:11%;}
+.ak28-spectator .ak28-group-table td,.ak28-spectator .ak28-group-table th{padding:7px 2px;overflow-wrap:normal;text-align:center;}
+.ak28-spectator .ak28-group-table td:first-child{text-align:left;padding-left:5px;}
+.ak28-group-team{display:flex;flex-direction:column;align-items:flex-start;justify-content:center;gap:3px;min-width:0;max-width:100%;}
+.ak28-group-team strong{font-size:.78rem;line-height:1.2;overflow-wrap:anywhere;}
+.ak28-group-team small{font-size:.65rem;line-height:1.25;color:#b7c9e2;font-weight:400;overflow-wrap:anywhere;max-width:100%;}
+.ak28-fixture-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));grid-auto-rows:1fr;gap:12px;align-items:stretch;}
+.ak28-spectator .ak28-fixture-card{box-sizing:border-box;display:flex;flex-direction:column;gap:9px;min-width:0;min-height:260px;height:100%;margin:0!important;padding:12px!important;text-align:center;}
+.ak28-fixture-top{display:flex;flex-direction:column;align-items:center;gap:4px;min-height:47px;}
+.ak28-fixture-top h3{font-size:.88rem;margin:0!important;color:#d6e6ff;line-height:1.25;}
+.ak28-fixture-date{font-size:.73rem;color:#b5c9df;margin:0;}
+.ak28-fixture-opponents{display:grid;grid-template-columns:minmax(0,1fr) 40px minmax(0,1fr);gap:8px;align-items:center;flex:1;}
+.ak28-fixture-side{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:5px;min-width:0;text-align:center;}
+.ak28-fixture-side .ak26-fixture-team{font-size:.91rem;font-weight:850;line-height:1.2;max-width:100%;overflow-wrap:anywhere;}
+.ak28-fixture-side small{color:#acbfd9;font-size:.67rem;font-weight:400;line-height:1.25;overflow-wrap:anywhere;max-width:100%;}
+.ak28-fixture-points{font-size:1.18rem;color:#f0f6ff;font-variant-numeric:tabular-nums;}
+.ak28-fixture-vs{display:grid;place-items:center;align-self:center;justify-self:center;width:36px;height:36px;min-width:36px;min-height:36px;box-sizing:border-box;border-radius:50%;border:1px solid #ca526c;background:#563044;color:#fff;font-size:.74rem;font-weight:900;line-height:1;text-align:center;padding:0;margin:0;}
+.ak28-fixture-meta{margin-top:auto;display:flex;flex-wrap:wrap;justify-content:center;align-items:center;gap:6px;text-align:center;}
+.ak28-fixture-meta span{font-size:.69rem;background:#263951;border:1px solid #344d6b;border-radius:6px;padding:5px 8px;text-align:center;max-width:100%;overflow-wrap:anywhere;}
+.ak28-fixture-meta .ak28-fixture-status{background:#1e4a40;border-color:#397763;}
+.ak28-section-title{text-align:center;font-size:1.1rem;margin:8px 0 14px;}
+.ak28-bracket-section>h2{text-align:center;margin:0 0 8px;}
+.ak28-bracket-section>p{text-align:center;}
+@media(max-width:790px){.ak28-groups-grid,.ak28-fixture-grid,.ak28-summary-grid{grid-template-columns:minmax(0,1fr)!important;}.ak28-spectator .ak28-fixture-card{min-height:240px;}.ak28-group-table th:first-child{width:43%;}}
+@media(max-width:360px){.ak28-fixture-opponents{grid-template-columns:minmax(0,1fr) 34px minmax(0,1fr);gap:4px;}.ak28-fixture-vs{width:32px;height:32px;min-width:32px;min-height:32px;}.ak28-spectator .ak28-group-table{font-size:.68rem;}.ak28-group-team small{font-size:.59rem;}}
