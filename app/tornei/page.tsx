@@ -19,9 +19,9 @@ export default function PublicTournaments(){
   const channel=supabase.channel('ak26-public-index').on('postgres_changes',{event:'*',schema:'public',table:'codm_tournaments'},()=>void load()).subscribe();
   return()=>{active=false;clearInterval(timer);void supabase.removeChannel(channel);};
  },[]);
- return <main className="ak26-public"><header className="ak26-public-header"><div><small>AK47DX · COD MOBILE</small><h1>🏆 Tornei e risultati live</h1><p>Consulta gironi, squadre, tabelloni e risultati senza registrarti.</p></div><Link className="btn small secondary" href="/">← Home AK47DX</Link></header>
+ return <main className="ak26-public ak27-spectator"><header className="ak26-public-header ak27-spectator-header"><div><small>AK47DX · COD MOBILE</small><h1>🏆 Tornei e risultati live</h1><p>Consulta gironi, squadre, tabelloni e risultati senza registrarti.</p></div><Link className="btn small secondary" href="/">← Home AK47DX</Link></header>
  {error&&<p className="notice" role="alert">{error}</p>}{busy&&<p className="muted">Caricamento tornei...</p>}
- <section className="ak26-public-grid">{items.map(t=><Link key={t.id} className="ak26-public-card" href={`/tornei/${t.id}`}><div><b>🏆 {t.name}</b></div><p className="muted">{t.format||'Formato da definire'} · {t.type||'Torneo'} </p><p>Stato: <strong>{t.status}</strong></p>{t.tournament_date&&<small>📅 {new Date(t.tournament_date).toLocaleDateString('it-IT')}</small>}<p style={{textAlign:'right'}}>Visualizza torneo →</p></Link>)}</section>
+ <section className="ak26-public-grid">{items.map(t=><Link key={t.id} className="ak26-public-card" href={`/tornei/${t.id}`}><div className="ak27-index-heading"><b>🏆 {t.name}</b><span className="ak27-public-status">{t.status}</span></div><p className="muted">{t.format||'Formato da definire'} · {t.type||'Torneo'} </p>{t.tournament_date&&<small>📅 {new Date(t.tournament_date).toLocaleDateString('it-IT')}</small>}<p className="ak27-index-open">Apri torneo →</p></Link>)}</section>
  {!busy&&!items.length&&!error&&<p className="notice">Nessun torneo pubblico disponibile.</p>}
  </main>;
 }

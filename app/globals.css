@@ -3510,3 +3510,40 @@ select.pro-select {
 @media(max-width:680px){.ak26-public{padding:8px}.ak26-public-table{font-size:.7rem}.ak26-public-header{padding:12px}}
 
 .ak26-public .ak22-flow-match:disabled{opacity:1;cursor:default;color:#f3f7ff;-webkit-text-fill-color:inherit}
+
+
+/* AK47DX FIX27 — Nomi filtrabili, gestione squadre e pagina spettatori essenziale */
+.ak27-name-generator{display:grid;gap:11px;padding:15px;margin:12px 0 16px;background:linear-gradient(120deg,#18263e,#121e32);border:1px solid #52647d;border-radius:12px}
+.ak27-generator-title{display:grid;gap:4px}.ak27-generator-title strong{font-size:1rem;color:#f2f7ff}.ak27-generator-title small{color:#aabbd0}
+.ak27-generator-controls{display:flex;align-items:end;flex-wrap:wrap;gap:12px}.ak27-generator-controls .field{min-width:min(240px,100%);flex:1;display:grid;gap:6px}
+.ak27-generator-controls .field .select{width:100%}.ak27-emoji-choice{display:flex;align-items:center;gap:8px;padding:8px 0;font-size:.9rem;color:#dce8f8;cursor:pointer}
+.ak27-emoji-choice input{accent-color:#79b2ff}.ak27-suggested-names{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,170px),1fr));gap:8px}
+.ak27-name-chip{font:inherit;display:flex;justify-content:space-between;gap:6px;align-items:center;padding:10px 12px;border-radius:9px;color:#edf5ff;background:#243550;border:1px solid #607b9e;cursor:pointer;text-align:left;min-height:42px}
+.ak27-name-chip:hover,.ak27-name-chip:focus-visible{background:#335176;border-color:#aad2ff}.ak27-name-chip span{color:#9dc7f6}
+.ak27-team-actions{display:flex;gap:8px;flex-wrap:wrap}.ak27-delete-team{background:#65252d!important;border-color:#bb5266!important;color:#fff!important}
+.ak27-delete-team:hover{background:#8b2938!important}
+.ak27-spectator{max-width:1150px!important;padding:clamp(10px,2vw,24px)!important}
+.ak27-spectator-header{background:linear-gradient(125deg,#192a43 0%,#101b30 100%)!important;border:1px solid #445974!important;padding:clamp(16px,3vw,26px)!important;align-items:center!important}
+.ak27-spectator-header h1{font-size:clamp(1.3rem,3vw,2.15rem);line-height:1.17;margin:7px 0!important}
+.ak27-eyebrow{font-weight:700;letter-spacing:.08em;color:#9eb8d8}.ak27-public-subtitle{color:#c5d6ec;font-size:.92rem;margin:4px 0 9px}
+.ak27-public-status{display:inline-flex;align-items:center;border:1px solid #5c7295;background:#293e5b;color:#eef7ff;border-radius:999px;font-size:.76rem;font-weight:700;padding:5px 11px;width:max-content}
+.ak27-public-status.live{background:#1c4a3a;border-color:#3e9d6c;color:#c0f8d5}
+.ak27-spectator .ak26-public-links2{align-items:center;justify-content:center}.ak27-update{color:#aabdd6;font-size:.72rem;white-space:nowrap}
+.ak27-public-kpis{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:9px;margin:13px 0}
+.ak27-public-kpis>div{background:#192940;border:1px solid #415976;border-radius:10px;padding:12px 6px;text-align:center;display:grid;gap:2px}
+.ak27-public-kpis b{font-size:1.35rem;color:#f3f8ff;line-height:1.2}.ak27-public-kpis span{font-size:.73rem;color:#b6cbe4}
+.ak27-spectator .ak26-public-tabs{display:flex;flex-wrap:wrap;justify-content:center;gap:6px;padding:8px;background:#111c2e;border:1px solid #3e5675;border-radius:12px;margin:12px 0}
+.ak27-spectator .ak26-public-tabs button{flex:1 1 auto;white-space:nowrap;min-width:96px;text-align:center;background:transparent;border:1px solid transparent;font-weight:650}
+.ak27-spectator .ak26-public-tabs button.active{background:#315580;border-color:#6ba2e0}
+.ak27-spectator .ak26-public-card{text-align:center;padding:clamp(12px,2vw,18px);margin:0;border-color:#3c5676}
+.ak27-spectator .ak26-public-grid{grid-template-columns:repeat(auto-fit,minmax(min(100%,310px),1fr));gap:11px}
+.ak27-spectator .ak26-public-card h2,.ak27-spectator .ak26-public-card h3{margin-top:0;margin-bottom:12px}
+.ak27-overview-card{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;min-height:190px}
+.ak27-overview-card p{margin:3px 0;color:#d4e2f4}.ak27-champion{font-size:1.08rem}
+.ak27-spectator .ak26-public-table{table-layout:fixed;font-size:clamp(.67rem,1.4vw,.84rem)}
+.ak27-spectator .ak26-public-table td,.ak27-spectator .ak26-public-table th{padding:9px 3px;overflow-wrap:anywhere}
+.ak27-spectator .ak26-public-table td:first-child{text-align:left}
+.ak27-result-line{display:grid;grid-template-columns:minmax(0,1fr) auto minmax(0,1fr);align-items:center;gap:12px;text-align:center;overflow-wrap:anywhere}
+.ak27-index-heading{display:flex;align-items:center;justify-content:center;gap:10px;flex-wrap:wrap}
+.ak27-index-open{text-align:center;color:#9dccff;font-weight:700;margin-bottom:0}
+@media(max-width:690px){.ak27-public-kpis{grid-template-columns:repeat(2,minmax(0,1fr))}.ak27-spectator .ak26-public-tabs button{min-width:30%;font-size:.77rem;padding:9px 5px}.ak27-spectator .ak26-public-grid{grid-template-columns:minmax(0,1fr)}.ak27-spectator .ak26-public-header{justify-content:center;text-align:center}.ak27-emoji-choice{width:100%}}

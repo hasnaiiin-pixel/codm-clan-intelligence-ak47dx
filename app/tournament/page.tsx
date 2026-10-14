@@ -5,6 +5,7 @@ import { supabase } from '@/lib/supabaseClient';
 import { useCodmAuth } from '@/lib/authRoles';
 import { makeRepechageBuckets, roundRobinPairs } from '@/lib/tournamentRepechage';
 import AdvancedBracketCenter from './AdvancedBracketCenter';
+import TeamNameGenerator from './TeamNameGenerator';
 import AdvancedTournamentCalendar from './AdvancedTournamentCalendar';
 import TournamentSignupAdmin, { type PublicSignup } from './TournamentSignupAdmin';
 import TournamentExportCenter from './TournamentExportCenter';
@@ -223,7 +224,7 @@ export default function TournamentPage() {
     // Svuota sempre il torneo precedente prima di caricare il successivo.
     detailsSeq.current += 1;
     setTeams([]);setMatches([]);setRegistrations([]);setPublicSignups([]);
-    setEditingTeamId('');setManualNick('');setRosterSearch('');setMessage('');
+    setEditingTeamId('');setTeamForm({name:'',captain:'',players:'',reserves:'',status:'Incompleta'});setManualNick('');setRosterSearch('');setMessage('');
     if (selected?.id) void loadDetails(selected.id);
   }, [selected?.id, auth.canWrite]);
   useEffect(() => {
@@ -454,6 +455,34 @@ export default function TournamentPage() {
     if (error) return setMessage(error.message);
     setEditingTeamId('');setTeamForm({ name: '', captain: '', players: '', reserves: '', status: 'Incompleta' });
     setMessage('Squadra personalizzata salvata.');
+    await loadDetails(selected.id);
+  }
+
+  async function deleteTeam(t:TeamRow){
+    if(!selected?.id||!canWrite)return setMessage('Solo lo staff può eliminare squadre.');
+    const bracket=selected.rules?.advanced_bracket_v2?.plan;
+    const bracketUsesTeam=Array.isArray(bracket?.teams)&&bracket.teams.some((p:{id:string;name:string})=>p.id===t.id||p.name===t.name);
+    if(bracketUsesTeam||matches.some(m=>m.team_a===t.name||m.team_b===t.name)){
+      return setMessage(`Non puoi eliminare «${t.name}»: è già collegata a incontri o tabellone. Conserva lo storico e crea una nuova edizione se devi cambiare la composizione.`);
+    }
+    if(!window.confirm(`Eliminare la squadra «${t.name}» SOLO dal torneo «${selected.name}»? I giocatori resteranno iscritti e potranno essere riassegnati.`))return;
+    // Verifica nuovamente sul database per non eliminare una squadra appena inserita nel calendario.
+    const [{data:freshA,error:matchErrorA},{data:freshB,error:matchErrorB}]=await Promise.all([
+      supabase.from('codm_tournament_matches').select('id').eq('tournament_id',selected.id).eq('team_a',t.name).limit(1),
+      supabase.from('codm_tournament_matches').select('id').eq('tournament_id',selected.id).eq('team_b',t.name).limit(1)
+    ]);
+    const matchError=matchErrorA||matchErrorB;
+    if(matchError)return setMessage(`Controllo incontri non riuscito: ${matchError.message}`);
+    if(freshA?.length||freshB?.length)return setMessage('Eliminazione bloccata: la squadra ora compare in un incontro. Aggiorna la pagina.');
+    const {data:freshTournament,error:tournamentError}=await supabase.from('codm_tournaments').select('rules').eq('id',selected.id).single();
+    if(tournamentError)return setMessage(`Controllo tabellone non riuscito: ${tournamentError.message}`);
+    const freshPlan=freshTournament?.rules?.advanced_bracket_v2?.plan;
+    if(Array.isArray(freshPlan?.teams)&&freshPlan.teams.some((p:{id:string;name:string})=>p.id===t.id||p.name===t.name))return setMessage('Eliminazione bloccata: la squadra è nel tabellone generato.');
+    const {data:deleted,error}=await supabase.from('codm_tournament_teams').delete().eq('id',t.id).eq('tournament_id',selected.id).select('id');
+    if(error)return setMessage(`Eliminazione squadra non riuscita: ${error.message}`);
+    if(!deleted?.length)return setMessage('Squadra non eliminata: controlla i permessi sul database Supabase.');
+    if(editingTeamId===t.id){setEditingTeamId('');setTeamForm({name:'',captain:'',players:'',reserves:'',status:'Incompleta'});}
+    setMessage(`Squadra «${t.name}» eliminata dal torneo. Iscritti e dati degli altri tornei conservati.`);
     await loadDetails(selected.id);
   }
 
@@ -867,7 +896,7 @@ export default function TournamentPage() {
       {active === 'registrations' && selected?.id && <TournamentSignupAdmin tournamentId={selected.id} status={String(selected.status||'')} privacyUrl={selected.public_signup_privacy_url||'/privacy'} controllerName={selected.public_signup_controller_name} limit={selected.public_signup_limit} rows={publicSignups} canWrite={canWrite} onReload={()=>loadDetails(selected!.id)}/>}
       {active === 'export' && selected && <TournamentExportCenter tournament={selected} publicSignups={canWrite?publicSignups:[]} registrations={canWrite?registrations:[]} teams={teams} matches={matches} groups={groupTables} canWrite={canWrite}/>}
 
-      {active === 'teams' && <section className="card top-gap"><h2>Squadre dopo iscrizioni</h2><p className="muted">Per 1v1 puoi anche non creare squadre: il tabellone usa gli iscritti confermati. Per 2v2/5v5 crea squadre dagli iscritti.</p><div className="grid grid-3"><div className="field"><label>Nome squadra</label><input className="input" value={teamForm.name} onChange={(e)=>setTeamForm({...teamForm,name:e.target.value})}/></div><div className="field"><label>Capitano</label><input className="input" value={teamForm.captain} onChange={(e)=>setTeamForm({...teamForm,captain:e.target.value})}/></div><div className="field"><label>Stato squadra</label><select className="select pro-select" value={teamForm.status} onChange={(e)=>setTeamForm({...teamForm,status:e.target.value})}>{['Incompleta','Completa','Confermata','Eliminata'].map(s=><option key={s}>{s}</option>)}</select></div><div className="field"><label>Aggiungi titolare dalla lista iscritti</label><select className="select" defaultValue="" onChange={e=>{const name=e.target.value;if(name)setTeamForm(f=>({...f,players:[...new Set([...splitLines(f.players),name])].join('\n')}));e.target.value=''}}><option value="">Seleziona partecipante</option>{Array.from(new Set([...confirmedRegistrations.map(r=>r.nickname||'')])).filter(Boolean).sort((a,b)=>a.localeCompare(b,'it')).map(n=><option key={n} value={n}>{n}</option>)}</select></div><div className="field"><label>Titolari</label><textarea className="textarea" value={teamForm.players} onChange={(e)=>setTeamForm({...teamForm,players:e.target.value})} /></div><div className="field"><label>Riserve</label><textarea className="textarea" value={teamForm.reserves} onChange={(e)=>setTeamForm({...teamForm,reserves:e.target.value})} /></div><div className="field"><label>Azione</label><button className="btn" onClick={saveTeam}>{editingTeamId?'💾 Aggiorna squadra':'➕ Aggiungi squadra'}</button></div></div><div className="tournament-team-list top-gap">{teams.map(t=><article key={t.id} className="compact-card"><b>{t.name}</b><span>{teamCompleteness(t, form.format || '5v5')}</span><small>Capitano: {t.captain || '-'} · Titolari: {(t.players||[]).join(', ') || '-'} · Riserve: {t.reserves?.length || 0}</small>{canWrite&&<button className="btn small secondary" onClick={()=>editTeam(t)}>✏️ Modifica squadra / nome</button>}</article>)}</div></section>}
+      {active === 'teams' && <section className="card top-gap"><h2>Squadre dopo iscrizioni</h2><p className="muted">Per 1v1 puoi anche non creare squadre: il tabellone usa gli iscritti confermati. Per 2v2/5v5 crea squadre dagli iscritti.</p><TeamNameGenerator key={selected?.id||'none'} existingNames={teams.filter(t=>t.id!==editingTeamId).map(t=>t.name)} onPick={name=>setTeamForm(f=>({...f,name}))}/><div className="grid grid-3"><div className="field"><label>Nome squadra</label><input className="input" value={teamForm.name} onChange={(e)=>setTeamForm({...teamForm,name:e.target.value})}/></div><div className="field"><label>Capitano</label><input className="input" value={teamForm.captain} onChange={(e)=>setTeamForm({...teamForm,captain:e.target.value})}/></div><div className="field"><label>Stato squadra</label><select className="select pro-select" value={teamForm.status} onChange={(e)=>setTeamForm({...teamForm,status:e.target.value})}>{['Incompleta','Completa','Confermata','Eliminata'].map(s=><option key={s}>{s}</option>)}</select></div><div className="field"><label>Aggiungi titolare dalla lista iscritti</label><select className="select" defaultValue="" onChange={e=>{const name=e.target.value;if(name)setTeamForm(f=>({...f,players:[...new Set([...splitLines(f.players),name])].join('\n')}));e.target.value=''}}><option value="">Seleziona partecipante</option>{Array.from(new Set([...confirmedRegistrations.map(r=>r.nickname||'')])).filter(Boolean).sort((a,b)=>a.localeCompare(b,'it')).map(n=><option key={n} value={n}>{n}</option>)}</select></div><div className="field"><label>Titolari</label><textarea className="textarea" value={teamForm.players} onChange={(e)=>setTeamForm({...teamForm,players:e.target.value})} /></div><div className="field"><label>Riserve</label><textarea className="textarea" value={teamForm.reserves} onChange={(e)=>setTeamForm({...teamForm,reserves:e.target.value})} /></div><div className="field"><label>Azione</label><button className="btn" onClick={saveTeam}>{editingTeamId?'💾 Aggiorna squadra':'➕ Aggiungi squadra'}</button></div></div><div className="tournament-team-list top-gap">{teams.map(t=><article key={t.id} className="compact-card"><b>{t.name}</b><span>{teamCompleteness(t, form.format || '5v5')}</span><small>Capitano: {t.captain || '-'} · Titolari: {(t.players||[]).join(', ') || '-'} · Riserve: {t.reserves?.length || 0}</small>{canWrite&&<div className="ak27-team-actions"><button className="btn small secondary" type="button" onClick={()=>editTeam(t)}>✏️ Modifica</button><button className="btn small ak27-delete-team" type="button" onClick={()=>void deleteTeam(t)}>🗑️ Elimina</button></div>}</article>)}</div></section>}
 
       {active === 'rules' && <section className="card top-gap"><h2>Regolamento, mappe e modalità</h2><p className="muted">Scegli modalità e mappe ammesse: il sorteggio userà soltanto queste. Il limite è modificabile per ogni modalità e su ogni incontro. Salva prima di generare le partite.</p>
       <div className="v142-rules-grid"><div><h3>Modalità ammesse</h3>{codmModes.map(mode=><label className="v142-choice" key={mode}><input type="checkbox" checked={selectedModes.includes(mode)} onChange={()=>toggleChoice(mode,selectedModes,setSelectedModes)}/><span>{tournamentModeLabel(mode)}</span><small>Limite</small><input className="input" type="number" min="1" max="9999" value={scoreLimits[mode]??''} onChange={e=>setScoreLimits(p=>({...p,[mode]:Number(e.target.value)||0}))}/></label>)}</div>

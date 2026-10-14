@@ -27,3 +27,12 @@ Web/PWA Call of Duty Mobile: iscrizioni, squadre, gironi, doppia eliminazione Wi
 `npm run test:fix26 && npm run test:fix25 && npm run build`
 
 > FIX26 è **TEST**: controlli locali di sintassi e logica superati. Il comando Next.js `npm run build` e il collaudo SQL su Supabase reale vanno eseguiti nel tuo ambiente prima della pubblicazione. I servizi npm non erano raggiungibili dall'ambiente di preparazione.
+
+
+## FIX27 — Generatore squadre e spettatori (TEST)
+- **Tornei → Squadre**: suggerimenti nomi filtrabili (Animali, Auto/Motori, Divertenti CODM, Simpatici, o Misto), emoji opzionali; sei proposte per volta, selezione con un clic, nome sempre modificabile manualmente.
+- **Squadre**: pulsante Elimina con conferma. La rimozione interessa solo il torneo selezionato, conserva le iscrizioni; una squadra presente in incontri o tabelloni NON può essere eliminata per proteggere risultati e storico.
+- **/tornei** e **/tornei/[id]**: pagina spettatori più ordinata, contatori essenziali, stato in evidenza, tab per gironi/tabellone/calendario/risultati; nessun dato anagrafico pubblico.
+- **Database**: nessuna migrazione aggiuntiva FIX27; la FIX26 deve essere già installata. In caso di permessi RLS insufficienti, la cancellazione mostra un errore anziché fingere il successo.
+- **Verifica locale**: `npm run test:fix27` e `npm run build` (usare node_modules già presenti, senza `npm ci` per questa patch).
+- **Pubblicazione**: `git add -A`, `git commit -m "AK47DX V14.2 FIX27 nomi squadre e spettatori"`, `git push origin main` solo a build riuscita.

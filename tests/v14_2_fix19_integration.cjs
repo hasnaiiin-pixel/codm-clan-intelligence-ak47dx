@@ -7,5 +7,5 @@ assert(page.includes('Salva mappe, armi e regolamento su Supabase'),'save main r
 assert(adv.includes('saveConfiguration()')&&adv.includes('advanced_bracket_config_v2'),'pre-generation save');
 assert(adv.includes(".select('id,rules').single()"),'RLS confirmation on update');
 assert(!scrim.includes("Boolean(seasonId&&historicalSeasonIds.has(seasonId))"),'no old-season per-game splitting');
-assert(/AK47DX_V14_2_FIX(?:19|22|23|24|25|26)_/.test(ver),'deployment marker');
+assert(/AK47DX_V14_2_FIX(?:19|22|23|24|25|26|27)_/.test(ver),'deployment marker');
 console.log('FIX19 UI OK: tabellone unico, salvataggio verificato, errori SQL e marker.');
