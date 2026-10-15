@@ -1,0 +1,36 @@
+const assert=require('node:assert/strict');
+const fs=require('node:fs');
+const ts=require('typescript');
+const read=f=>fs.readFileSync(f,'utf8');
+const page=read('app/tournament/page.tsx');
+const cal=read('app/tournament/AdvancedTournamentCalendar.tsx');
+const css=read('app/globals.css');
+const ver=read('app/version/page.tsx');
+for(const f of ['app/tournament/page.tsx','app/tournament/AdvancedTournamentCalendar.tsx']){
+  const transpiled=ts.transpileModule(read(f),{reportDiagnostics:true,compilerOptions:{jsx:ts.JsxEmit.Preserve}});
+  assert.equal(transpiled.diagnostics?.length,0,`${f}: syntax diagnostics`);
+}
+assert.match(page,/async function saveCatalogOnly\(/);
+assert.match(page,/\.select\('rules'\)\.eq\('id',selected.id\)/);
+assert.match(page,/allowed_maps:\[\.\.\.selectedMaps\]/);
+assert.match(page,/allowed_weapons:weapons/);
+assert.match(page,/setTournaments\(old=>old\.map/);
+assert.match(page,/onClick=\{\(\)=>void saveCatalogOnly\(\)\}/);
+assert.match(page,/function openQuickMatch\(/);
+assert.match(page,/onClick=\{\(\)=>openQuickMatch\(m\)\}/);
+assert.match(page,/onClick=\{\(\)=>void saveQuickMatch\(\)\}/);
+assert.match(page,/withWeaponNote\(m.notes\|\|'',quickMatch.weapon\)/);
+assert.match(page,/\.eq\('tournament_id',selected.id\)/);
+assert.match(page,/next\.score_a!=null\|\|next\.score_b!=null/);
+assert.match(page,/type="datetime-local"/);
+assert.match(page,/role="dialog" aria-modal="true"/);
+assert.match(cal,/function openPopup\(/);
+assert.match(cal,/validateBracketResult\(snapshot.plan,snapshot.results,current.key,a,b\)/);
+assert.match(cal,/\.eq\('rules->advanced_bracket_v2->>revision'/);
+assert.match(cal,/advanced_bracket_v2:nextSnapshot/);
+assert.match(cal,/role="dialog" aria-modal="true"/);
+assert.match(cal,/current\.bestOf===3/);
+assert.match(css,/ak29-modal-backdrop/);
+assert.match(ver,/FIX29/);
+assert.match(read('public/sw.js'),/fix29/);
+console.log('FIX29: 25 controlli UI, snapshot, protezione incontri, SQL/RLS scope e sintassi TSX superati.');

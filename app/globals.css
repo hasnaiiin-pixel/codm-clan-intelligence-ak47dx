@@ -3587,3 +3587,24 @@ select.pro-select {
 .ak28-bracket-section>p{text-align:center;}
 @media(max-width:790px){.ak28-groups-grid,.ak28-fixture-grid,.ak28-summary-grid{grid-template-columns:minmax(0,1fr)!important;}.ak28-spectator .ak28-fixture-card{min-height:240px;}.ak28-group-table th:first-child{width:43%;}}
 @media(max-width:360px){.ak28-fixture-opponents{grid-template-columns:minmax(0,1fr) 34px minmax(0,1fr);gap:4px;}.ak28-fixture-vs{width:32px;height:32px;min-width:32px;min-height:32px;}.ak28-spectator .ak28-group-table{font-size:.68rem;}.ak28-group-team small{font-size:.59rem;}}
+
+/* FIX29 – popup rapido per calendario e risultati, senza rigenerazione del torneo */
+.ak29-modal-backdrop{position:fixed;inset:0;background:rgba(4,7,17,.82);z-index:9998;display:flex;align-items:center;justify-content:center;padding:12px;overflow:auto}
+.ak29-modal{width:min(700px,100%);max-height:94dvh;overflow-y:auto;background:#121b2a;border:1px solid rgba(122,153,199,.48);border-radius:16px;padding:20px;box-shadow:0 18px 60px rgba(0,0,0,.55);color:#f0f4fb}
+.ak29-modal-head{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;margin-bottom:15px;text-align:center}
+.ak29-modal-head>div{flex:1}.ak29-modal-head h3{font-size:1.15rem;margin:0 0 6px}.ak29-modal-head p{margin:0;color:#c6d2e5}
+.ak29-modal-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
+.ak29-modal label{display:flex;flex-direction:column;gap:6px;color:#e4ebf6;font-size:.87rem;font-weight:600;text-align:center;min-width:0}
+.ak29-modal .input,.ak29-modal .select{width:100%;min-width:0;text-align:center;background:#1a263a;color:#f8fafc;border:1px solid #3f526d}
+.ak29-score-block{background:#182336;border:1px solid #31425b;border-radius:12px;padding:14px;margin-top:16px;text-align:center}
+.ak29-score-block h4{margin:0 0 10px}.ak29-score-row{display:grid;grid-template-columns:minmax(0,1fr) 30px minmax(0,1fr);gap:8px;align-items:center;margin-bottom:12px}
+.ak29-score-row>strong{font-size:1.5rem}.ak29-score-row input{font-size:1.25rem;font-weight:700}
+.ak29-modal-actions{display:flex;justify-content:center;flex-wrap:wrap;gap:10px;margin-top:16px}
+.ak29-catalog-save{margin-top:18px;padding:14px;border:1px solid #355475;border-radius:12px;background:#14293b;text-align:center}
+.ak29-catalog-save p{margin:10px auto;max-width:650px}
+.ak29-advanced-match{display:flex;flex-direction:column;cursor:pointer;text-align:center;min-width:0;color:inherit;font:inherit;width:100%;background-color:transparent;border:1px solid rgba(100,143,190,.3)}
+.ak29-advanced-match:hover{border-color:#77b6ff;background-color:rgba(75,134,210,.09)}
+.ak29-advanced-match header,.ak29-advanced-match footer{width:100%}
+.ak29-open-hint{font-size:.75rem;opacity:.8;margin:7px auto 0}
+.ak29-bo3-row{display:grid;grid-template-columns:1fr 1fr;gap:10px;grid-column:1/-1}
+@media(max-width:620px){.ak29-modal{padding:12px;max-height:96dvh}.ak29-modal-grid{grid-template-columns:minmax(0,1fr)}.ak29-bo3-row{grid-template-columns:minmax(0,1fr)}.ak29-modal-head h3{font-size:1rem}}

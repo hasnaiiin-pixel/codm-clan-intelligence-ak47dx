@@ -1,4 +1,4 @@
-const CODM_CACHE = 'clan-manager-pwa-v14-2-fix28-tornei';
+const CODM_CACHE = 'clan-manager-pwa-v14-2-fix29-fix28-calendar';
 const CODM_OFFLINE_URL = '/offline.html';
 const CORE_ASSETS = [CODM_OFFLINE_URL, '/manifest.webmanifest', '/icons/icon-192.png', '/icons/icon-512.png', '/icons/icon-maskable-512.png'];
 

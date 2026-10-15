@@ -1,3 +1,7 @@
+## FIX29 — Installazione patch senza npm ci
+
+Copiare i file della patch nella radice del repository mantenendo `.git`, `.env.local`, `node_modules`. Eseguire `npm run test:fix29`, `npm run test:bracket64`, `npm run build`; pubblicare solo dopo build riuscita. SQL nuovo non richiesto (FIX28 già applicata). Le mappe/armi esistenti non vengono cancellate: usare il nuovo pulsante nella scheda Mappe / Armi.
+
 # AK47DX FIX28 TEST — Installazione rapida
 
 **Base richiesta: FIX27 funzionante.** Fai prima un backup della cartella del progetto.

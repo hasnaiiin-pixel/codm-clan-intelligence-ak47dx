@@ -1,3 +1,7 @@
+# AK47DX Clan Manager — V14.2 FIX29 TEST
+
+**Nuovo:** modifica mappe/armi senza eliminare i gironi; popup calendario e risultati per incontri dei gironi e tabellone Winners/Losers. Consultare `README_V14_2_FIX29_CALENDARIO_RISULTATI.md` per istruzioni, test e deploy.
+
 # AK47DX Clan Manager — V14.2 FIX28 TEST
 
 

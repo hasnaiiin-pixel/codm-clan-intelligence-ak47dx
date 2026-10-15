@@ -29,5 +29,5 @@ assert.match(migration,/codm_fix25_review_privacy_request/);
 assert.match(migration,/set search_path = ''/);
 assert.match(migration,/enable row level security/);
 assert.match(migration,/t.public_signup_controller_name/);
-assert.match(read('app/version/page.tsx'),/AK47DX_V14_2_FIX(?:25_PRIVACY_PORTAL|26_PUBLIC_TOURNAMENTS|27_TEAM_NAMES_SPECTATORS|28_SPECTATORS_WEAPONS_BRACKET)/);
+assert.match(read('app/version/page.tsx'),/AK47DX_V14_2_FIX(?:25_PRIVACY_PORTAL|26_PUBLIC_TOURNAMENTS|27_TEAM_NAMES_SPECTATORS|28_SPECTATORS_WEAPONS_BRACKET|29_MATCH_POPUP_SAFE_MAPS_WEAPONS)/);
 console.log('OK FIX25: 25 controlli privacy, codice personale, RPC SQL, admin e pagine pubbliche.');
