@@ -6,12 +6,13 @@ import { useCodmAuth } from '@/lib/authRoles';
 import { ContactRound, Search, Plus, Pencil, X, Save, History, ShieldCheck, MessageCircle, Instagram, Facebook, Youtube, Send, ExternalLink, Archive, RefreshCw, Camera, CalendarDays, MapPin, FileDown } from 'lucide-react';
 import {RubricaBirthdayCalendar,RubricaMap,RubricaExportCenter,RubricaMatchReview} from './RubricaExtras';
 import RubricaOrgChart from './RubricaOrgChart';
+import RubricaCitySearch, {type CityChoice} from './RubricaCitySearch';
 import {RUBRICA_ROLES,clanRoleEmoji,clanRoleGroups,clanRoleTier} from './rubricaRoles';
 
 type Contact = {
   id?: string; nickname: string; uid?: string|null; given_name?: string|null; surname?: string|null;
   phone?: string|null; phone_alt?: string|null; whatsapp_name?: string|null;
-  birth_date?: string|null; city?: string|null; province?: string|null; country?: string|null;
+  birth_date?: string|null; city?: string|null; province?: string|null; country?: string|null; city_lat?: number|null; city_lon?: number|null;
   clan_role?: string|null; clan_status?: string|null; whatsapp_group?: boolean; share_phone?: boolean; map_opt_in?: boolean; joined_at?: string|null;
   notes?: string|null; codm_photo_url?: string|null; personal_photo_url?: string|null;
   tiktok?: string|null; instagram?: string|null; facebook?: string|null;
@@ -58,6 +59,7 @@ export default function RubricaPage(){
   const [items,setItems]=useState<Contact[]>([]);
   const [query,setQuery]=useState('');
   const [section,setSection]=useState<'rubrica'|'compleanni'|'mappa'|'export'|'screenshot'|'organigramma'>('rubrica');
+  const [selectedCity,setSelectedCity]=useState<CityChoice|null>(null);
   const [photos,setPhotos]=useState<{codm:string;personal:string}>({codm:'',personal:''});
   const [uploadingPhoto,setUploadingPhoto]=useState(false);
   const [status,setStatus]=useState('');
@@ -108,7 +110,7 @@ export default function RubricaPage(){
   },[flags.view_contacts,refresh]);
 
   async function openContact(person:Contact,startEdit=false){
-    setEditMode(startEdit);setEditing({...person});setHistory([]);setStatus('');
+    setEditMode(startEdit);setEditing({...person});setSelectedCity(null);setHistory([]);setStatus('');
     if(person.id&&flags.view_private_details){const {data}=await supabase.rpc('ak_rubrica_nickname_history',{p_contact_id:person.id});setHistory(Array.isArray(data)?data as NickHistory[]:[]);}
   }
   async function save(){
@@ -127,11 +129,22 @@ export default function RubricaPage(){
     payload.clan_status=editing.clan_status;
     payload.whatsapp_group=editing.whatsapp_group;
     if(flags.view_phone)payload.share_phone=!!editing.share_phone;
-    payload.map_opt_in=!!editing.map_opt_in;
-    const {error:rpcError}=await supabase.rpc('ak_rubrica_save',{p_contact:payload});
+    // FIX31B: la posizione e il consenso devono essere salvati dal metodo protetto dedicato.
+    // Il vecchio RPC conserva i campi anagrafici; il nuovo RPC aggiorna coordinate e consenso.
+    if(editing.map_opt_in&&(!editing.city?.trim()||!editing.country?.trim()||typeof editing.city_lat!=='number'||typeof editing.city_lon!=='number')){
+      setBusy(false);setStatus('Prima cerca e SELEZIONA la città fra i risultati. Poi attiva la mappa e salva.');return;
+    }
+    const {data:savedId,error:rpcError}=await supabase.rpc('ak_rubrica_save',{p_contact:payload});
+    if(rpcError){setBusy(false);setStatus('Scheda non salvata: '+rpcError.message);return;}
+    const contactId=editing.id||savedId;
+    if(!contactId){setBusy(false);setStatus('Scheda creata ma ID mancante. Aggiorna la rubrica prima di salvare la mappa.');refresh();return;}
+    const {error:mapError}=await supabase.rpc('ak_rubrica_set_map_location',{
+      p_contact_id:contactId,p_city:editing.city?.trim()||null,p_province:editing.province?.trim()||null,
+      p_country:editing.country?.trim()||null,p_lat:editing.city_lat??null,p_lon:editing.city_lon??null,p_opt_in:!!editing.map_opt_in
+    });
     setBusy(false);
-    if(rpcError){setStatus(rpcError.message);return;}
-    setEditing(null);setStatus('Scheda rubrica salvata.');refresh();
+    if(mapError){setEditing({...editing,id:contactId});setStatus('Dati del profilo salvati, ma MAPPA NON SALVATA: '+mapError.message+'. Esegui lo SQL FIX31B e riprova.');refresh();return;}
+    setEditing(null);setSelectedCity(null);setStatus('Profilo e consenso mappa salvati.');refresh();
   }
   async function archive(person:Contact){
     if(!person.id||!flags.archive_contacts||busy)return;
@@ -232,19 +245,24 @@ export default function RubricaPage(){
         {flags.view_private_details&&!editMode&&<div className="ak31-readonly-profile">
           <h3>🎮 {editing.nickname}</h3><p><b>🕹️ UID:</b> {editing.uid||'Non indicato'}</p><p><b>Ruolo:</b> {roleIcon(editing.clan_role)} {editing.clan_role||'Membro'}</p>
           {flags.view_phone&&<p><b>📞 Telefono:</b> {editing.phone||'Non indicato'}</p>}
-          <p><b>📍 Località:</b> {[editing.city,editing.country].filter(Boolean).join(', ')||'Non indicata'}</p><p><b>🎂 Compleanno:</b> {editing.birth_date||'Non indicato'}</p>
+          <p><b>📍 Località:</b> {[editing.city,editing.country].filter(Boolean).join(', ')||'Non indicata'}</p><p><b>🗺️ Consenso mappa:</b> {editing.map_opt_in?'Attivo':'Non attivo'}</p><p><b>🎂 Compleanno:</b> {editing.birth_date||'Non indicato'}</p>
         </div>}
         {flags.view_private_details&&editMode&&<div className="ak-rubrica-form-grid">
           {TEXT_FIELDS.filter(([key])=>!(PHONE_FIELDS.has(key)&&!flags.view_phone)&&!(SOCIAL_FIELDS.has(key)&&!flags.view_social)&&!(key==='notes'&&!flags.view_notes)).map(([key,label])=>{
             const val=String(editing[key as keyof Contact]??'');
-            const disabled=!flags.edit_contacts||(key==='nickname'&&!!editing.id&&!flags.change_nickname);
+            const disabled=!flags.edit_contacts||(key==='nickname'&&!!editing.id&&!flags.change_nickname)||['city','province','country'].includes(key);
             const inputType=key==='birth_date'||key==='joined_at'?'date':key.includes('url')?'url':'text';
             const header:Record<string,string>={nickname:'Identità CODM',given_name:'Dati anagrafici',phone:'Numeri e WhatsApp',codm_photo_url:'Foto profilo',tiktok:'Social network',notes:'Note amministrative'};
             return <Fragment key={key}>{header[key]&&<h3 className="ak-rubrica-section-label">{header[key]}</h3>}<label className={key==='notes'?'ak-rubrica-wide':''}><span>{label}</span>{key==='notes'?<textarea className="textarea" value={val} disabled={disabled} maxLength={3000} rows={3} onChange={e=>setEditing(p=>p?{...p,[key]:e.target.value}:null)}/>:<input className="input" autoFocus={key==='nickname'} value={val} disabled={disabled} type={inputType} onChange={e=>setEditing(p=>p?{...p,[key]:e.target.value}:null)} placeholder={key==='uid'?'Solo cifre':undefined}/>}</label></Fragment>;
           })}
           <label><span>Ruolo nel clan</span><select className="select" disabled={!flags.edit_contacts} value={editing.clan_role||'Membro'} onChange={e=>setEditing(p=>p?{...p,clan_role:e.target.value}:null)}>{RUBRICA_ROLES.map(s=><option key={s.label} value={s.label}>{s.emoji} {s.label}</option>)}</select></label>
           <label><span>Stato clan</span><select className="select" disabled={!flags.edit_contacts} value={editing.clan_status||'Attivo'} onChange={e=>setEditing(p=>p?{...p,clan_status:e.target.value}:null)}><option>Attivo</option><option>Non in clan</option></select></label>
-          <label className="ak-rubrica-check"><input type="checkbox" disabled={!flags.edit_contacts} checked={!!editing.map_opt_in} onChange={e=>setEditing(p=>p?{...p,map_opt_in:e.target.checked}:null)}/> Autorizzazione alla mappa: mostra soltanto città e Paese</label>
+          <div className="ak31b-location ak-rubrica-wide"><h3>📍 Mappa — città e consenso</h3>
+            <RubricaCitySearch disabled={!flags.edit_contacts||busy} onChoose={loc=>{setSelectedCity(loc);setEditing(p=>p?{...p,...loc,map_opt_in:false}:null);}}/>
+            <p className="ak31b-selected">{editing.city&&editing.country?`📌 ${editing.city}, ${editing.province?editing.province+', ':''}${editing.country}`:'⚠️ Nessuna città selezionata'}{typeof editing.city_lat==='number'&&typeof editing.city_lon==='number'?' · Coordinate approssimative disponibili':' · Seleziona un risultato dalla ricerca'}</p>
+            <label className="ak-rubrica-check"><input type="checkbox" disabled={!flags.edit_contacts||typeof editing.city_lat!=='number'||typeof editing.city_lon!=='number'||!editing.country} checked={!!editing.map_opt_in} onChange={e=>setEditing(p=>p?{...p,map_opt_in:e.target.checked}:null)}/><span>Mostra il nickname e la città sulla mappa (consenso del giocatore)</span></label>
+            {selectedCity&&<small className="muted">Località scelta: {selectedCity.city}, {selectedCity.country}. Premi “Salva scheda” per renderla visibile sulla mappa.</small>}
+          </div>
           {flags.view_phone&&<label className="ak-rubrica-check"><input type="checkbox" disabled={!flags.edit_contacts} checked={!!editing.share_phone} onChange={e=>setEditing(p=>p?{...p,share_phone:e.target.checked}:null)}/> Autorizza la condivisione del numero nella versione WhatsApp per tutti</label>}
           <label className="ak-rubrica-check"><input type="checkbox" disabled={!flags.edit_contacts} checked={editing.whatsapp_group!==false} onChange={e=>setEditing(p=>p?{...p,whatsapp_group:e.target.checked}:null)}/> Presente nel gruppo WhatsApp</label>
         </div>}

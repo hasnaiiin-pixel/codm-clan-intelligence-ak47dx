@@ -20,7 +20,8 @@
     "test:fix29": "node tests/v14_2_fix29_calendar_quick_edit.cjs",
     "test:rubrica": "node tests/v14_2_fix29_rubrica_popup_social.cjs",
     "test:fix30": "node tests/v14_2_fix30_rubrica_pro.cjs",
-    "test:fix31": "node tests/v14_2_fix31_rubrica_gaming.cjs"
+    "test:fix31": "node tests/v14_2_fix31_rubrica_gaming.cjs",
+    "test:fix31b": "node tests/v14_2_fix31b_map_screenshots.cjs"
   },
   "engines": {
     "node": ">=22.0.0 <25"
