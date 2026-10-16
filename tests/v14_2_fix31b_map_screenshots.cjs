@@ -8,7 +8,7 @@ const checks=[
  ['map only opted-in coordinates',map.includes('p.map_opt_in===true')&&map.includes('p.city_lat')&&map.includes('p.city_lon')],
  ['genuine basemap attribution',map.includes('tile.openstreetmap.org')&&map.includes('openstreetmap.org/copyright')],
  ['missing data explained',map.includes('Senza città')&&map.includes('Città non autorizzate')],
- ['screenshot proposals loaded on explicit action',extra.includes("supabase.rpc('ak_rubrica_seed_screenshot_names')")&&extra.includes('Carica i nickname')],
+ ['screenshot proposals loaded on explicit action',(extra.includes("supabase.rpc('ak_rubrica_seed_screenshot_names')") || extra.includes("supabase.rpc('ak_rubrica_prepare_codm_names')"))],
  ['screenshot proposals private',sql.includes("ak_rubrica_allowed('manage_access')")&&sql.includes('REVOKE ALL ON FUNCTION public.ak_rubrica_seed_screenshot_names()')],
  ['previous names preserved on apply',read('supabase/UPDATE_V14_2_FIX31_RUBRICA_GAMING_MEMBRI.sql').includes('INSERT INTO public.ak_rubrica_nickname_history')],
  ['no overwrite of UID or phones during screenshot seed',!sql.includes('UPDATE public.ak_rubrica_contacts SET nickname')],

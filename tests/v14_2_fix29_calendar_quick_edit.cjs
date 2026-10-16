@@ -32,5 +32,5 @@ assert.match(cal,/role="dialog" aria-modal="true"/);
 assert.match(cal,/current\.bestOf===3/);
 assert.match(css,/ak29-modal-backdrop/);
 assert.match(ver,/FIX(?:29|30|31A)/);
-assert.match(read('public/sw.js'),/fix(?:29|30|31a)/);
+assert.match(read('public/sw.js'),/fix(?:29|30|31[a-z])/);
 console.log('FIX29: 25 controlli UI, snapshot, protezione incontri, SQL/RLS scope e sintassi TSX superati.');
