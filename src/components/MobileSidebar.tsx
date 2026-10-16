@@ -7,7 +7,7 @@ import { roleLabel, useCodmAuth } from '@/lib/authRoles';
 import { supabase, isSupabaseConfigured } from '@/lib/supabaseClient';
 import { useLocalNotificationBadge } from '@/lib/clientNotifications';
 
-type NavAudience = 'public' | 'player' | 'write' | 'owner' | 'system';
+type NavAudience = 'public' | 'player' | 'write' | 'owner' | 'system' | 'rubrica';
 type NavItem = { href: string; label: string; emoji: string; group: string; audience: NavAudience };
 
 const navItems: NavItem[] = [
@@ -16,6 +16,7 @@ const navItems: NavItem[] = [
   { href: '/players', label: 'Giocatori', emoji: '👥', group: 'Pubblico', audience: 'public' },
   { href: '/tornei', label: 'Tornei live', emoji: '🏆', group: 'Pubblico', audience: 'public' },
   { href: '/tournament', label: 'Gestione torneo', emoji: '🛠️', group: 'Staff / Coach', audience: 'write' },
+  { href: '/rubrica', label: 'Rubrica Clan', emoji: '📇', group: 'Area riservata', audience: 'rubrica' },
   { href: '/analytics', label: 'Statistiche', emoji: '📈', group: 'Pubblico', audience: 'public' },
   { href: '/clan', label: 'Clan HQ', emoji: '🛡️', group: 'Pubblico', audience: 'public' },
   { href: '/rules', label: 'Regolamento', emoji: '📜', group: 'Pubblico', audience: 'public' },
@@ -43,6 +44,15 @@ export function MobileSidebar() {
   const pathname = usePathname();
   const auth = useCodmAuth();
   const [open, setOpen] = useState(false);
+  const [rubricaVisible, setRubricaVisible] = useState(false);
+  useEffect(() => {
+    if (!auth.user?.id) { setRubricaVisible(false); return; }
+    let active = true;
+    void supabase.rpc('ak_rubrica_my_permissions').then(({ data }) => {
+      if (active) setRubricaVisible(Boolean((data as any)?.view_contacts));
+    });
+    return () => { active = false; };
+  }, [auth.user?.id]);
   const { count: localNotificationCount } = useLocalNotificationBadge();
   const [serverNotificationCount, setServerNotificationCount] = useState(0);
   const notificationCount = localNotificationCount + serverNotificationCount;
@@ -91,13 +101,14 @@ export function MobileSidebar() {
   const visibleItems = useMemo(() => {
     return navItems.filter((item) => {
       if (item.audience === 'public') return true;
+      if (item.audience === 'rubrica') return rubricaVisible;
       if (item.audience === 'player') return !!auth.user;
       if (item.audience === 'write') return auth.canWrite;
       if (item.audience === 'owner') return auth.canManageUsers;
       if (item.audience === 'system') return auth.canManageUsers;
       return false;
     });
-  }, [auth.user, auth.canWrite, auth.canManageUsers]);
+  }, [auth.user, auth.canWrite, auth.canManageUsers, rubricaVisible]);
 
   const groups = useMemo(() => {
     const ordered: string[] = [];

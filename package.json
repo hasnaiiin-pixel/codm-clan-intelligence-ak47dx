@@ -17,7 +17,8 @@
     "test:fix26": "node tests/v14_2_fix26_public_tournaments.cjs",
     "test:fix27": "node tests/v14_2_fix27_names_spectators_teams.cjs",
     "test:fix28": "node tests/v14_2_fix28_spectator_details.cjs",
-    "test:fix29": "node tests/v14_2_fix29_calendar_quick_edit.cjs"
+    "test:fix29": "node tests/v14_2_fix29_calendar_quick_edit.cjs",
+    "test:rubrica": "node tests/v14_2_fix29_rubrica_popup_social.cjs"
   },
   "engines": {
     "node": ">=22.0.0 <25"

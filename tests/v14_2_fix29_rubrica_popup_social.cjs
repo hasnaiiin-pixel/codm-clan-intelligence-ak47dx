@@ -1,0 +1,24 @@
+const fs=require('fs');const assert=require('assert');
+const source=fs.readFileSync('app/rubrica/page.tsx','utf8');
+const sql=fs.readFileSync('supabase/UPDATE_V14_2_FIX29_RUBRICA_POPUP_SOCIAL_PRIVATA.sql','utf8');
+const nav=fs.readFileSync('src/components/MobileSidebar.tsx','utf8');
+let passed=0;
+function check(label,condition){assert(condition,label);passed++;console.log('OK',label);}
+check('rubrica menu solo autorizzata',nav.includes("audience: 'rubrica'")&&nav.includes('rubricaVisible'));
+check('popup interattivo',source.includes('role="dialog"')&&source.includes('aria-modal="true"'));
+check('salvataggio RPC',source.includes("rpc('ak_rubrica_save'"));
+check('nickname storico',source.includes("rpc('ak_rubrica_nickname_history'"));
+check('whatsapp link cliccabile con testo',source.includes('https://wa.me/')&&source.includes('encodeURIComponent(message)'));
+check('no invio automatico whatsapp',!source.includes('sendMessage(')&&!source.includes('messages.send'));
+check('supporto social 6 piattaforme', ['tiktok','instagram','facebook','youtube','telegram','discord'].every(t=>source.includes(t)));
+check('social limita gli url esterni a https dei provider',source.includes('allowed[network].some(')&&source.includes("u.protocol==='https:'"));
+check('nessun numero privato negli script',!(/3[0-9][0-9][\s-]?[0-9]{3}[\s-]?[0-9]{4}/.test(source)));
+check('database rubrica separato',sql.includes('CREATE TABLE IF NOT EXISTS public.ak_rubrica_contacts'));
+check('RLS attivo',sql.includes('ak_rubrica_contacts ENABLE ROW LEVEL SECURITY'));
+check('accesso diretto revocato',sql.includes('REVOKE ALL ON public.ak_rubrica_contacts'));
+check('non accessibile ad anon',sql.includes('FROM PUBLIC,anon'));
+check('filtraggio telefoni lato database',sql.includes("v := v - 'phone' - 'phone_alt'"));
+check('permessi granulari',sql.includes('ak_rubrica_set_access'));
+check('salva storico nickname senza modificare uid',sql.includes('v_prev.nickname IS DISTINCT FROM v_next')&&sql.includes('old_nickname,new_nickname'));
+check('non tocca tabelle tornei o roster', !/\b(?:UPDATE|DELETE\s+FROM|TRUNCATE|DROP\s+TABLE)\s+public\.(?:players|codm_tournaments)\b/i.test(sql));
+console.log(`Test rubrica: ${passed} controlli superati`);
