@@ -3,20 +3,21 @@
 import { Fragment, useCallback, useEffect, useMemo, useState } from 'react';
 import { supabase } from '@/lib/supabaseClient';
 import { useCodmAuth } from '@/lib/authRoles';
-import { ContactRound, Search, Plus, Pencil, X, Save, History, ShieldCheck, MessageCircle, Instagram, Facebook, Youtube, Send, ExternalLink, Archive, RefreshCw } from 'lucide-react';
+import { ContactRound, Search, Plus, Pencil, X, Save, History, ShieldCheck, MessageCircle, Instagram, Facebook, Youtube, Send, ExternalLink, Archive, RefreshCw, Camera, CalendarDays, MapPin, FileDown } from 'lucide-react';
+import {RubricaBirthdayCalendar,RubricaMap,RubricaExportCenter,RubricaMatchReview} from './RubricaExtras';
 
 type Contact = {
   id?: string; nickname: string; uid?: string|null; given_name?: string|null; surname?: string|null;
   phone?: string|null; phone_alt?: string|null; whatsapp_name?: string|null;
   birth_date?: string|null; city?: string|null; province?: string|null; country?: string|null;
-  clan_role?: string|null; clan_status?: string|null; whatsapp_group?: boolean; joined_at?: string|null;
+  clan_role?: string|null; clan_status?: string|null; whatsapp_group?: boolean; share_phone?: boolean; map_opt_in?: boolean; joined_at?: string|null;
   notes?: string|null; codm_photo_url?: string|null; personal_photo_url?: string|null;
   tiktok?: string|null; instagram?: string|null; facebook?: string|null;
   youtube?: string|null; telegram?: string|null; discord?: string|null;
 };
 type Flags={view_contacts?:boolean;edit_contacts?:boolean;change_nickname?:boolean;view_phone?:boolean;view_social?:boolean;view_notes?:boolean;archive_contacts?:boolean;manage_access?:boolean};
 type NickHistory={old:string;new:string;at:string};
-const EMPTY: Contact={nickname:'',uid:'',given_name:'',surname:'',phone:'',phone_alt:'',whatsapp_name:'',birth_date:'',city:'',province:'',country:'',clan_role:'Membro',clan_status:'Attivo',whatsapp_group:true,joined_at:'',notes:'',codm_photo_url:'',personal_photo_url:'',tiktok:'',instagram:'',facebook:'',youtube:'',telegram:'',discord:''};
+const EMPTY: Contact={nickname:'',uid:'',given_name:'',surname:'',phone:'',phone_alt:'',whatsapp_name:'',birth_date:'',city:'',province:'',country:'',clan_role:'Membro',clan_status:'Attivo',whatsapp_group:true,share_phone:false,map_opt_in:false,joined_at:'',notes:'',codm_photo_url:'',personal_photo_url:'',tiktok:'',instagram:'',facebook:'',youtube:'',telegram:'',discord:''};
 const TEXT_FIELDS=[
   ['nickname','Nickname CODM *'],['uid','UID CODM'],['given_name','Nome'],['surname','Cognome'],
   ['phone','Telefono / WhatsApp'],['phone_alt','Secondo telefono'],['whatsapp_name','Nome contatto WhatsApp'],
@@ -48,13 +49,16 @@ function whatsappLink(phone?:string|null,nickname?:string):string|null{
   const message=`Ciao ${nickname||''}, ti scrivo dalla rubrica AK47DX.`;
   return `https://wa.me/${digits}?text=${encodeURIComponent(message)}`;
 }
-function roleIcon(role?:string|null){return role==='Capo Clan'?'👑':role==='Co-Capo'?'⭐':role==='Vice Capo'?'🛡️':role==='Staff'?'🔧':role==='Direzione / da definire'?'⚠️':'🎮';}
+function roleIcon(role?:string|null){return role==='Fondatore'?'🏆':role==='Capo Clan'?'👑':role==='Co-Capo'?'⭐':role==='Vice Capo'?'🛡️':role==='Staff'?'🔧':role==='Direzione / da definire'?'⚠️':'🎮';}
 
 export default function RubricaPage(){
   const auth=useCodmAuth();
   const [flags,setFlags]=useState<Flags>({});
   const [items,setItems]=useState<Contact[]>([]);
   const [query,setQuery]=useState('');
+  const [section,setSection]=useState<'rubrica'|'compleanni'|'mappa'|'export'|'screenshot'>('rubrica');
+  const [photos,setPhotos]=useState<{codm:string;personal:string}>({codm:'',personal:''});
+  const [uploadingPhoto,setUploadingPhoto]=useState(false);
   const [status,setStatus]=useState('');
   const [editing,setEditing]=useState<Contact|null>(null);
   const [history,setHistory]=useState<NickHistory[]>([]);
@@ -120,6 +124,8 @@ export default function RubricaPage(){
     payload.clan_role=editing.clan_role;
     payload.clan_status=editing.clan_status;
     payload.whatsapp_group=editing.whatsapp_group;
+    if(flags.view_phone)payload.share_phone=!!editing.share_phone;
+    payload.map_opt_in=!!editing.map_opt_in;
     const {error:rpcError}=await supabase.rpc('ak_rubrica_save',{p_contact:payload});
     setBusy(false);
     if(rpcError){setStatus(rpcError.message);return;}
@@ -137,6 +143,41 @@ export default function RubricaPage(){
     setBusy(false);setStatus(rpcError?rpcError.message:'Permessi aggiornati per l’account indicato.');
   }
   const countByStatus=useMemo(()=>items.filter(x=>x.clan_status==='Attivo').length,[items]);
+  useEffect(()=>{
+    if(!editing)return;
+    let mounted=true;
+    const resolve=async(raw?:string|null)=>{
+      const path=(raw||'').trim();if(!path)return '';
+      if(/^https:\/\/[^\s]+$/i.test(path))return path;
+      if(!/^(codm|personal)\/[a-z0-9\-/_.]+$/i.test(path))return '';
+      const {data,error}=await supabase.storage.from('ak-rubrica-private').createSignedUrl(path,900);
+      return error?'':data?.signedUrl||'';
+    };
+    void Promise.all([resolve(editing.codm_photo_url),flags.view_social?resolve(editing.personal_photo_url):Promise.resolve('')]).then(([codm,personal])=>{if(mounted)setPhotos({codm,personal});});
+    return()=>{mounted=false;};
+  },[editing?.id,editing?.codm_photo_url,editing?.personal_photo_url,flags.view_social]);
+  async function uploadPhoto(kind:'codm'|'personal',file:File){
+    if(!editing?.id){setStatus('Prima salva la scheda del nuovo contatto, poi carica le fotografie.');return;}
+    if(!flags.edit_contacts||(kind==='personal'&&!flags.view_social))return;
+    if(!['image/png','image/jpeg','image/webp'].includes(file.type)||file.size>3*1024*1024){setStatus('Foto ammessa: JPG, PNG o WEBP, massimo 3 MB.');return;}
+    setUploadingPhoto(true);setStatus('');
+    const ext=file.type==='image/png'?'png':file.type==='image/webp'?'webp':'jpg';
+    const path=`${kind}/${editing.id}/${crypto.randomUUID()}.${ext}`;
+    const {error}=await supabase.storage.from('ak-rubrica-private').upload(path,file,{contentType:file.type,upsert:false});
+    setUploadingPhoto(false);
+    if(error){setStatus('Caricamento foto non riuscito: '+error.message);return;}
+    setEditing(p=>p?{...p,[kind==='codm'?'codm_photo_url':'personal_photo_url']:path}:null);
+    setStatus('Foto caricata nell’archivio privato. Premi Salva scheda per associarla al contatto.');
+  }
+  const groups=useMemo(()=>[
+    {title:'👑 Fondatore e Capo Clan',roles:['Fondatore','Capo Clan']},
+    {title:'⭐ Co-Capo e Vice Capo',roles:['Co-Capo','Vice Capo']},
+    {title:'🛡️ Staff e responsabilità',roles:['Staff','Responsabile Rubrica']},
+    {title:'⚠️ Direzione · ruoli da assegnare',roles:['Direzione / da definire','Direzione / Staff da definire']},
+    {title:'🎮 Membri del clan',roles:['Membro','']},
+    {title:'📁 Non in clan / Altri',roles:[]}
+  ].map((g,i)=>({...g,persons:items.filter(p=>i===5?p.clan_status!=='Attivo'||!['Fondatore','Capo Clan','Co-Capo','Vice Capo','Staff','Responsabile Rubrica','Direzione / da definire','Direzione / Staff da definire','Membro'].includes(p.clan_role||'Membro'):p.clan_status==='Attivo'&&g.roles.includes(p.clan_role||'Membro'))})),[items]);
+
 
   if(auth.loading)return <main className="container top-gap"><section className="card">Verifica accesso Rubrica Clan...</section></main>;
   if(!auth.user)return <main className="container top-gap"><section className="card"><h1>🔒 Rubrica Clan</h1><p>Accedi al sito per verificare le autorizzazioni.</p><a href="/login" className="btn">Accedi</a></section></main>;
@@ -146,6 +187,10 @@ export default function RubricaPage(){
       <div><span className="ak-rubrica-overline">AK47DX · AREA RISERVATA</span><h1><ContactRound size={26} aria-hidden/> Rubrica Clan</h1><p>Contatti e profili CODM. Dati indipendenti da tornei, statistiche e roster.</p></div>
       <div className="ak-rubrica-count"><b>{items.length}</b><span>Contatti · {countByStatus} attivi</span></div>
     </section>
+    <nav className="ak30-nav" aria-label="Sezioni Rubrica Clan">
+      {([['rubrica','📇 Rubrica'],['compleanni','🎂 Compleanni'],['mappa','📍 Mappa'],['export','📤 Esportazioni'],...(flags.manage_access?[['screenshot','🎮 Nomi da screenshot']]:[])] as [typeof section,string][]).map(([id,name])=><button type="button" className={'ak30-navbutton'+(section===id?' active':'')} key={id} onClick={()=>{setQuery('');setSection(id);}}>{name}</button>)}
+    </nav>
+    {section==='rubrica'&&<>
     <section className="card ak-rubrica-controls">
       <label className="ak-rubrica-search"><Search size={18} aria-hidden/><input value={query} onChange={e=>setQuery(e.target.value)} placeholder="Cerca nickname, UID, nome o vecchio nickname" aria-label="Cerca contatti"/></label>
       <button type="button" className="btn secondary" onClick={refresh} disabled={loading} title="Aggiorna elenco"><RefreshCw size={16} aria-hidden/> Aggiorna</button>
@@ -160,28 +205,33 @@ export default function RubricaPage(){
       <p className="muted">Per revocare l'accesso, disattiva tutte le autorizzazioni e salva. I permessi sono verificati anche dal database.</p>
     </section>}
     {loading&&<p className="muted">Aggiornamento contatti...</p>}
-    <section className="ak-rubrica-grid">
-      {items.map(person=>{
+    {groups.map(group=>group.persons.length?<section key={group.title} className="ak30-role-section">
+      <h2>{group.title}<small>{group.persons.length} giocatori</small></h2>
+      <div className="ak-rubrica-grid">{group.persons.map(person=>{
         const whats=flags.view_phone?whatsappLink(person.phone,person.nickname):null;
         return <article key={person.id} className="card ak-rubrica-tile">
           <button type="button" className="ak-rubrica-person" onClick={()=>void openContact(person)} aria-label={`Apri scheda ${person.nickname}`}>
             <span className="ak-rubrica-avatar">{roleIcon(person.clan_role)}</span>
-            <span className="ak-rubrica-person-text"><strong>{person.nickname}</strong><small>{person.clan_role||'Membro'} · {person.clan_status||'Attivo'}</small>{person.uid&&<small>UID: {person.uid}</small>}</span>
-            <Pencil size={17} aria-hidden/>
+            <span className="ak-rubrica-person-text"><strong>{person.nickname}</strong><small>{person.clan_role||'Membro'} · {person.clan_status||'Attivo'}</small>{person.uid&&<small>UID: {person.uid}</small>}</span><Pencil size={17} aria-hidden/>
           </button>
-          <div className="ak-rubrica-socials">
-            {whats&&<a className="ak-rubrica-social ak-rubrica-whatsapp" href={whats} target="_blank" rel="noopener noreferrer" aria-label={`Apri WhatsApp con ${person.nickname}`} title="Apri chat WhatsApp (nessun invio automatico)"><MessageCircle size={18}/><span>WhatsApp</span></a>}
-            {flags.view_social&&<SocialLinks person={person}/>}
-            {!whats&&!flags.view_social&&<small>Contatti privati</small>}
-          </div>
+          <div className="ak-rubrica-socials">{whats&&<a className="ak-rubrica-social ak-rubrica-whatsapp" href={whats} target="_blank" rel="noopener noreferrer"><MessageCircle size={18}/> WhatsApp</a>}{flags.view_social&&<SocialLinks person={person}/>}</div>
         </article>;
-      })}
-      {!loading&&!items.length&&<div className="card ak-rubrica-empty">{query?'Nessun contatto trovato.':'La rubrica è vuota. Crea una scheda o importa i dati tramite una procedura amministrativa protetta.'}</div>}
-    </section>
+      })}</div>
+    </section>:null)}
+    {!loading&&!items.length&&<div className="card ak-rubrica-empty">{query?'Nessun giocatore trovato.':'Non ci sono ancora contatti.'}</div>}
+    </>}
+    {section==='compleanni'&&<RubricaBirthdayCalendar people={items}/>}
+    {section==='mappa'&&<RubricaMap people={items}/>}
+    {section==='export'&&<RubricaExportCenter permissions={flags}/>}
+    {section==='screenshot'&&flags.manage_access&&<RubricaMatchReview onRefresh={refresh}/>}
     {editing&&<div className="ak-rubrica-modal-backdrop" onMouseDown={e=>{if(e.target===e.currentTarget)setEditing(null);}}>
       <section role="dialog" aria-modal="true" aria-labelledby="rubrica-dialog-title" className="ak-rubrica-modal">
         <header className="ak-rubrica-modal-head"><div><span className="ak-rubrica-overline">SCHEDA PRIVATA</span><h2 id="rubrica-dialog-title">{editing.id?'Modifica giocatore':'Nuovo giocatore'}</h2><p>{editing.nickname||'Inserisci dati del nuovo contatto'}</p></div><button type="button" className="btn secondary" onClick={()=>setEditing(null)} aria-label="Chiudi popup"><X size={18}/></button></header>
         {status&&<p className="notice" role="status">{status}</p>}
+        <div className="ak30-photos">
+          <div className="ak30-photo-box"><b>🎮 Foto profilo CODM</b><div className="ak30-photo-frame">{photos.codm?<img alt={`Avatar CODM di ${editing.nickname}`} src={photos.codm}/>:<Camera size={34} aria-label="Foto CODM non caricata"/>}</div>{flags.edit_contacts&&<label className="btn secondary">Carica foto CODM<input type="file" accept="image/png,image/jpeg,image/webp" disabled={uploadingPhoto||!editing.id} hidden onChange={e=>{const f=e.target.files?.[0];if(f)void uploadPhoto('codm',f);e.currentTarget.value='';}}/></label>}</div>
+          {flags.view_social&&<div className="ak30-photo-box"><b>🙋 Foto personale</b><div className="ak30-photo-frame">{photos.personal?<img alt={`Foto personale di ${editing.nickname}`} src={photos.personal}/>:<Camera size={34} aria-label="Foto personale non caricata"/>}</div>{flags.edit_contacts&&<label className="btn secondary">Carica foto personale<input type="file" accept="image/png,image/jpeg,image/webp" disabled={uploadingPhoto||!editing.id} hidden onChange={e=>{const f=e.target.files?.[0];if(f)void uploadPhoto('personal',f);e.currentTarget.value='';}}/></label>}</div>}
+        </div>
         <div className="ak-rubrica-form-grid">
           {TEXT_FIELDS.filter(([key])=>!(PHONE_FIELDS.has(key)&&!flags.view_phone)&&!(SOCIAL_FIELDS.has(key)&&!flags.view_social)&&!(key==='notes'&&!flags.view_notes)).map(([key,label])=>{
             const val=String(editing[key as keyof Contact]??'');
@@ -190,8 +240,10 @@ export default function RubricaPage(){
             const header:Record<string,string>={nickname:'Identità CODM',given_name:'Dati anagrafici',phone:'Numeri e WhatsApp',codm_photo_url:'Foto profilo',tiktok:'Social network',notes:'Note amministrative'};
             return <Fragment key={key}>{header[key]&&<h3 className="ak-rubrica-section-label">{header[key]}</h3>}<label className={key==='notes'?'ak-rubrica-wide':''}><span>{label}</span>{key==='notes'?<textarea className="textarea" value={val} disabled={disabled} maxLength={3000} rows={3} onChange={e=>setEditing(p=>p?{...p,[key]:e.target.value}:null)}/>:<input className="input" autoFocus={key==='nickname'} value={val} disabled={disabled} type={inputType} onChange={e=>setEditing(p=>p?{...p,[key]:e.target.value}:null)} placeholder={key==='uid'?'Solo cifre':undefined}/>}</label></Fragment>;
           })}
-          <label><span>Ruolo nel clan</span><select className="select" disabled={!flags.edit_contacts} value={editing.clan_role||'Membro'} onChange={e=>setEditing(p=>p?{...p,clan_role:e.target.value}:null)}>{['Capo Clan','Co-Capo','Vice Capo','Staff','Membro','Direzione / da definire'].map(s=><option key={s}>{s}</option>)}</select></label>
+          <label><span>Ruolo nel clan</span><select className="select" disabled={!flags.edit_contacts} value={editing.clan_role||'Membro'} onChange={e=>setEditing(p=>p?{...p,clan_role:e.target.value}:null)}>{['Fondatore','Capo Clan','Co-Capo','Vice Capo','Staff','Responsabile Rubrica','Membro','Direzione / da definire','Direzione / Staff da definire'].map(s=><option key={s}>{s}</option>)}</select></label>
           <label><span>Stato clan</span><select className="select" disabled={!flags.edit_contacts} value={editing.clan_status||'Attivo'} onChange={e=>setEditing(p=>p?{...p,clan_status:e.target.value}:null)}><option>Attivo</option><option>Non in clan</option></select></label>
+          <label className="ak-rubrica-check"><input type="checkbox" disabled={!flags.edit_contacts} checked={!!editing.map_opt_in} onChange={e=>setEditing(p=>p?{...p,map_opt_in:e.target.checked}:null)}/> Autorizzazione alla mappa: mostra soltanto città e Paese</label>
+          {flags.view_phone&&<label className="ak-rubrica-check"><input type="checkbox" disabled={!flags.edit_contacts} checked={!!editing.share_phone} onChange={e=>setEditing(p=>p?{...p,share_phone:e.target.checked}:null)}/> Autorizza la condivisione del numero nella versione WhatsApp per tutti</label>}
           <label className="ak-rubrica-check"><input type="checkbox" disabled={!flags.edit_contacts} checked={editing.whatsapp_group!==false} onChange={e=>setEditing(p=>p?{...p,whatsapp_group:e.target.checked}:null)}/> Presente nel gruppo WhatsApp</label>
         </div>
         {flags.view_social&&<div className="ak-rubrica-modal-social"><SocialLinks person={editing}/></div>}

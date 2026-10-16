@@ -1,3 +1,9 @@
+# FIX30 (da applicare dopo FIX29 RUBRICA)
+
+**Prima esegui in Supabase:** `supabase/UPDATE_V14_2_FIX30_RUBRICA_PRO.sql`, poi `supabase/UPDATE_V14_2_FIX30_NOMI_SCREENSHOT_PREVIEW.sql`.
+Poi `npm run test:fix30`, `npm run test:rubrica`, `npm run build`. Pubblica solo se tutti passano.
+Guida: `README_FIX30_RUBRICA_PRO.md`.
+
 ## FIX29 — Installazione patch senza npm ci
 
 Copiare i file della patch nella radice del repository mantenendo `.git`, `.env.local`, `node_modules`. Eseguire `npm run test:fix29`, `npm run test:bracket64`, `npm run build`; pubblicare solo dopo build riuscita. SQL nuovo non richiesto (FIX28 già applicata). Le mappe/armi esistenti non vengono cancellate: usare il nuovo pulsante nella scheda Mappe / Armi.

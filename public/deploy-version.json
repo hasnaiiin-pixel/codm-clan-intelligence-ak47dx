@@ -1,12 +1,12 @@
 {
-  "version": "14.2_FIX24",
-  "marker": "AK47DX_V14_2_FIX24_PUBLIC_SIGNUP_EXPORT",
+  "version": "14.2_FIX30",
+  "marker": "AK47DX_V14_2_FIX30_RUBRICA_PRO_PRIVATE",
   "appName": "CLAN MANAGER",
   "app": "CLAN MANAGER by MIRZA",
-  "notes": "Iscrizione pubblica al torneo: Cognome, Nome, nickname, UID, privacy; gestione staff, export XLSX 10 fogli, CSV e PDF pubblico/tabellone; eredita FIX23.",
-  "build": "CODM_AK47DX_V14_2_TEST_FIX24",
-  "date": "2026-10-14",
-  "status": "TEST_FIX24_BUILD",
+  "notes": "FIX30 Rubrica: ruoli a sezioni, doppia foto privata, compleanni, mappa con consenso, Excel e WhatsApp differenziati, confronto screenshot CODM.",
+  "build": "CODM_AK47DX_V14_2_FIX30_RUBRICA_PRO_TEST",
+  "date": "2026-10-16",
+  "status": "TEST_FIX30_SOURCE",
   "routes": [
     "/",
     "/events",
@@ -19,6 +19,7 @@
     "/api/telegram/status",
     "/api/telegram/test",
     "/tournament",
-    "/iscrizione/[id]"
+    "/iscrizione/[id]",
+    "/rubrica"
   ]
 }

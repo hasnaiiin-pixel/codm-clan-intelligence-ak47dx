@@ -1,3 +1,9 @@
+# AK47DX Clan Manager — V14.2 FIX30 TEST
+
+**Rubrica Pro:** gruppi per ruoli, foto private CODM/personale nel popup, compleanni, mappa autorizzata, Excel/WhatsApp completo e condivisibile, riconciliazione nickname screenshot.
+
+Per la procedura completa vedi `README_FIX30_RUBRICA_PRO.md`. Non importare numeri personali o avatar nel repository Git.
+
 # AK47DX Clan Manager — V14.2 FIX29 TEST
 
 **Nuovo:** modifica mappe/armi senza eliminare i gironi; popup calendario e risultati per incontri dei gironi e tabellone Winners/Losers. Consultare `README_V14_2_FIX29_CALENDARIO_RISULTATI.md` per istruzioni, test e deploy.

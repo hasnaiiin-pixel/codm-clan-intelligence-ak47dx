@@ -3657,3 +3657,21 @@ select.pro-select {
 
 .ak-rubrica-section-label{grid-column:1/-1;margin:6px 0 0;border-bottom:1px solid #3a536e;padding:5px 0 8px;color:#9dccff;font-size:.87rem}
 .ak-rubrica-modal-social{display:flex;gap:8px;justify-content:center;align-items:center;margin-top:12px;flex-wrap:wrap}
+/* FIX30 RUBRICA ENTERPRISE — responsive grouped directory and popup image panels */
+.ak30-nav{display:flex;gap:8px;overflow-x:auto;padding:10px 2px;margin-bottom:12px;scrollbar-width:thin}
+.ak30-navbutton{white-space:nowrap;flex-shrink:0;background:#1b2c44;border:1px solid #405775;border-radius:10px;color:#bdd0e6;padding:11px 13px;font-size:.9rem;cursor:pointer}
+.ak30-navbutton.active{color:#fff;background:#235380;border-color:#60a8dc;font-weight:700}
+.ak30-role-section{margin:14px 0 23px;padding:12px;background:linear-gradient(120deg,#132238,#192b44);border:1px solid #344d6a;border-radius:14px}
+.ak30-role-section h2{margin:0 0 14px;font-size:1.08rem;display:flex;gap:12px;align-items:center;flex-wrap:wrap}
+.ak30-role-section h2 small{background:#284462;border-radius:20px;color:#b7d1e9;font-size:.7rem;padding:4px 9px}
+.ak30-role-section .ak-rubrica-grid{grid-template-columns:repeat(auto-fill,minmax(min(100%,260px),1fr))}
+.ak30-panel{display:grid;gap:15px;margin-top:10px}.ak30-panel h2{font-size:1.3rem;margin:0}.ak30-panel h3{font-size:1rem;margin:4px 0}.ak30-between{display:flex;justify-content:space-between;gap:12px;align-items:center;flex-wrap:wrap}
+.ak30-calendar{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:5px}.ak30-weekday{text-align:center;padding:9px 0;background:#203b58;border-radius:6px;font-size:.85rem}
+.ak30-day{min-height:75px;padding:6px;border-radius:7px;border:1px solid #324763;background:#172941;min-width:0;display:flex;flex-direction:column;gap:3px;font-size:.77rem}.ak30-day.has-birthday{border-color:#d7aa57;background:#3a3240}
+.ak30-day small{color:#ffe3a2;word-break:break-word;font-size:.69rem}.ak30-upcoming{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,300px),1fr));gap:8px}.ak30-upcoming>div{display:flex;justify-content:space-between;gap:9px;background:#1c3148;border:1px solid #39526f;padding:10px;border-radius:8px}
+.ak30-map{overflow:hidden;background:#132338;border-radius:16px}.ak30-map svg{width:100%;height:auto;display:block}.ak30-citylist{display:flex;gap:8px;flex-wrap:wrap}
+.ak30-export-actions{display:flex;flex-wrap:wrap;gap:10px}.ak30-shareparts{display:grid;gap:15px}.ak30-shareparts textarea{width:100%;background:#172941;color:#e9f5ff;white-space:pre-wrap;resize:vertical}
+.ak30-reviewlist{display:grid;gap:7px;max-height:550px;overflow-y:auto}.ak30-reviewrow{display:flex;gap:10px;align-items:center;justify-content:space-between;border:1px solid #3a516b;background:#17293f;border-radius:10px;padding:10px;flex-wrap:wrap}.ak30-reviewrow>span:first-child{display:flex;flex-direction:column;gap:3px;min-width:150px;flex:1}.ak30-reviewrow small{color:#9bb4cc}.ak30-pill{font-size:.72rem;padding:5px 9px;background:#344e64;border-radius:14px}.ak30-stats{display:flex;gap:16px;flex-wrap:wrap;font-size:.84rem;color:#bad5ef}
+.ak30-photos{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:15px;margin:14px 0 19px}.ak30-photo-box{padding:12px;display:flex;flex-direction:column;align-items:center;gap:10px;border:1px solid #435e7c;background:#17283d;border-radius:13px;text-align:center}.ak30-photo-frame{height:148px;width:148px;display:grid;place-items:center;border:2px dashed #52728c;border-radius:14px;overflow:hidden;color:#7899ba}.ak30-photo-frame img{width:100%;height:100%;object-fit:contain;background:#152237}.ak30-photo-box label{cursor:pointer}
+@media(max-width:600px){.ak30-role-section{padding:9px}.ak30-day{min-height:55px;padding:3px;font-size:.67rem}.ak30-day small{font-size:.57rem}.ak30-photo-frame{height:114px;width:114px}.ak30-photos{gap:8px}.ak30-photo-box{padding:7px}}
+.ak30-bulkavatar{display:flex;align-items:center;gap:12px;flex-wrap:wrap}.ak30-bulkavatar small{flex:1;min-width:200px;color:#b0c7db}.ak30-bulkavatar label{cursor:pointer}.ak30-nickedit{max-width:175px;background:#15253a;color:#fff;border:1px solid #537392;border-radius:8px;padding:8px}
