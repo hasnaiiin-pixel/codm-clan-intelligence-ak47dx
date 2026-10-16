@@ -1,12 +1,12 @@
 {
-  "version": "14.2_FIX30",
-  "marker": "AK47DX_V14_2_FIX30_RUBRICA_PRO_PRIVATE",
+  "version": "14.2_FIX31A",
+  "marker": "AK47DX_V14_2_FIX31A_RUBRICA_GAMING",
   "appName": "CLAN MANAGER",
   "app": "CLAN MANAGER by MIRZA",
-  "notes": "FIX30 Rubrica: ruoli a sezioni, doppia foto privata, compleanni, mappa con consenso, Excel e WhatsApp differenziati, confronto screenshot CODM.",
-  "build": "CODM_AK47DX_V14_2_FIX30_RUBRICA_PRO_TEST",
+  "notes": "FIX31A Rubrica Gaming: organigramma, ruoli estesi, permessi membri solo nickname UID, nomi screenshot con approvazione, WhatsApp unico blocco, profilo prima di modifica.",
+  "build": "CODM_AK47DX_V14_2_FIX31A_RUBRICA_GAMING_TEST",
   "date": "2026-10-16",
-  "status": "TEST_FIX30_SOURCE",
+  "status": "TEST_FIX31A_SOURCE",
   "routes": [
     "/",
     "/events",

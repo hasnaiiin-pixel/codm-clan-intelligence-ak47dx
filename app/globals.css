@@ -3675,3 +3675,33 @@ select.pro-select {
 .ak30-photos{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:15px;margin:14px 0 19px}.ak30-photo-box{padding:12px;display:flex;flex-direction:column;align-items:center;gap:10px;border:1px solid #435e7c;background:#17283d;border-radius:13px;text-align:center}.ak30-photo-frame{height:148px;width:148px;display:grid;place-items:center;border:2px dashed #52728c;border-radius:14px;overflow:hidden;color:#7899ba}.ak30-photo-frame img{width:100%;height:100%;object-fit:contain;background:#152237}.ak30-photo-box label{cursor:pointer}
 @media(max-width:600px){.ak30-role-section{padding:9px}.ak30-day{min-height:55px;padding:3px;font-size:.67rem}.ak30-day small{font-size:.57rem}.ak30-photo-frame{height:114px;width:114px}.ak30-photos{gap:8px}.ak30-photo-box{padding:7px}}
 .ak30-bulkavatar{display:flex;align-items:center;gap:12px;flex-wrap:wrap}.ak30-bulkavatar small{flex:1;min-width:200px;color:#b0c7db}.ak30-bulkavatar label{cursor:pointer}.ak30-nickedit{max-width:175px;background:#15253a;color:#fff;border:1px solid #537392;border-radius:8px;padding:8px}
+
+/* FIX31 — Rubrica Clan: gaming, organigramma, nickname e dati mancanti */
+.ak-rubrica-head{background:linear-gradient(115deg,#101827,#1c3049 65%,#342a20)!important;border:1px solid #b0893a!important;box-shadow:inset 0 1px 0 #ffffff19,0 4px 24px #02060f65}
+.ak-rubrica-head h1{letter-spacing:.6px;text-transform:uppercase}
+.ak30-navbutton.active{background:linear-gradient(110deg,#2a455f,#385f87);box-shadow:0 2px 0 #ddb75d;border-color:#e2bd65}
+.ak30-role-section{border-color:#526382;background:linear-gradient(130deg,#142338,#152034)}
+.ak30-role-section h2{border-bottom:1px solid #56728a;padding-bottom:10px;letter-spacing:.3px}
+.ak31-gaming-card{position:relative;overflow:hidden;background:linear-gradient(145deg,#1c2c44,#112133)!important;border:1px solid #3e5578!important;transition:box-shadow .15s,border-color .15s,transform .15s}
+.ak31-gaming-card:before{content:'';position:absolute;top:0;left:0;width:3px;height:100%;background:linear-gradient(#e6c36b,#518eec)}
+.ak31-gaming-card:hover{border-color:#c4a15c!important;box-shadow:0 8px 20px #0005;transform:translateY(-1px)}
+.ak31-gaming-card .ak-rubrica-person-text strong{color:#f4f7ff;font-size:1.08rem;letter-spacing:.25px}
+.ak31-gaming-card .ak-rubrica-avatar{background:linear-gradient(130deg,#4d3c1e,#2a436a);border:1px solid #bb9853}
+.ak31-incomplete{border-color:#c55a62!important}.ak31-missing{color:#ff7d87!important;font-weight:700!important}
+.ak31-member-profile{background:#16263c;border:1px solid #57708b;padding:16px;border-radius:12px;margin-bottom:14px;text-align:center}
+.ak31-member-profile h3{color:#f7d68a;margin:4px 0;font-size:1.25rem}.ak31-member-profile p{margin:8px}
+.ak31-access-presets{display:flex;gap:8px;flex-wrap:wrap}.ak31-access-presets button{flex:1}
+.ak31-org{margin-top:15px;background:linear-gradient(150deg,#131f34,#1b2b40)!important;overflow-x:auto}
+.ak31-org-head{text-align:center;margin-bottom:15px}.ak31-org-head h2{color:#ffe1a0;margin:0 0 6px}.ak31-org-head p{color:#bfd1e3;margin:0}
+.ak31-org-tree{display:flex;flex-direction:column;align-items:center;gap:0;min-width:250px}
+.ak31-org-level{display:flex;align-items:center;flex-direction:column;width:100%}.ak31-org-level h3{text-align:center;background:#253b57;border:1px solid #5f789b;color:#e8f3ff;padding:8px 20px;border-radius:30px;margin:0 0 10px;font-size:.88rem}
+.ak31-level-0 h3{background:#4e3c25;border-color:#b78f41;color:#ffe1a2}.ak31-level-1 h3{background:#363758;border-color:#8c87bf}.ak31-org-stem{height:30px;width:2px;background:linear-gradient(#cba751,#7fa6dd);display:block;margin-bottom:8px}
+.ak31-org-persons{display:flex;flex-wrap:wrap;justify-content:center;gap:10px;max-width:100%;padding:2px 6px 10px}
+.ak31-org-person{cursor:pointer;display:flex;align-items:center;gap:9px;background:#1c304b;border:1px solid #5a7293;color:#f5f8ff;border-radius:10px;min-width:140px;max-width:230px;padding:10px 12px;text-align:left}
+.ak31-org-person:hover{border-color:#e1bb67}.ak31-org-symbol{font-size:25px}.ak31-org-person span:last-child{display:flex;flex-direction:column;gap:3px;min-width:0}.ak31-org-person strong{font-size:.86rem;overflow-wrap:anywhere}.ak31-org-person small{color:#c1d1e3;font-size:.7rem}
+.ak31-import-summary{padding:12px;border:1px solid #536e8b;border-radius:10px;background:#1b2c41;display:grid;gap:7px}.ak31-import-summary p{margin:0}
+.ak31-review-error{border-color:#d1636c!important;background:#371e2a!important}.ak31-review-error .ak30-pill{background:#7a3039;color:#fff}
+@media(max-width:670px){.ak31-org-person{min-width:130px;max-width:calc(50% - 8px);padding:7px}.ak31-access-presets{flex-direction:column}}
+.ak31-readonly-profile{margin:12px 0;padding:16px;background:#162940;border:1px solid #4e6685;border-radius:13px;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+.ak31-readonly-profile h3{grid-column:1/-1;color:#ffdf9f;margin:2px 0 7px;font-size:1.2rem}.ak31-readonly-profile p{margin:0;color:#d3e2f5;font-size:.86rem;overflow-wrap:anywhere}
+@media(max-width:560px){.ak31-readonly-profile{grid-template-columns:1fr}}

@@ -1,9 +1,9 @@
 const fs=require('fs'),path=require('path'),assert=require('assert');const root=path.resolve(__dirname,'..');
 const read=p=>fs.readFileSync(path.join(root,p),'utf8');
-const page=read('app/rubrica/page.tsx'),extra=read('app/rubrica/RubricaExtras.tsx'),sql=read('supabase/UPDATE_V14_2_FIX30_RUBRICA_PRO.sql'),loader=read('supabase/UPDATE_V14_2_FIX30_NOMI_SCREENSHOT_PREVIEW.sql'),css=read('app/globals.css');
+const roles=read('app/rubrica/rubricaRoles.ts');const page=read('app/rubrica/page.tsx'),extra=read('app/rubrica/RubricaExtras.tsx'),sql=read('supabase/UPDATE_V14_2_FIX30_RUBRICA_PRO.sql'),loader=read('supabase/UPDATE_V14_2_FIX30_NOMI_SCREENSHOT_PREVIEW.sql'),css=read('app/globals.css');
 const tests=[
-['roles hierarchy grouped',page.includes('Fondatore e Capo Clan')&&page.includes('Staff e responsabilità')],
-['legacy status preserved',page.includes('Direzione / Staff da definire')],
+['roles hierarchy grouped',roles.includes('Fondatori e Capo Clan')&&roles.includes('Staff e Responsabili')],
+['legacy status preserved',roles.includes('Direzione / Staff da definire')],
 ['photo preview separate',page.includes('photos.codm')&&page.includes('photos.personal')],
 ['private photo storage',page.includes("supabase.storage.from('ak-rubrica-private')")],
 ['photo uploads restricted',page.includes("image/png")&&page.includes('3*1024*1024')],
@@ -14,7 +14,7 @@ const tests=[
 ['export complete workbook',extra.includes('Excel completo Admin')&&extra.includes('Storico nickname')],
 ['export shared workbook',extra.includes('Excel condivisibile')],
 ['share phone opt-in',extra.includes('p.share_phone')&&page.includes('Autorizza la condivisione')],
-['whatsapp split blocks',extra.includes("3000")&&extra.includes('Blocco')],
+['whatsapp single block',extra.includes('setChunks([content])')&&extra.includes('unico testo')],
 ['roles distinct contacts',sql.includes('public.ak_rubrica_contacts')&&!sql.includes('DROP TABLE')],
 ['private bucket',sql.includes("'ak-rubrica-private',false")],
 ['private RLS image select',sql.includes('public.ak_rubrica_allowed')&&sql.includes('CREATE POLICY ak30_rubrica_photo_read')],

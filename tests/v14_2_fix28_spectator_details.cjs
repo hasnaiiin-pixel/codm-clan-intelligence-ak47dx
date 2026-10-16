@@ -40,6 +40,6 @@ assert.match(sql,/'weapon',case when position\('Arma sorteggiata:'/);
 assert.match(sql,/notify pgrst, 'reload schema'/);
 assert.doesNotMatch(sql,/'notes',\s*m\.notes/);
 assert.doesNotMatch(sql,/signup_controller_name|public_signup_uid|public_signup_given_name/);
-assert.match(read('app/version/page.tsx'),/FIX(?:28|29|30)/);
-assert.match(read('public/sw.js'),/fix(?:28|29|30)/);
+assert.match(read('app/version/page.tsx'),/FIX(?:28|29|30|31A)/);
+assert.match(read('public/sw.js'),/fix(?:28|29|30|31a)/);
 console.log('FIX28: armi, gironi 2x2, tabellone legacy e v2, calendario uniforme, visibilità solo pubblica e cache OK.');

@@ -1,0 +1,29 @@
+export const RUBRICA_ROLES = [
+  {label:'Fondatore',emoji:'🏆',tier:0},
+  {label:'Capo Clan',emoji:'👑',tier:0},
+  {label:'Co-Capo',emoji:'⭐',tier:1},
+  {label:'Vice Capo',emoji:'🛡️',tier:1},
+  {label:'Responsabile Rubrica',emoji:'📒',tier:2},
+  {label:'Responsabile Tornei',emoji:'🏅',tier:2},
+  {label:'Responsabile Scrim',emoji:'⚔️',tier:2},
+  {label:'Responsabile Reclutamento',emoji:'📢',tier:2},
+  {label:'Allenatore',emoji:'🎯',tier:2},
+  {label:'Moderatore',emoji:'🔰',tier:2},
+  {label:'Staff',emoji:'🔧',tier:2},
+  {label:'Direzione / da definire',emoji:'⚠️',tier:3},
+  {label:'Direzione / Staff da definire',emoji:'⚠️',tier:3},
+  {label:'Membro',emoji:'🎮',tier:4},
+  {label:'Riserva',emoji:'🕹️',tier:4},
+  {label:'Ospite',emoji:'👤',tier:4},
+  {label:'Ex membro',emoji:'📁',tier:5},
+] as const;
+export function clanRoleEmoji(role?:string|null){return RUBRICA_ROLES.find(r=>r.label===role)?.emoji || '🎮';}
+export function clanRoleTier(role?:string|null){return RUBRICA_ROLES.find(r=>r.label===role)?.tier ?? 4;}
+export const clanRoleGroups = [
+  {title:'👑 Fondatori e Capo Clan',label:'Fondatori e Capi',tier:0},
+  {title:'⭐ Co-Capi e Vice',label:'Co-Capi e Vice',tier:1},
+  {title:'🔧 Staff e Responsabili',label:'Staff e Responsabili',tier:2},
+  {title:'⚠️ Direzione da assegnare',label:'Da assegnare',tier:3},
+  {title:'🎮 Membri, Riserve e Ospiti',label:'Membri',tier:4},
+  {title:'📁 Ex membri / altri',label:'Altri',tier:5},
+] as const;
