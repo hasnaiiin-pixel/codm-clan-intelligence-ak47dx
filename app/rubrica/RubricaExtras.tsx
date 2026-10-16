@@ -45,9 +45,10 @@ export function RubricaExportCenter({permissions}:{permissions:RubricaFlags}){
  </section>;
 }
 type Candidate={id:string;source_name:string;full_nickname?:string|null;match_nickname:string|null;match_contact_id:string|null;status:string;review_note:string|null};
-export function RubricaMatchReview({onRefresh}:{onRefresh:()=>void}){
+export function RubricaMatchReview({onRefresh,people}:{onRefresh:()=>void;people:RubricaContact[]}){
  const [items,setItems]=useState<Candidate[]>([]),[busy,setBusy]=useState(false),[notice,setNotice]=useState('');
  const [names,setNames]=useState<Record<string,string>>({});
+ const [links,setLinks]=useState<Record<string,string>>({});
  const [avatarProgress,setAvatarProgress]=useState('');
  const [bulkNotice,setBulkNotice]=useState('');
  const load=()=>{void supabase.rpc('ak_rubrica_screenshot_queue').then(({data,error})=>{if(error)setNotice(error.message);else{setItems(Array.isArray(data)?data:[]);setNotice('');}});};
@@ -56,6 +57,27 @@ export function RubricaMatchReview({onRefresh}:{onRefresh:()=>void}){
   const r=(data||{}) as {proposte?:number;diretti_da_confermare?:number;da_verificare?:number};setBulkNotice(`Proposte: ${r.proposte??0}; diretti: ${r.diretti_da_confermare??0}; da verificare: ${r.da_verificare??0}. Controlla il tag CODM prima di confermare.`);load();}
  useEffect(()=>{load();},[]);
  const approve=async(id:string)=>{setBusy(true);const item=items.find(x=>x.id===id);const {error}=await supabase.rpc('ak_rubrica_accept_screenshot',{p_candidate_id:id,p_display_name:(names[id]??item?.full_nickname??item?.source_name??'').trim()});setBusy(false);if(error)setNotice(error.message);else{load();onRefresh();setNotice('Nickname aggiornato e vecchio nome aggiunto alla cronologia.');}};
+ async function resolveMissing(id:string,action:'link'|'create'){
+  const item=items.find(x=>x.id===id);
+  if(!item||item.match_contact_id||busy)return;
+  const contactId=links[id]||null;
+  if(action==='link'&&!contactId){setNotice('Seleziona prima il profilo gia presente nella rubrica.');return;}
+  const displayName=(names[id]??item.full_nickname??item.source_name).trim();
+  const msg=action==='create'
+    ?`Creare ${displayName} come NUOVA scheda DA VERIFICARE? UID, telefono e stato attivo NON verranno inventati. Se esiste gia con un altro nome, usa Collega.`
+    :`Collegare ${item.source_name} al profilo selezionato? UID e telefono esistenti NON verranno modificati. Dovrai confermare il nickname dopo.`;
+  if(!window.confirm(msg))return;
+  setBusy(true);
+  const {data,error}=await supabase.rpc('ak_rubrica_resolve_screenshot',{
+   p_candidate_id:id,p_action:action,p_contact_id:action==='link'?contactId:null,p_display_name:displayName
+  });
+  setBusy(false);
+  if(error){setNotice('Associazione non riuscita: '+error.message+' (verifica SQL FIX31D)');return;}
+  const saved=(data||{}) as {missing_uid?:boolean;missing_phone?:boolean};
+  const missing=[saved.missing_uid?'UID':'',saved.missing_phone?'telefono':''].filter(Boolean);
+  setNotice(`Scheda ${action==='create'?'creata':'collegata'}; da verificare: ${missing.length?missing.join(', '):'identita e dati associati'}. Conferma nome solo dopo il controllo.`);
+  load();onRefresh();
+ }
  async function applyExact(){
   const candidates=items.filter(x=>x.status==='exact'&&x.match_contact_id);
   if(!candidates.length){setBulkNotice('Nessun abbinamento sicuro ancora da applicare.');return;}
@@ -91,8 +113,20 @@ export function RubricaMatchReview({onRefresh}:{onRefresh:()=>void}){
    }
    setBusy(false);onRefresh();setNotice(`Avatar associati: ${ok}/${uploadList.length}. ${failed.length?'Da verificare: '+failed.slice(0,4).join('; '):'Nessun errore segnalato.'}`);
  }
- return <section className="card ak30-panel"><h2>🎮 Nomi CODM dagli screenshot</h2><p className="muted">FIX31C: riconosce il giocatore anche se il nome inizia con il tag AK + simboli. La colonna “Nome CODM proposto” contiene il tag del clan, ma i caratteri decorativi sono da verificare sulle immagini prima di confermare. UID e telefoni non vengono modificati.</p><div className="ak30-stats"><span>Abbinati: {items.filter(x=>x.match_contact_id).length}</span><span>Da verificare: {items.filter(x=>!x.match_contact_id).length}</span></div><div className="ak30-bulkavatar"><label className="btn secondary">📸 Importa foto CODM dagli screenshot<input type="file" accept="image/jpeg,image/png,image/webp" multiple hidden disabled={busy} onChange={e=>{void uploadAvatars(e.target.files);e.currentTarget.value='';}}/></label><small>Prima estrai la cartella avatars dello ZIP privato. Il sistema abbina solo i nickname individuati con sicurezza; gli altri restano da verificare.</small>{avatarProgress&&<strong>{avatarProgress}</strong>}</div>
+ return <section className="card ak30-panel"><h2>🎮 Nomi CODM dagli screenshot</h2><p className="muted">FIX31D: importa anche nomi non abbinati come schede incomplete e collega profili esistenti. FIX31C: riconosce il giocatore anche se il nome inizia con il tag AK + simboli. La colonna “Nome CODM proposto” contiene il tag del clan, ma i caratteri decorativi sono da verificare sulle immagini prima di confermare. UID e telefoni non vengono modificati.</p><div className="ak30-stats"><span>Abbinati: {items.filter(x=>x.match_contact_id).length}</span><span>Da verificare: {items.filter(x=>!x.match_contact_id).length}</span></div><div className="ak30-bulkavatar"><label className="btn secondary">📸 Importa foto CODM dagli screenshot<input type="file" accept="image/jpeg,image/png,image/webp" multiple hidden disabled={busy} onChange={e=>{void uploadAvatars(e.target.files);e.currentTarget.value='';}}/></label><small>Prima estrai la cartella avatars dello ZIP privato. Il sistema abbina solo i nickname individuati con sicurezza; gli altri restano da verificare.</small>{avatarProgress&&<strong>{avatarProgress}</strong>}</div>
  {notice&&<p className="notice">{notice}</p>}
  <div className="ak31-import-summary"><button type="button" className="btn secondary" disabled={busy} onClick={()=>void seedNames()}>📥 Ricalcola nomi e abbinamenti con tag AK</button><button type="button" className="btn" disabled={busy||!items.some(i=>i.status==='exact'&&i.match_contact_id)} onClick={()=>void applyExact()}>🎮 Salva nomi CODM completi per gli abbinamenti diretti</button><p className="muted">Non importa nomi ambigui, senza corrispondenza o con UID in conflitto: restano da verificare singolarmente.</p>{bulkNotice&&<p className="notice" role="status">{bulkNotice}</p>}</div>
- <div className="ak30-reviewlist">{items.map(x=><div key={x.id} className={"ak30-reviewrow"+((x.status!=='exact'&&x.status!=='applied')?" ak31-review-error":"")}><span><strong>{x.source_name}</strong><small>Nome CODM proposto: {x.full_nickname||'Da verificare'}</small><small>Attualmente in rubrica: {x.match_nickname||'Non abbinato'}</small></span><span className="ak30-pill">{x.status==='exact'?'Abbinamento trovato':x.status==='applied'?'Applicato':'⚠️ Da verificare'}</span>{x.match_contact_id&&x.status!=='applied'&&<input className="input ak30-nickedit" aria-label={`Nome CODM corretto per ${x.source_name}`} value={names[x.id]??x.full_nickname??x.source_name} onChange={e=>setNames(p=>({...p,[x.id]:e.target.value}))} title="Modifica simboli CODM prima della conferma"/>}{x.match_contact_id&&x.status!=='applied'&&<button className="btn secondary" disabled={busy} onClick={()=>void approve(x.id)}><Check size={15}/> Conferma nome</button>}</div>)}</div>{items.length===0&&<p className="muted">Nessun candidato caricato. Applica prima lo script SQL dei nickname FIX30.</p>}</section>;
+ <div className="ak30-reviewlist">{items.map(x=><div key={x.id} className={"ak30-reviewrow"+((x.status!=='exact'&&x.status!=='applied')?" ak31-review-error":"")}><span><strong>{x.source_name}</strong><small>Nome CODM proposto: {x.full_nickname||'Da verificare'}</small><small>Attualmente in rubrica: {x.match_nickname||'Non abbinato'}</small></span><span className="ak30-pill">{x.status==='exact'?'Abbinamento trovato':x.status==='applied'?'Applicato':'⚠️ Da verificare'}</span>{x.status!=='applied'&&<input className="input ak30-nickedit" aria-label={`Nome CODM corretto per ${x.source_name}`} value={names[x.id]??x.full_nickname??x.source_name} onChange={e=>setNames(p=>({...p,[x.id]:e.target.value}))} title="Controlla i simboli CODM prima della conferma"/>}
+ {x.match_contact_id&&x.status!=='applied'&&<button className="btn secondary" disabled={busy} onClick={()=>void approve(x.id)}><Check size={15}/> Conferma nome</button>}
+ {!x.match_contact_id&&x.status!=='applied'&&<div className="ak31-resolve-actions">
+   <span className="ak31-missing">🔴 Nessun profilo collegato: UID e telefono non verificati</span>
+   <select className="input" value={links[x.id]||''} aria-label={`Collega ${x.source_name} a contatto esistente`} onChange={e=>setLinks(v=>({...v,[x.id]:e.target.value}))}>
+     <option value="">Seleziona un contatto esistente…</option>
+     {people.filter(p=>p.id).sort((a,b)=>a.nickname.localeCompare(b.nickname,'it')).map(p=><option key={p.id} value={p.id}>{p.nickname}{p.uid?' · UID presente':' · UID mancante'}</option>)}
+   </select>
+   <button className="btn secondary" disabled={busy||!links[x.id]} onClick={()=>void resolveMissing(x.id,'link')}>🔗 Collega scheda</button>
+   <button className="btn" disabled={busy} onClick={()=>void resolveMissing(x.id,'create')}>➕ Importa come incompleto</button>
+ </div>}
+ {x.match_contact_id&&(()=>{const person=people.find(p=>p.id===x.match_contact_id);return <span className="ak31-review-missing">{!person?.uid?.trim()?'🔴 UID mancante · ':''}{person&&!person.phone?.trim()?'🔴 Telefono mancante · ':''}{x.source_name.toUpperCase()==='LEXO'?'⚠ UID storico in conflitto con RENDO · ':''}{x.status!=='applied'?'Verifica prima di confermare':''}</span>;})()}
+ {x.review_note&&x.status!=='applied'&&<small className="ak31-review-note">{x.review_note}</small>}</div>)}</div>{items.length===0&&<p className="muted">Nessun candidato caricato. Applica prima lo script SQL dei nickname FIX30.</p>}</section>;
 }

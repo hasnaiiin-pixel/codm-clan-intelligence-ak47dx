@@ -232,7 +232,7 @@ export default function RubricaPage(){
     {section==='compleanni'&&flags.view_private_details&&<RubricaBirthdayCalendar people={items}/>} 
     {section==='mappa'&&flags.view_private_details&&<RubricaMap people={items}/>} 
     {section==='export'&&flags.view_private_details&&<RubricaExportCenter permissions={flags}/>} 
-    {section==='screenshot'&&flags.manage_access&&<RubricaMatchReview onRefresh={refresh}/>}
+    {section==='screenshot'&&flags.manage_access&&<RubricaMatchReview onRefresh={refresh} people={items}/>}
     {editing&&<div className="ak-rubrica-modal-backdrop" onMouseDown={e=>{if(e.target===e.currentTarget)setEditing(null);}}>
       <section role="dialog" aria-modal="true" aria-labelledby="rubrica-dialog-title" className="ak-rubrica-modal">
         <header className="ak-rubrica-modal-head"><div><span className="ak-rubrica-overline">SCHEDA PRIVATA</span><h2 id="rubrica-dialog-title">{editMode?(editing.id?'Modifica giocatore':'Nuovo giocatore'):'Profilo giocatore'}</h2><p>{editing.nickname||'Inserisci dati del nuovo contatto'}</p></div><button type="button" className="btn secondary" onClick={()=>setEditing(null)} aria-label="Chiudi popup"><X size={18}/></button></header>

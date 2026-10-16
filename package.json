@@ -22,7 +22,8 @@
     "test:fix30": "node tests/v14_2_fix30_rubrica_pro.cjs",
     "test:fix31": "node tests/v14_2_fix31_rubrica_gaming.cjs",
     "test:fix31b": "node tests/v14_2_fix31b_map_screenshots.cjs",
-    "test:fix31c": "node tests/v14_2_fix31c_full_codm_names.cjs"
+    "test:fix31c": "node tests/v14_2_fix31c_full_codm_names.cjs",
+    "test:fix31d": "node tests/v14_2_fix31d_unmatched_review.cjs"
   },
   "engines": {
     "node": ">=22.0.0 <25"
