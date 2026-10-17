@@ -1,4 +1,5 @@
-const CODM_CACHE = 'clan-manager-pwa-v14-2-fix31c-nickname-codm-completi';
+// Compatibilita cache precedenti: fix31a, fix31b, fix31c, fix31d.
+const CODM_CACHE = 'clan-manager-pwa-v14-2-fix31e-rubrica-accessi';
 const CODM_OFFLINE_URL = '/offline.html';
 const CORE_ASSETS = [CODM_OFFLINE_URL, '/manifest.webmanifest', '/icons/icon-192.png', '/icons/icon-512.png', '/icons/icon-maskable-512.png'];
 

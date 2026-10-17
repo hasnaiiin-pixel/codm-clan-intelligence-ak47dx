@@ -3715,3 +3715,23 @@ select.pro-select {
 .ak31-review-missing{font-size:.78rem;color:#ff9b9b;font-weight:650;max-width:100%}
 .ak31-resolve-actions .ak31-missing{font-size:.78rem;font-weight:700;color:#ff8c8c;flex-basis:100%}
 .ak31-review-note{width:100%;font-size:.74rem;color:#efc29e!important}
+/* FIX31E Rubrica accessi, ruoli multipli e archivio */
+.ak31e-admin-panel,.ak31e-archive{margin:1rem 0;border:1px solid rgba(88,194,247,.3)}
+.ak31e-panel-title{display:flex;gap:1rem;align-items:center;flex-wrap:wrap}
+.ak31e-panel-title>div{flex:1;min-width:200px}.ak31e-panel-title p{margin:.25rem 0;opacity:.75}
+.ak31e-access-list{display:grid;gap:.65rem;margin:1rem 0 1.4rem}
+.ak31e-access-row{display:flex;align-items:center;justify-content:space-between;gap:.9rem;flex-wrap:wrap;padding:.8rem 1rem;background:rgba(12,23,45,.62);border:1px solid rgba(130,166,220,.2);border-radius:12px}
+.ak31e-access-row>div:first-child{flex:1;min-width:180px}.ak31e-access-row small{display:block;opacity:.7}
+.ak31e-access-actions{display:flex;gap:.5rem;flex-wrap:wrap;align-items:center}
+.ak31e-chips{display:flex;flex-wrap:wrap;gap:.3rem;margin-top:.4rem}
+.ak31e-chips span,.ak31e-role-badges{font-size:.78rem;color:#9cdeff}
+.ak31e-chips span{background:rgba(60,127,192,.22);padding:.25rem .4rem;border-radius:6px}
+.ak31e-access-editor,.ak31e-public-settings{padding:1rem;border-radius:12px;background:rgba(17,32,57,.72);margin-top:1.2rem}
+.ak31e-access-editor>label{display:block;margin:.8rem 0}.ak31e-access-editor input.input{display:block;margin-top:.35rem;max-width:540px}
+.ak31e-public-settings h3{display:flex;align-items:center;gap:.5rem}
+.ak31e-role-choices{display:grid;grid-template-columns:repeat(auto-fit,minmax(205px,1fr));gap:.4rem;margin:.9rem 0}
+.ak31e-role-choices label{display:flex;align-items:center;gap:.45rem;padding:.5rem .6rem;background:rgba(17,34,59,.7);border-radius:8px;font-size:.88rem;cursor:pointer}
+.ak31e-role-choices input{accent-color:#29e0ac;flex-shrink:0}
+.ak31e-secondary-field{min-width:0;border:1px solid rgba(88,194,247,.25);border-radius:12px;padding:.8rem}
+.ak31e-secondary-field legend{color:#a6dffb;font-weight:700;padding:0 .4rem}
+@media(max-width:580px){.ak31e-role-choices{grid-template-columns:1fr}.ak31e-access-actions .btn{font-size:.79rem}}

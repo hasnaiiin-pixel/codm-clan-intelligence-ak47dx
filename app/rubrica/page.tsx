@@ -6,6 +6,7 @@ import { useCodmAuth } from '@/lib/authRoles';
 import { ContactRound, Search, Plus, Pencil, X, Save, History, ShieldCheck, MessageCircle, Instagram, Facebook, Youtube, Send, ExternalLink, Archive, RefreshCw, Camera, CalendarDays, MapPin, FileDown } from 'lucide-react';
 import {RubricaBirthdayCalendar,RubricaMap,RubricaExportCenter,RubricaMatchReview} from './RubricaExtras';
 import RubricaOrgChart from './RubricaOrgChart';
+import RubricaAccessPanel from './RubricaAccessPanel';
 import RubricaCitySearch, {type CityChoice} from './RubricaCitySearch';
 import {RUBRICA_ROLES,clanRoleEmoji,clanRoleGroups,clanRoleTier} from './rubricaRoles';
 
@@ -13,14 +14,14 @@ type Contact = {
   id?: string; nickname: string; uid?: string|null; given_name?: string|null; surname?: string|null;
   phone?: string|null; phone_alt?: string|null; whatsapp_name?: string|null;
   birth_date?: string|null; city?: string|null; province?: string|null; country?: string|null; city_lat?: number|null; city_lon?: number|null;
-  clan_role?: string|null; clan_status?: string|null; whatsapp_group?: boolean; share_phone?: boolean; map_opt_in?: boolean; joined_at?: string|null;
+  clan_role?: string|null; secondary_roles?: string[]|null; public_profile_opt_in?: boolean; archived?: boolean; clan_status?: string|null; whatsapp_group?: boolean; share_phone?: boolean; map_opt_in?: boolean; joined_at?: string|null;
   notes?: string|null; codm_photo_url?: string|null; personal_photo_url?: string|null;
   tiktok?: string|null; instagram?: string|null; facebook?: string|null;
   youtube?: string|null; telegram?: string|null; discord?: string|null;
 };
-type Flags={view_contacts?:boolean;edit_contacts?:boolean;change_nickname?:boolean;view_phone?:boolean;view_social?:boolean;view_notes?:boolean;archive_contacts?:boolean;manage_access?:boolean;view_private_details?:boolean};
+type Flags={view_contacts?:boolean;edit_contacts?:boolean;change_nickname?:boolean;view_phone?:boolean;view_social?:boolean;view_notes?:boolean;archive_contacts?:boolean;manage_access?:boolean;view_private_details?:boolean;export_shared?:boolean;export_staff?:boolean};
 type NickHistory={old:string;new:string;at:string};
-const EMPTY: Contact={nickname:'',uid:'',given_name:'',surname:'',phone:'',phone_alt:'',whatsapp_name:'',birth_date:'',city:'',province:'',country:'',clan_role:'Membro',clan_status:'Attivo',whatsapp_group:true,share_phone:false,map_opt_in:false,joined_at:'',notes:'',codm_photo_url:'',personal_photo_url:'',tiktok:'',instagram:'',facebook:'',youtube:'',telegram:'',discord:''};
+const EMPTY: Contact={nickname:'',uid:'',given_name:'',surname:'',phone:'',phone_alt:'',whatsapp_name:'',birth_date:'',city:'',province:'',country:'',clan_role:'Membro',secondary_roles:[],public_profile_opt_in:false,clan_status:'Attivo',whatsapp_group:true,share_phone:false,map_opt_in:false,joined_at:'',notes:'',codm_photo_url:'',personal_photo_url:'',tiktok:'',instagram:'',facebook:'',youtube:'',telegram:'',discord:''};
 const TEXT_FIELDS=[
   ['nickname','Nickname CODM *'],['uid','UID CODM'],['given_name','Nome'],['surname','Cognome'],
   ['phone','Telefono / WhatsApp'],['whatsapp_name','Nome contatto WhatsApp'],
@@ -52,6 +53,7 @@ function whatsappLink(phone?:string|null,nickname?:string):string|null{
   return `https://wa.me/${digits}?text=${encodeURIComponent(message)}`;
 }
 function roleIcon(role?:string|null){return clanRoleEmoji(role);}
+const isActive=(s?:string|null)=>(s||'').trim().toLocaleLowerCase('it')==='attivo';
 
 export default function RubricaPage(){
   const auth=useCodmAuth();
@@ -70,6 +72,8 @@ export default function RubricaPage(){
   const [loading,setLoading]=useState(false);
   const [error,setError]=useState('');
   const [accessOpen,setAccessOpen]=useState(false);
+  const [archivedOpen,setArchivedOpen]=useState(false);
+  const [archivedItems,setArchivedItems]=useState<Contact[]>([]);
   const [grantEmail,setGrantEmail]=useState('');
   const [grantFlags,setGrantFlags]=useState<Flags>({view_contacts:true});
   const [reloadKey,setReloadKey]=useState(0);
@@ -138,6 +142,10 @@ export default function RubricaPage(){
     if(rpcError){setBusy(false);setStatus('Scheda non salvata: '+rpcError.message);return;}
     const contactId=editing.id||savedId;
     if(!contactId){setBusy(false);setStatus('Scheda creata ma ID mancante. Aggiorna la rubrica prima di salvare la mappa.');refresh();return;}
+    const {error:rolesError}=await supabase.rpc('ak_rubrica_set_secondary_roles',{p_contact_id:contactId,p_roles:(editing.secondary_roles||[]).filter(r=>r!==editing.clan_role)});
+    if(rolesError){setBusy(false);setEditing({...editing,id:contactId});setStatus('Profilo salvato ma ruoli aggiuntivi NON salvati: '+rolesError.message);refresh();return;}
+    if(flags.manage_access){const {error:publicError}=await supabase.rpc('ak_rubrica_set_public_consent',{p_contact_id:contactId,p_opt_in:!!editing.public_profile_opt_in});
+      if(publicError){setBusy(false);setEditing({...editing,id:contactId});setStatus('Scheda e ruoli salvati, consenso pubblico NON salvato: '+publicError.message);refresh();return;}}
     const {error:mapError}=await supabase.rpc('ak_rubrica_set_map_location',{
       p_contact_id:contactId,p_city:editing.city?.trim()||null,p_province:editing.province?.trim()||null,
       p_country:editing.country?.trim()||null,p_lat:editing.city_lat??null,p_lon:editing.city_lon??null,p_opt_in:!!editing.map_opt_in
@@ -152,12 +160,31 @@ export default function RubricaPage(){
     setBusy(true);const {error:rpcError}=await supabase.rpc('ak_rubrica_archive',{p_contact_id:person.id});
     setBusy(false);if(rpcError)setStatus(rpcError.message);else{setEditing(null);refresh();setStatus('Scheda archiviata senza eliminare la cronologia.');}
   }
+  async function loadArchived(){
+    const {data,error}=await supabase.rpc('ak_rubrica_list_archived');
+    if(error){setStatus('Archivio non disponibile: '+error.message);return;}
+    setArchivedItems(Array.isArray(data)?data as Contact[]:[]);
+  }
+  async function restore(person:Contact){
+    if(!person.id||busy)return;setBusy(true);
+    const {error}=await supabase.rpc('ak_rubrica_restore',{p_contact_id:person.id});setBusy(false);
+    if(error)setStatus('Ripristino non riuscito: '+error.message);
+    else{setStatus('Contatto ripristinato.');void loadArchived();refresh();}
+  }
+  async function deletePermanently(person:Contact){
+    if(!person.id||busy)return;
+    const typed=window.prompt(`Eliminazione DEFINITIVA di ${person.nickname}.\nScrivi il nickname ESATTO per confermare (cronologia e scheda non saranno recuperabili).`);
+    if(typed!==person.nickname)return;
+    setBusy(true);const {error}=await supabase.rpc('ak_rubrica_delete_permanently',{p_contact_id:person.id});setBusy(false);
+    if(error)setStatus('Eliminazione bloccata: '+error.message);
+    else{setStatus('Contatto eliminato definitivamente.');void loadArchived();refresh();}
+  }
   async function saveAccess(){
     if(!flags.manage_access||busy||!grantEmail.includes('@'))return;
     setBusy(true);const {error:rpcError}=await supabase.rpc('ak_rubrica_set_access',{p_email:grantEmail.trim(),p_flags:grantFlags});
     setBusy(false);setStatus(rpcError?rpcError.message:'Permessi aggiornati per l’account indicato.');
   }
-  const countByStatus=useMemo(()=>items.filter(x=>x.clan_status==='Attivo').length,[items]);
+  const countByStatus=useMemo(()=>items.filter(x=>isActive(x.clan_status)).length,[items]);
   useEffect(()=>{
     if(!editing)return;
     let mounted=true;
@@ -184,7 +211,9 @@ export default function RubricaPage(){
     setEditing(p=>p?{...p,[kind==='codm'?'codm_photo_url':'personal_photo_url']:path}:null);
     setStatus('Foto caricata nell’archivio privato. Premi Salva scheda per associarla al contatto.');
   }
-  const groups=useMemo(()=>clanRoleGroups.map((g)=>({...g,persons:items.filter(p=>g.tier===5?p.clan_status!=='Attivo'||clanRoleTier(p.clan_role)===5:p.clan_status==='Attivo'&&clanRoleTier(p.clan_role)===g.tier)})),[items]);
+  const groups=useMemo(()=>clanRoleGroups.map(g=>({...g,persons:items.filter(p=>
+    g.tier===5?!isActive(p.clan_status):isActive(p.clan_status)&&(g.tier===4?clanRoleTier(p.clan_role)>=4:clanRoleTier(p.clan_role)===g.tier)
+  ).sort((a,b)=>a.nickname.localeCompare(b.nickname,'it'))})),[items]);
 
 
   if(auth.loading)return <main className="container top-gap"><section className="card">Verifica accesso Rubrica Clan...</section></main>;
@@ -203,14 +232,13 @@ export default function RubricaPage(){
       <label className="ak-rubrica-search"><Search size={18} aria-hidden/><input value={query} onChange={e=>setQuery(e.target.value)} placeholder="Cerca nickname, UID, nome o vecchio nickname" aria-label="Cerca contatti"/></label>
       <button type="button" className="btn secondary" onClick={refresh} disabled={loading} title="Aggiorna elenco"><RefreshCw size={16} aria-hidden/> Aggiorna</button>
       {flags.edit_contacts&&<button type="button" className="btn" onClick={()=>void openContact({...EMPTY},true)}><Plus size={16} aria-hidden/> Nuovo contatto</button>}
-      {flags.manage_access&&<button type="button" className="btn secondary" onClick={()=>setAccessOpen(!accessOpen)}><ShieldCheck size={16} aria-hidden/> Permessi</button>}
+      {flags.manage_access&&<><button type="button" className="btn secondary" onClick={()=>setAccessOpen(!accessOpen)}><ShieldCheck size={16} aria-hidden/> Gestione accessi</button><button type="button" className="btn secondary" onClick={()=>{setArchivedOpen(!archivedOpen);if(!archivedOpen)void loadArchived();}}>📁 Archivio / eliminazione</button></>}
     </section>
     {status&&<p className="notice" role="status">{status}</p>}{error&&<p className="notice" role="alert">{error}</p>}
-    {accessOpen&&flags.manage_access&&<section className="card ak-rubrica-access"><h2>🔐 Autorizza account registrato</h2><p className="muted">Solo Owner può concedere o revocare l'accesso. Il giocatore deve già avere un account AK47DX.</p>
-      <div className="ak31-access-presets"><button type="button" className="btn secondary" onClick={()=>{setGrantFlags({view_contacts:true});}}>🎮 Membro (solo nickname + UID)</button><button type="button" className="btn secondary" onClick={()=>{setGrantFlags({view_contacts:true,view_private_details:true});}}>🔧 Personalizza Staff</button></div><p className="muted">Membro: deve avere un account già registrato e autorizzato. Nessun telefono, foto personale, data di nascita, città o note.</p><label>Email account<input className="input" value={grantEmail} type="email" onChange={e=>setGrantEmail(e.target.value)} placeholder="email dell'account registrato"/></label>
-      <div className="ak-rubrica-flags">{([['view_contacts','Vedere nickname CODM, UID e ruolo'],['view_private_details','Vedere dettagli anagrafici, compleanni e città'],['edit_contacts','Modificare contatti'],['change_nickname','Cambiare nickname'],['view_phone','Leggere telefoni / WhatsApp'],['view_social','Leggere social / foto personali'],['view_notes','Leggere note private'],['archive_contacts','Archiviare schede']] as const).map(([k,lab])=><label key={k}><input type="checkbox" checked={!!grantFlags[k]} onChange={e=>setGrantFlags(p=>({...p,[k]:e.target.checked}))}/>{lab}</label>)}</div>
-      <button className="btn" disabled={busy||!grantEmail.trim()} onClick={()=>void saveAccess()}>Salva autorizzazioni</button>
-      <p className="muted">Per revocare l'accesso, disattiva tutte le autorizzazioni e salva. I permessi sono verificati anche dal database.</p>
+    {accessOpen&&flags.manage_access&&<RubricaAccessPanel/>}
+    {archivedOpen&&flags.manage_access&&<section className="card ak31e-archive"><h2>📁 Archivio contatti</h2><p className="muted">Prima archivia un contatto dalla scheda. Qui puoi ripristinarlo oppure eliminarlo definitivamente, se non esistono fotografie ancora collegate o riferimenti che impediscono l'operazione.</p>
+      {archivedItems.map(p=><div className="ak31e-access-row" key={p.id}><div><strong>{p.nickname}</strong><small>{p.uid||'🔴 UID mancante'}</small></div><div className="ak31e-access-actions"><button className="btn secondary" onClick={()=>void restore(p)}>↩️ Ripristina</button><button className="btn danger" onClick={()=>void deletePermanently(p)}>🗑️ Elimina definitivamente</button></div></div>)}
+      {!archivedItems.length&&<p className="muted">Nessun contatto archiviato.</p>}
     </section>}
     {loading&&<p className="muted">Aggiornamento contatti...</p>}
     {groups.map(group=>group.persons.length?<section key={group.title} className="ak30-role-section">
@@ -220,7 +248,7 @@ export default function RubricaPage(){
         return <article key={person.id} className={'card ak-rubrica-tile ak31-gaming-card'+((!person.nickname.trim()||!person.uid?.trim()||(flags.view_phone&&!person.phone?.trim()))?' ak31-incomplete':'')}>
           <button type="button" className="ak-rubrica-person" onClick={()=>void openContact(person)} aria-label={`Apri scheda ${person.nickname}`}>
             <span className="ak-rubrica-avatar" aria-hidden="true">{roleIcon(person.clan_role)}</span>
-            <span className="ak-rubrica-person-text"><strong>{person.nickname}</strong><small>{roleIcon(person.clan_role)} {person.clan_role||'Membro'} · {person.clan_status||'Attivo'}</small><small className={!person.uid?.trim()?'ak31-missing':''}>🕹️ UID: {person.uid||'MANCANTE'}</small>{flags.view_phone&&!person.phone?.trim()&&<small className="ak31-missing">📞 Telefono mancante</small>}</span><Pencil size={17} aria-hidden/>
+            <span className="ak-rubrica-person-text"><strong>{person.nickname}</strong><small>{roleIcon(person.clan_role)} {person.clan_role||'Membro'} · {isActive(person.clan_status)?'🟢 Attivo':person.clan_status||'Da verificare'}</small>{!!person.secondary_roles?.length&&<small className="ak31e-role-badges">{person.secondary_roles.map(r=>`${roleIcon(r)} ${r}`).join(' · ')}</small>}<small className={!person.uid?.trim()?'ak31-missing':''}>🕹️ UID: {person.uid||'MANCANTE'}</small>{flags.view_phone&&!person.phone?.trim()&&<small className="ak31-missing">📞 Telefono mancante</small>}</span><ContactRound size={17} aria-hidden/>
           </button>
           <div className="ak-rubrica-socials">{whats&&<a className="ak-rubrica-social ak-rubrica-whatsapp" href={whats} target="_blank" rel="noopener noreferrer"><MessageCircle size={18}/> WhatsApp</a>}{flags.view_social&&<SocialLinks person={person}/>}</div>
         </article>;
@@ -237,13 +265,13 @@ export default function RubricaPage(){
       <section role="dialog" aria-modal="true" aria-labelledby="rubrica-dialog-title" className="ak-rubrica-modal">
         <header className="ak-rubrica-modal-head"><div><span className="ak-rubrica-overline">SCHEDA PRIVATA</span><h2 id="rubrica-dialog-title">{editMode?(editing.id?'Modifica giocatore':'Nuovo giocatore'):'Profilo giocatore'}</h2><p>{editing.nickname||'Inserisci dati del nuovo contatto'}</p></div><button type="button" className="btn secondary" onClick={()=>setEditing(null)} aria-label="Chiudi popup"><X size={18}/></button></header>
         {status&&<p className="notice" role="status">{status}</p>}
-        {!flags.view_private_details&&<div className="ak31-member-profile"><h3>{roleIcon(editing.clan_role)} {editing.nickname}</h3><p>🕹️ UID: {editing.uid||'Non disponibile'}</p><p>{editing.clan_role||'Membro'}</p></div>}
+        {!flags.view_private_details&&<div className="ak31-member-profile"><h3>{roleIcon(editing.clan_role)} {editing.nickname}</h3><p>🕹️ UID: {editing.uid||'Non disponibile'}</p><p>{editing.clan_role||'Membro'}{editing.secondary_roles?.length?' · '+editing.secondary_roles.map(r=>roleIcon(r)+' '+r).join(' · '):''}</p></div>}
         {flags.view_private_details&&<div className="ak30-photos">
           <div className="ak30-photo-box"><b>🎮 Foto profilo CODM</b><div className="ak30-photo-frame">{photos.codm?<img alt={`Avatar CODM di ${editing.nickname}`} src={photos.codm}/>:<Camera size={34} aria-label="Foto CODM non caricata"/>}</div>{flags.edit_contacts&&editMode&&<label className="btn secondary">Carica foto CODM<input type="file" accept="image/png,image/jpeg,image/webp" disabled={uploadingPhoto||!editing.id} hidden onChange={e=>{const f=e.target.files?.[0];if(f)void uploadPhoto('codm',f);e.currentTarget.value='';}}/></label>}</div>
           {flags.view_social&&<div className="ak30-photo-box"><b>🙋 Foto personale</b><div className="ak30-photo-frame">{photos.personal?<img alt={`Foto personale di ${editing.nickname}`} src={photos.personal}/>:<Camera size={34} aria-label="Foto personale non caricata"/>}</div>{flags.edit_contacts&&editMode&&<label className="btn secondary">Carica foto personale<input type="file" accept="image/png,image/jpeg,image/webp" disabled={uploadingPhoto||!editing.id} hidden onChange={e=>{const f=e.target.files?.[0];if(f)void uploadPhoto('personal',f);e.currentTarget.value='';}}/></label>}</div>}
         </div>}
         {flags.view_private_details&&!editMode&&<div className="ak31-readonly-profile">
-          <h3>🎮 {editing.nickname}</h3><p><b>🕹️ UID:</b> {editing.uid||'Non indicato'}</p><p><b>Ruolo:</b> {roleIcon(editing.clan_role)} {editing.clan_role||'Membro'}</p>
+          <h3>🎮 {editing.nickname}</h3><p><b>🕹️ UID:</b> {editing.uid||'Non indicato'}</p><p><b>Ruolo:</b> {roleIcon(editing.clan_role)} {editing.clan_role||'Membro'}{editing.secondary_roles?.length?' · '+editing.secondary_roles.map(r=>roleIcon(r)+' '+r).join(' · '):''}</p>
           {flags.view_phone&&<p><b>📞 Telefono:</b> {editing.phone||'Non indicato'}</p>}
           <p><b>📍 Località:</b> {[editing.city,editing.country].filter(Boolean).join(', ')||'Non indicata'}</p><p><b>🗺️ Consenso mappa:</b> {editing.map_opt_in?'Attivo':'Non attivo'}</p><p><b>🎂 Compleanno:</b> {editing.birth_date||'Non indicato'}</p>
         </div>}
@@ -256,13 +284,16 @@ export default function RubricaPage(){
             return <Fragment key={key}>{header[key]&&<h3 className="ak-rubrica-section-label">{header[key]}</h3>}<label className={key==='notes'?'ak-rubrica-wide':''}><span>{label}</span>{key==='notes'?<textarea className="textarea" value={val} disabled={disabled} maxLength={3000} rows={3} onChange={e=>setEditing(p=>p?{...p,[key]:e.target.value}:null)}/>:<input className="input" autoFocus={key==='nickname'} value={val} disabled={disabled} type={inputType} onChange={e=>setEditing(p=>p?{...p,[key]:e.target.value}:null)} placeholder={key==='uid'?'Solo cifre':undefined}/>}</label></Fragment>;
           })}
           <label><span>Ruolo nel clan</span><select className="select" disabled={!flags.edit_contacts} value={editing.clan_role||'Membro'} onChange={e=>setEditing(p=>p?{...p,clan_role:e.target.value}:null)}>{RUBRICA_ROLES.map(s=><option key={s.label} value={s.label}>{s.emoji} {s.label}</option>)}</select></label>
-          <label><span>Stato clan</span><select className="select" disabled={!flags.edit_contacts} value={editing.clan_status||'Attivo'} onChange={e=>setEditing(p=>p?{...p,clan_status:e.target.value}:null)}><option>Attivo</option><option>Non in clan</option></select></label>
+          <fieldset className="ak31e-secondary-field ak-rubrica-wide"><legend>🎖️ Incarichi secondari (più ruoli contemporaneamente)</legend><p className="muted">Puoi assegnare più incarichi oltre al ruolo principale. Non modificano i permessi software.</p><div className="ak31e-role-choices">{RUBRICA_ROLES.filter(r=>r.label!==editing.clan_role).map(r=><label key={r.label}><input type="checkbox" checked={!!editing.secondary_roles?.includes(r.label)} onChange={e=>setEditing(p=>p?{...p,secondary_roles:e.target.checked?[...new Set([...(p.secondary_roles||[]),r.label])].slice(0,12):(p.secondary_roles||[]).filter(x=>x!==r.label)}:null)}/>{r.emoji} {r.label}</label>)}</div></fieldset>
+          <label><span>Stato clan (indipendente da WhatsApp e completezza)</span><select className="select" disabled={!flags.edit_contacts} value={editing.clan_status||'Da verificare'} onChange={e=>setEditing(p=>p?{...p,clan_status:e.target.value}:null)}>{['Attivo','Non attivo','Ex membro','Non in clan','Ospite','Da verificare'].map(st=><option key={st}>{st}</option>)}</select></label>
+          <p className="ak-rubrica-wide muted">✅ Se selezioni Attivo, il giocatore comparirà sempre negli Attivi anche se mancano telefono o UID.</p>
           <div className="ak31b-location ak-rubrica-wide"><h3>📍 Mappa — città e consenso</h3>
             <RubricaCitySearch disabled={!flags.edit_contacts||busy} onChoose={loc=>{setSelectedCity(loc);setEditing(p=>p?{...p,...loc,map_opt_in:false}:null);}}/>
             <p className="ak31b-selected">{editing.city&&editing.country?`📌 ${editing.city}, ${editing.province?editing.province+', ':''}${editing.country}`:'⚠️ Nessuna città selezionata'}{typeof editing.city_lat==='number'&&typeof editing.city_lon==='number'?' · Coordinate approssimative disponibili':' · Seleziona un risultato dalla ricerca'}</p>
             <label className="ak-rubrica-check"><input type="checkbox" disabled={!flags.edit_contacts||typeof editing.city_lat!=='number'||typeof editing.city_lon!=='number'||!editing.country} checked={!!editing.map_opt_in} onChange={e=>setEditing(p=>p?{...p,map_opt_in:e.target.checked}:null)}/><span>Mostra il nickname e la città sulla mappa (consenso del giocatore)</span></label>
             {selectedCity&&<small className="muted">Località scelta: {selectedCity.city}, {selectedCity.country}. Premi “Salva scheda” per renderla visibile sulla mappa.</small>}
           </div>
+          {flags.manage_access&&<label className="ak-rubrica-check ak-rubrica-wide"><input type="checkbox" checked={!!editing.public_profile_opt_in} onChange={e=>setEditing(p=>p?{...p,public_profile_opt_in:e.target.checked}:null)}/> Consenso verificato: autorizza la pubblicazione di nickname/UID/ruolo sulla pagina visitatori, se abilitata dall'Owner</label>}
           {flags.view_phone&&<label className="ak-rubrica-check"><input type="checkbox" disabled={!flags.edit_contacts} checked={!!editing.share_phone} onChange={e=>setEditing(p=>p?{...p,share_phone:e.target.checked}:null)}/> Autorizza la condivisione del numero nella versione WhatsApp per tutti</label>}
           <label className="ak-rubrica-check"><input type="checkbox" disabled={!flags.edit_contacts} checked={editing.whatsapp_group!==false} onChange={e=>setEditing(p=>p?{...p,whatsapp_group:e.target.checked}:null)}/> Presente nel gruppo WhatsApp</label>
         </div>}

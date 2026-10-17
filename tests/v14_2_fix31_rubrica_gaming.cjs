@@ -12,7 +12,7 @@ const checks=[
  ['org links to contact',org.includes('onSelect(person)')],
  ['role hierarchy',org.includes('clanRoleTier')&&roles.includes('clanRoleGroups')],
  ['incomplete highlight',page.includes('ak31-incomplete')&&page.includes('ak31-missing')],
- ['member predefined access',page.includes('Membro (solo nickname + UID)')],
+ ['member predefined access',read('app/rubrica/RubricaAccessPanel.tsx').includes('Membro: solo nickname e UID')],
  ['member registered only',sql.includes('auth.users')&&sql.includes('Account non trovato')],
  ['privileged details separate',sql.includes("ak_rubrica_allowed('view_private_details')")],
  ['redaction at server',sql.includes("RETURN jsonb_build_object('id',p_row.id,'nickname',p_row.nickname,'uid',p_row.uid")],
@@ -25,7 +25,7 @@ const checks=[
  ['unmatched red',extra.includes('ak31-review-error')],
  ['photos gated',sql.includes("ak_rubrica_allowed('view_private_details')")],
  ['profile then edit',page.includes('setEditMode(startEdit)')&&page.includes('Modifica profilo')],
- ['whatsapp one block and active default',extra.includes('setChunks([content])')&&extra.includes('useState(true)')],
+ ['whatsapp one block and active default',extra.includes('setContent(text)')&&extra.includes('useState(true)')],
 ];
 for(const [name,passed] of checks){assert.ok(passed,name);console.log('OK',name)}
 let ts;try{ts=require('typescript')}catch{try{ts=require('/opt/nvm/versions/node/v22.16.0/lib/node_modules/typescript')}catch{ts=null}}
