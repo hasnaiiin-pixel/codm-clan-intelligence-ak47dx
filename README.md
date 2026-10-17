@@ -1,3 +1,7 @@
+# AK47DX V14.2 FIX31F TEST — ultima release Rubrica
+
+Consulta **README_FIX31F_EXPORT_WHATSAPP_RUOLI_MOBILE.md** prima del deploy. Eseguire lo script SQL `supabase/UPDATE_V14_2_FIX31F_WHATSAPP_RUOLI_HOTFIX.sql` dopo FIX31E; le esportazioni con telefoni sono riservate a utenti con `view_contacts`, `export_shared` e `view_phone`.
+
 # AK47DX Clan Manager — V14.2 FIX30 TEST
 
 **Rubrica Pro:** gruppi per ruoli, foto private CODM/personale nel popup, compleanni, mappa autorizzata, Excel/WhatsApp completo e condivisibile, riconciliazione nickname screenshot.

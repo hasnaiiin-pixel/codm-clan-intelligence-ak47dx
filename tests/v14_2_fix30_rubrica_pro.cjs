@@ -13,7 +13,7 @@ const tests=[
 ['map no address GPS',read('app/rubrica/RubricaCityMap.tsx').includes('nessun indirizzo')||read('app/rubrica/RubricaCityMap.tsx').includes('nessun indirizzo'.replace('nessun','Nessun'))],
 ['export complete workbook',extra.includes('Excel completo Staff')&&extra.includes('Storico nickname')],
 ['export shared workbook',extra.includes('Excel condivisibile')],
-['share phone opt-in',read('supabase/UPDATE_V14_2_FIX31E_RUBRICA_STATO_RUOLI_EXPORT_ACCESSI.sql').includes('c.share_phone=true')&&page.includes('Autorizza la condivisione')],
+['shared phone export gated by staff permissions, no per-contact opt-in FIX31F',!read('supabase/UPDATE_V14_2_FIX31F_WHATSAPP_RUOLI_HOTFIX.sql').includes('c.share_phone=true')&&!page.includes('Autorizza la condivisione')],
 ['whatsapp single block',extra.includes('setContent(text)')&&extra.includes('UN SOLO BLOCCO')],
 ['roles distinct contacts',sql.includes('public.ak_rubrica_contacts')&&!sql.includes('DROP TABLE')],
 ['private bucket',sql.includes("'ak-rubrica-private',false")],

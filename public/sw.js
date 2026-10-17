@@ -1,5 +1,5 @@
-// Compatibilita cache precedenti: fix31a, fix31b, fix31c, fix31d.
-const CODM_CACHE = 'clan-manager-pwa-v14-2-fix31e-rubrica-accessi';
+// Compatibilita cache precedenti: fix31a, fix31b, fix31c, fix31d, fix31e.
+const CODM_CACHE = 'clan-manager-pwa-v14-2-fix31f-rubrica-export-ruoli-mobile';
 const CODM_OFFLINE_URL = '/offline.html';
 const CORE_ASSETS = [CODM_OFFLINE_URL, '/manifest.webmanifest', '/icons/icon-192.png', '/icons/icon-512.png', '/icons/icon-maskable-512.png'];
 

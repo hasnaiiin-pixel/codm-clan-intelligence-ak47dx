@@ -106,7 +106,7 @@ BEGIN
   RAISE EXCEPTION 'Permesso modifica mancante' USING ERRCODE='42501'; END IF;
  SELECT clan_role INTO v_main FROM public.ak_rubrica_contacts WHERE id=p_contact_id AND NOT archived FOR UPDATE;
  IF NOT FOUND THEN RAISE EXCEPTION 'Contatto non trovato'; END IF;
- IF pg_catalog.coalesce(pg_catalog.array_length(p_roles,1),0)>12 THEN RAISE EXCEPTION 'Massimo 12 incarichi'; END IF;
+ IF COALESCE(pg_catalog.array_length(p_roles,1),0)>12 THEN RAISE EXCEPTION 'Massimo 12 incarichi'; END IF;
  IF EXISTS(SELECT 1 FROM pg_catalog.unnest(COALESCE(p_roles,ARRAY[]::text[])) AS rol(v)
    WHERE btrim(v)='' OR length(v)>60 OR v IS NULL) THEN RAISE EXCEPTION 'Ruolo aggiuntivo non valido'; END IF;
  SELECT COALESCE(pg_catalog.array_agg(r ORDER BY r),ARRAY[]::text[]) INTO v_clean FROM (
@@ -174,7 +174,7 @@ BEGIN
 END; $$;
 
 -- Server-side export: controlli espliciti per export, privati e telefono.
--- La versione condivisibile restituisce sempre solo nickname, UID, ruolo e telefono OPT-IN.
+-- La versione condivisibile restituisce nickname, UID, ruoli e telefono a operatori con export_shared e view_phone (senza flag contatto).
 CREATE OR REPLACE FUNCTION public.ak_rubrica_export(p_mode text DEFAULT 'shared',p_only_active boolean DEFAULT true)
 RETURNS jsonb LANGUAGE plpgsql STABLE SECURITY DEFINER SET search_path='' AS $$
 DECLARE v jsonb; v_full boolean := p_mode='staff';
@@ -183,8 +183,8 @@ BEGIN
  IF p_mode NOT IN('shared','staff') THEN RAISE EXCEPTION 'Modalita export non valida'; END IF;
  IF v_full AND NOT (public.ak_rubrica_allowed('export_staff') AND public.ak_rubrica_allowed('view_private_details')) THEN
   RAISE EXCEPTION 'Export Staff non autorizzato' USING ERRCODE='42501'; END IF;
- IF NOT v_full AND NOT public.ak_rubrica_allowed('export_shared') THEN
-  RAISE EXCEPTION 'Export condivisibile non autorizzato' USING ERRCODE='42501'; END IF;
+ IF NOT v_full AND NOT (public.ak_rubrica_allowed('export_shared') AND public.ak_rubrica_allowed('view_phone')) THEN
+  RAISE EXCEPTION 'Export condivisibile richiede export_shared e view_phone' USING ERRCODE='42501'; END IF;
  SELECT COALESCE(pg_catalog.jsonb_agg(
   (CASE WHEN v_full THEN public.ak_rubrica_redact(c)
    || pg_catalog.jsonb_build_object('history',(
@@ -193,7 +193,7 @@ BEGIN
     FROM public.ak_rubrica_nickname_history h WHERE h.contact_id=c.id))
    ELSE pg_catalog.jsonb_build_object(
      'nickname',c.nickname,'uid',c.uid,'clan_role',c.clan_role,'secondary_roles',c.secondary_roles,
-     'phone',CASE WHEN c.share_phone=true AND public.ak_rubrica_allowed('view_phone') THEN c.phone ELSE NULL END)
+     'phone',c.phone)
    END)
   ORDER BY CASE WHEN c.clan_role IN('Fondatore','Capo Clan') THEN 0 WHEN c.clan_role IN('Co-Capo','Vice Capo') THEN 1
    WHEN c.clan_role IN('Staff','Moderatore','Responsabile Scrim','Responsabile Tornei','Responsabile Reclutamento','Allenatore','Responsabile Rubrica','Responsabile Staff','Capitano Team','Vice Capitano','Organizzatore Eventi','Responsabile Statistiche','Admin Clan') THEN 2

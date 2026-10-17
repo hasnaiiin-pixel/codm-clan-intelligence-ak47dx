@@ -1,6 +1,6 @@
 {
   "name": "clan-manager-ak47dx",
-  "version": "14.2.0-test",
+  "version": "14.2.0-fix31f-test",
   "private": true,
   "scripts": {
     "dev": "next dev",
@@ -24,7 +24,8 @@
     "test:fix31b": "node tests/v14_2_fix31b_map_screenshots.cjs",
     "test:fix31c": "node tests/v14_2_fix31c_full_codm_names.cjs",
     "test:fix31d": "node tests/v14_2_fix31d_unmatched_review.cjs",
-    "test:fix31e": "node tests/v14_2_fix31e_rubrica_status_access_exports.cjs"
+    "test:fix31e": "node tests/v14_2_fix31e_rubrica_status_access_exports.cjs",
+    "test:fix31f": "node tests/v14_2_fix31f_exports_roles_mobile.cjs"
   },
   "engines": {
     "node": ">=22.0.0 <25"

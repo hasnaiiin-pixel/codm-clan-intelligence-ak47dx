@@ -3,7 +3,7 @@
 import { Fragment, useCallback, useEffect, useMemo, useState } from 'react';
 import { supabase } from '@/lib/supabaseClient';
 import { useCodmAuth } from '@/lib/authRoles';
-import { ContactRound, Search, Plus, Pencil, X, Save, History, ShieldCheck, MessageCircle, Instagram, Facebook, Youtube, Send, ExternalLink, Archive, RefreshCw, Camera, CalendarDays, MapPin, FileDown } from 'lucide-react';
+import { ContactRound, Search, Plus, Pencil, X, Save, History, ShieldCheck, MessageCircle, Instagram, Facebook, Youtube, Send, ExternalLink, Archive, RefreshCw, Camera, CalendarDays, MapPin, FileDown, ChevronDown, FolderArchive } from 'lucide-react';
 import {RubricaBirthdayCalendar,RubricaMap,RubricaExportCenter,RubricaMatchReview} from './RubricaExtras';
 import RubricaOrgChart from './RubricaOrgChart';
 import RubricaAccessPanel from './RubricaAccessPanel';
@@ -73,6 +73,7 @@ export default function RubricaPage(){
   const [error,setError]=useState('');
   const [accessOpen,setAccessOpen]=useState(false);
   const [archivedOpen,setArchivedOpen]=useState(false);
+  const [adminToolsOpen,setAdminToolsOpen]=useState(false);
   const [archivedItems,setArchivedItems]=useState<Contact[]>([]);
   const [grantEmail,setGrantEmail]=useState('');
   const [grantFlags,setGrantFlags]=useState<Flags>({view_contacts:true});
@@ -132,7 +133,6 @@ export default function RubricaPage(){
     payload.clan_role=editing.clan_role;
     payload.clan_status=editing.clan_status;
     payload.whatsapp_group=editing.whatsapp_group;
-    if(flags.view_phone)payload.share_phone=!!editing.share_phone;
     // FIX31B: la posizione e il consenso devono essere salvati dal metodo protetto dedicato.
     // Il vecchio RPC conserva i campi anagrafici; il nuovo RPC aggiorna coordinate e consenso.
     if(editing.map_opt_in&&(!editing.city?.trim()||!editing.country?.trim()||typeof editing.city_lat!=='number'||typeof editing.city_lon!=='number')){
@@ -225,18 +225,26 @@ export default function RubricaPage(){
       <div className="ak-rubrica-count"><b>{items.length}</b><span>Contatti · {countByStatus} attivi</span></div>
     </section>
     <nav className="ak30-nav" aria-label="Sezioni Rubrica Clan">
-      {([['rubrica','🎮 Giocatori'],['organigramma','🏆 Organigramma'],...(flags.view_private_details?[['compleanni','🎂 Compleanni'],['mappa','📍 Mappa'],['export','📤 Esportazioni']]:[]),...(flags.manage_access?[['screenshot','🎮 Nomi da screenshot']]:[])] as [typeof section,string][]).map(([id,name])=><button type="button" className={'ak30-navbutton'+(section===id?' active':'')} key={id} onClick={()=>{setQuery('');setSection(id);}}>{name}</button>)}
+      {([['rubrica','🎮 Giocatori'],['organigramma','🏆 Organigramma'],...(flags.view_private_details?[['compleanni','🎂 Compleanni'],['mappa','📍 Mappa']]:[]),...((flags.export_shared&&flags.view_phone)||(flags.export_staff&&flags.view_private_details)?[['export','📤 Esportazioni']]:[]),...(flags.manage_access?[['screenshot','🎮 Nomi da screenshot']]:[])] as [typeof section,string][]).map(([id,name])=><button type="button" className={'ak30-navbutton'+(section===id?' active':'')} key={id} onClick={()=>{setQuery('');setSection(id);setAdminToolsOpen(false);}}>{name}</button>)}
     </nav>
     {section==='rubrica'&&<>
-    <section className="card ak-rubrica-controls">
+    <section className="card ak-rubrica-controls ak31f-controls">
       <label className="ak-rubrica-search"><Search size={18} aria-hidden/><input value={query} onChange={e=>setQuery(e.target.value)} placeholder="Cerca nickname, UID, nome o vecchio nickname" aria-label="Cerca contatti"/></label>
-      <button type="button" className="btn secondary" onClick={refresh} disabled={loading} title="Aggiorna elenco"><RefreshCw size={16} aria-hidden/> Aggiorna</button>
-      {flags.edit_contacts&&<button type="button" className="btn" onClick={()=>void openContact({...EMPTY},true)}><Plus size={16} aria-hidden/> Nuovo contatto</button>}
-      {flags.manage_access&&<><button type="button" className="btn secondary" onClick={()=>setAccessOpen(!accessOpen)}><ShieldCheck size={16} aria-hidden/> Gestione accessi</button><button type="button" className="btn secondary" onClick={()=>{setArchivedOpen(!archivedOpen);if(!archivedOpen)void loadArchived();}}>📁 Archivio / eliminazione</button></>}
+      <div className="ak31f-main-actions">
+        {flags.edit_contacts&&<button type="button" className="btn ak31f-create" onClick={()=>void openContact({...EMPTY},true)}><Plus size={17} aria-hidden/> <span>Nuovo contatto</span></button>}
+        <button type="button" className="btn secondary ak31f-refresh" onClick={refresh} disabled={loading} title="Aggiorna elenco" aria-label="Aggiorna elenco"><RefreshCw size={17} aria-hidden/><span>Aggiorna</span></button>
+      </div>
+      {flags.manage_access&&<details className="ak31f-admin-tools" onToggle={e=>setAdminToolsOpen(e.currentTarget.open)}>
+        <summary><ShieldCheck size={18} aria-hidden/><span>Strumenti amministrativi</span><ChevronDown className="ak31f-chevron" size={18} aria-hidden/></summary>
+        <div className="ak31f-admin-actions">
+          <button type="button" className="btn secondary" aria-expanded={accessOpen} onClick={()=>setAccessOpen(v=>!v)}><ShieldCheck size={17} aria-hidden/> Gestione accessi</button>
+          <button type="button" className="btn secondary" aria-expanded={archivedOpen} onClick={()=>{setArchivedOpen(v=>!v);if(!archivedOpen)void loadArchived();}}><FolderArchive size={17} aria-hidden/> Archivio / eliminazione</button>
+        </div>
+      </details>}
     </section>
     {status&&<p className="notice" role="status">{status}</p>}{error&&<p className="notice" role="alert">{error}</p>}
-    {accessOpen&&flags.manage_access&&<RubricaAccessPanel/>}
-    {archivedOpen&&flags.manage_access&&<section className="card ak31e-archive"><h2>📁 Archivio contatti</h2><p className="muted">Prima archivia un contatto dalla scheda. Qui puoi ripristinarlo oppure eliminarlo definitivamente, se non esistono fotografie ancora collegate o riferimenti che impediscono l'operazione.</p>
+    {accessOpen&&adminToolsOpen&&flags.manage_access&&<RubricaAccessPanel/>}
+    {archivedOpen&&adminToolsOpen&&flags.manage_access&&<section className="card ak31e-archive"><h2>📁 Archivio contatti</h2><p className="muted">Prima archivia un contatto dalla scheda. Qui puoi ripristinarlo oppure eliminarlo definitivamente, se non esistono fotografie ancora collegate o riferimenti che impediscono l'operazione.</p>
       {archivedItems.map(p=><div className="ak31e-access-row" key={p.id}><div><strong>{p.nickname}</strong><small>{p.uid||'🔴 UID mancante'}</small></div><div className="ak31e-access-actions"><button className="btn secondary" onClick={()=>void restore(p)}>↩️ Ripristina</button><button className="btn danger" onClick={()=>void deletePermanently(p)}>🗑️ Elimina definitivamente</button></div></div>)}
       {!archivedItems.length&&<p className="muted">Nessun contatto archiviato.</p>}
     </section>}
@@ -259,7 +267,7 @@ export default function RubricaPage(){
     {section==='organigramma'&&<RubricaOrgChart people={items} onSelect={(person)=>{const current=items.find(p=>p.id===person.id);if(current)void openContact(current);}}/>}
     {section==='compleanni'&&flags.view_private_details&&<RubricaBirthdayCalendar people={items}/>} 
     {section==='mappa'&&flags.view_private_details&&<RubricaMap people={items}/>} 
-    {section==='export'&&flags.view_private_details&&<RubricaExportCenter permissions={flags}/>} 
+    {section==='export'&&((flags.export_shared&&flags.view_phone)||(flags.export_staff&&flags.view_private_details))&&<RubricaExportCenter permissions={flags}/>} 
     {section==='screenshot'&&flags.manage_access&&<RubricaMatchReview onRefresh={refresh} people={items}/>}
     {editing&&<div className="ak-rubrica-modal-backdrop" onMouseDown={e=>{if(e.target===e.currentTarget)setEditing(null);}}>
       <section role="dialog" aria-modal="true" aria-labelledby="rubrica-dialog-title" className="ak-rubrica-modal">
@@ -284,7 +292,13 @@ export default function RubricaPage(){
             return <Fragment key={key}>{header[key]&&<h3 className="ak-rubrica-section-label">{header[key]}</h3>}<label className={key==='notes'?'ak-rubrica-wide':''}><span>{label}</span>{key==='notes'?<textarea className="textarea" value={val} disabled={disabled} maxLength={3000} rows={3} onChange={e=>setEditing(p=>p?{...p,[key]:e.target.value}:null)}/>:<input className="input" autoFocus={key==='nickname'} value={val} disabled={disabled} type={inputType} onChange={e=>setEditing(p=>p?{...p,[key]:e.target.value}:null)} placeholder={key==='uid'?'Solo cifre':undefined}/>}</label></Fragment>;
           })}
           <label><span>Ruolo nel clan</span><select className="select" disabled={!flags.edit_contacts} value={editing.clan_role||'Membro'} onChange={e=>setEditing(p=>p?{...p,clan_role:e.target.value}:null)}>{RUBRICA_ROLES.map(s=><option key={s.label} value={s.label}>{s.emoji} {s.label}</option>)}</select></label>
-          <fieldset className="ak31e-secondary-field ak-rubrica-wide"><legend>🎖️ Incarichi secondari (più ruoli contemporaneamente)</legend><p className="muted">Puoi assegnare più incarichi oltre al ruolo principale. Non modificano i permessi software.</p><div className="ak31e-role-choices">{RUBRICA_ROLES.filter(r=>r.label!==editing.clan_role).map(r=><label key={r.label}><input type="checkbox" checked={!!editing.secondary_roles?.includes(r.label)} onChange={e=>setEditing(p=>p?{...p,secondary_roles:e.target.checked?[...new Set([...(p.secondary_roles||[]),r.label])].slice(0,12):(p.secondary_roles||[]).filter(x=>x!==r.label)}:null)}/>{r.emoji} {r.label}</label>)}</div></fieldset>
+          <details className="ak31f-secondary-details ak-rubrica-wide" key={editing.id||'new-contact'}>
+            <summary><span className="ak31f-details-title">🎖️ Ruoli e incarichi aggiuntivi <small>{(editing.secondary_roles||[]).filter(r=>r!==editing.clan_role).length} selezionati</small></span><ChevronDown className="ak31f-chevron" size={18} aria-hidden/></summary>
+            {!!(editing.secondary_roles||[]).filter(r=>r!==editing.clan_role).length&&<div className="ak31f-selected-roles" aria-label="Incarichi selezionati">{(editing.secondary_roles||[]).filter(r=>r!==editing.clan_role).map(role=><span key={role}>{roleIcon(role)} {role}</span>)}</div>}
+            <div className="ak31f-secondary-content"><p className="muted">Puoi selezionare più incarichi, massimo 12. Aprire o chiudere la sezione non cancella le scelte e non cambia i permessi del sito.</p>
+              <div className="ak31e-role-choices">{RUBRICA_ROLES.filter(r=>r.label!==editing.clan_role).map(r=><label key={r.label}><input type="checkbox" disabled={!flags.edit_contacts} checked={!!editing.secondary_roles?.includes(r.label)} onChange={e=>setEditing(p=>p?{...p,secondary_roles:e.target.checked?[...new Set([...(p.secondary_roles||[]),r.label])].slice(0,12):(p.secondary_roles||[]).filter(x=>x!==r.label)}:null)}/><span>{r.emoji} {r.label}</span></label>)}</div>
+            </div>
+          </details>
           <label><span>Stato clan (indipendente da WhatsApp e completezza)</span><select className="select" disabled={!flags.edit_contacts} value={editing.clan_status||'Da verificare'} onChange={e=>setEditing(p=>p?{...p,clan_status:e.target.value}:null)}>{['Attivo','Non attivo','Ex membro','Non in clan','Ospite','Da verificare'].map(st=><option key={st}>{st}</option>)}</select></label>
           <p className="ak-rubrica-wide muted">✅ Se selezioni Attivo, il giocatore comparirà sempre negli Attivi anche se mancano telefono o UID.</p>
           <div className="ak31b-location ak-rubrica-wide"><h3>📍 Mappa — città e consenso</h3>
@@ -294,7 +308,6 @@ export default function RubricaPage(){
             {selectedCity&&<small className="muted">Località scelta: {selectedCity.city}, {selectedCity.country}. Premi “Salva scheda” per renderla visibile sulla mappa.</small>}
           </div>
           {flags.manage_access&&<label className="ak-rubrica-check ak-rubrica-wide"><input type="checkbox" checked={!!editing.public_profile_opt_in} onChange={e=>setEditing(p=>p?{...p,public_profile_opt_in:e.target.checked}:null)}/> Consenso verificato: autorizza la pubblicazione di nickname/UID/ruolo sulla pagina visitatori, se abilitata dall'Owner</label>}
-          {flags.view_phone&&<label className="ak-rubrica-check"><input type="checkbox" disabled={!flags.edit_contacts} checked={!!editing.share_phone} onChange={e=>setEditing(p=>p?{...p,share_phone:e.target.checked}:null)}/> Autorizza la condivisione del numero nella versione WhatsApp per tutti</label>}
           <label className="ak-rubrica-check"><input type="checkbox" disabled={!flags.edit_contacts} checked={editing.whatsapp_group!==false} onChange={e=>setEditing(p=>p?{...p,whatsapp_group:e.target.checked}:null)}/> Presente nel gruppo WhatsApp</label>
         </div>}
         {!flags.view_private_details&&<p className="muted">👤 Accesso membro: vengono mostrati solo nickname CODM, UID e ruolo. Per dettagli privati serve un'autorizzazione specifica.</p>}

@@ -8,7 +8,7 @@ type PublicSettings={enabled:boolean;show_nickname:boolean;show_uid:boolean;show
 const ALL_FLAGS:[string,string][]=[
  ['view_contacts','🎮 Nickname CODM e UID'],['view_private_details','📒 Anagrafica, compleanni, città'],
  ['view_phone','📞 Leggere numeri telefonici'],['view_social','🌐 Social e foto private'],
- ['view_notes','📝 Note private'],['export_shared','📋 Esportazione condivisibile'],
+ ['view_notes','📝 Note private'],['export_shared','📋 Esportazione WhatsApp/Excel con numeri'],
  ['export_staff','🔒 Esportazione Staff'],['edit_contacts','✏️ Modificare schede'],
  ['change_nickname','🎮 Cambiare nickname CODM'],['archive_contacts','📁 Archiviare contatti']];
 const EMPTY:Flags={view_contacts:true};
@@ -42,9 +42,9 @@ export default function RubricaAccessPanel(){
     <div><strong>{g.email}</strong><small>Ultima modifica: {new Date(g.updated_at).toLocaleString('it-IT')}</small><div className="ak31e-chips">{ALL_FLAGS.filter(([k])=>g.flags?.[k]).map(([k,l])=><span key={k}>{l}</span>)}{!Object.values(g.flags||{}).some(Boolean)&&<span>Accesso negato</span>}</div></div>
     <div className="ak31e-access-actions"><button type="button" className="btn secondary" onClick={()=>{setEmail(g.email);setFlags({...g.flags});}}>✏️ Modifica</button><button type="button" className="btn danger" disabled={busy} onClick={()=>void revoke(g)}><Trash2 size={15}/> Revoca</button></div>
   </article>)}{!grants.length&&<p className="muted">Nessun permesso individuale registrato. L'Owner conserva accesso automatico.</p>}</div>
-  <div className="ak31e-access-editor"><h3>Concedi o modifica accesso</h3><label>Account registrato (email)<input className="input" type="email" value={email} onChange={e=>setEmail(e.target.value)} placeholder="email già registrata"/></label>
+  <div className="ak31e-access-editor"><h3>Concedi o modifica accesso</h3><p className="muted">Per autorizzare l'esportazione condivisibile con telefoni, abilita sia «Esportazione WhatsApp/Excel con numeri» sia «Leggere numeri telefonici». Non servono consensi nella singola scheda. I permessi dell'app restano indipendenti dai ruoli CODM.</p><label>Account registrato (email)<input className="input" type="email" value={email} onChange={e=>setEmail(e.target.value)} placeholder="email già registrata"/></label>
   <div className="ak31e-access-actions"><button type="button" className="btn secondary" onClick={()=>setFlags({view_contacts:true})}>🎮 Membro: solo nickname e UID</button><button type="button" className="btn secondary" onClick={()=>setFlags({view_contacts:true,view_private_details:true})}>🛡️ Staff: personalizza</button></div>
-  <div className="ak31e-role-choices">{ALL_FLAGS.map(([k,label])=><label key={k}><input type="checkbox" checked={!!flags[k]} onChange={e=>setFlags(f=>({...f,[k]:e.target.checked}))}/><span>{label}</span></label>)}</div>
+  <div className="ak31e-role-choices">{ALL_FLAGS.map(([k,label])=><label key={k}><input type="checkbox" checked={!!flags[k]} onChange={e=>setFlags(f=>({...f,[k]:e.target.checked,...(k==='export_shared'&&e.target.checked?{view_phone:true}:{}),...(k==='view_phone'&&!e.target.checked?{export_shared:false}:{})}))}/><span>{label}</span></label>)}</div>
   <button type="button" className="btn" disabled={busy||!email.includes('@')} onClick={()=>void save()}><Save size={16}/> Salva permessi</button></div>
   <div className="ak31e-public-settings"><h3><Globe size={19}/> Visibilità visitatori non registrati</h3><p className="muted">Disattivata per default. Mostra soltanto profili di giocatori attivi autorizzati individualmente alla pubblicazione. Mai telefoni, anagrafica, compleanni o città.</p>
   <label className="ak-rubrica-check"><input type="checkbox" checked={pub.enabled} onChange={e=>setPub(p=>({...p,enabled:e.target.checked}))}/> Abilita pagina Rubrica pubblica</label>

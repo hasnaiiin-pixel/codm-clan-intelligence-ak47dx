@@ -10,7 +10,7 @@ const checks=[
  ['Multi roles write through protected RPC',page.includes("supabase.rpc('ak_rubrica_set_secondary_roles'")],
  ['Multi roles strictly secondary to main',sql.includes('btrim(v)<>COALESCE(v_main')],
  ['Clan roles do not confer app privileges',!sql.includes('clan_role=\'owner\'')],
- ['Sharing phone requires explicit consent and permission',sql.includes('c.share_phone=true')&&sql.includes("ak_rubrica_allowed('view_phone')")],
+ ['Shared phone export requires staff permissions (FIX31F)',!sql.includes('c.share_phone=true')&&sql.includes("ak_rubrica_allowed('view_phone')")&&sql.includes("ak_rubrica_allowed('export_shared')")],
  ['Export checked on server for shared',sql.includes("ak_rubrica_allowed('export_shared')")],
  ['Export checked on server for staff',sql.includes("ak_rubrica_allowed('export_staff')")],
  ['Export one block',exp.includes('setContent(text)')&&exp.includes('UN SOLO BLOCCO')],
